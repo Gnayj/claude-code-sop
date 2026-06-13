@@ -1,0 +1,220 @@
+#!/usr/bin/env node
+// MCP server entry. Wires config -> safety -> codex client -> review flow -> MCP transport.
+//
+// Spec source: docs/methodology/codex-review-bridge-design.md §2 (整体架构) + §10 (代码组织)
+import { existsSync } from "node:fs";
+import { dirname, resolve as resolvePath } from "node:path";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
+import { loadConfig, resolveProjectPath } from "./config.js";
+import { enforceMinSafetyPolicy } from "./safety.js";
+import { createReviewProvider } from "./providers/factory.js";
+import { ThreadManager } from "./thread-manager.js";
+import { PromptRenderer } from "./prompt-renderer.js";
+import { BreakerEngine, initialBreakerState } from "./circuit-breakers.js";
+import { designReviewToolName, designReviewToolSchema, handleDesignReview, } from "./tools/design-review.js";
+import { codeReviewToolName, codeReviewToolSchema, handleCodeReview, } from "./tools/code-review.js";
+import { fixReviewToolName, fixReviewToolSchema, handleFixReview, } from "./tools/fix-review.js";
+function parseArgs(argv) {
+    let configPath = "";
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i];
+        if (arg === "--config" && i + 1 < argv.length) {
+            configPath = argv[i + 1];
+            i++;
+        }
+    }
+    if (!configPath) {
+        throw new Error("Usage: codex-review-mcp --config <path-to-.codex-review/config.toml>");
+    }
+    return { configPath: resolvePath(configPath) };
+}
+// Process-level guards: log diagnostics but do NOT crash the process on transient errors;
+// stdio MCP transport must remain alive while stdin is open.
+process.on("uncaughtException", (err) => {
+    process.stderr.write(`[codex-review-mcp] uncaughtException: ${err.message}\n${err.stack ?? ""}\n`);
+});
+process.on("unhandledRejection", (reason) => {
+    const r = reason;
+    process.stderr.write(`[codex-review-mcp] unhandledRejection: ${r?.message ?? String(reason)}\n`);
+});
+async function main() {
+    process.stderr.write(`[codex-review-mcp] starting (pid=${process.pid})\n`);
+    const { configPath } = parseArgs(process.argv.slice(2));
+    // Degraded-start (graceful): a missing / invalid config must NOT crash the server — the MCP
+    // client reports a crash as "Connection closed". Instead the bridge still connects + lists its
+    // tools, and tool CALLS return a clear, actionable error. The common case is a fresh install
+    // before /sop-init has written .codex-review/config.toml.
+    let deps = null;
+    let configError = null;
+    try {
+        if (!existsSync(configPath)) {
+            configError =
+                `ccsop review bridge: config not found at ${configPath}. ` +
+                    `Run /sop-init to scaffold .codex-review/config.toml, then /reload-plugins.`;
+        }
+        else {
+            const loaded = loadConfig({ configPath });
+            // Defense in depth: reject any project config that tries to relax MIN_SAFETY_POLICY.
+            enforceMinSafetyPolicy(loaded.config, loaded.raw);
+            const baseDir = dirname(configPath);
+            const config = loaded.config;
+            const projectRoot = resolveProjectPath(config, baseDir, ".");
+            const sessionsDir = resolveProjectPath(config, baseDir, config.paths.sessions_dir);
+            const archiveDir = resolveProjectPath(config, baseDir, config.paths.archive_dir);
+            const threadManager = new ThreadManager({
+                sessionsDir,
+                archiveDir,
+                lockTimeoutSeconds: config.state.lock_timeout_seconds,
+            });
+            const promptRenderer = new PromptRenderer(config, projectRoot);
+            const breakers = new BreakerEngine(config);
+            const breakerState = initialBreakerState();
+            // Select the review backend from config.review.provider (design §4.7). The factory
+            // constructs the SDK-backed client internally for codex / claude.
+            const provider = createReviewProvider({
+                config,
+                workingDirectory: projectRoot,
+                sessionsDir,
+            });
+            deps = {
+                config,
+                configBaseDir: baseDir,
+                provider,
+                threadManager,
+                promptRenderer,
+                breakers,
+                breakerState,
+            };
+        }
+    }
+    catch (err) {
+        // Invalid config (schema / safety-policy / provider-selection): stay degraded with the
+        // specific reason rather than crashing the transport.
+        configError = `ccsop review bridge: config load failed for ${configPath}: ${err.message}`;
+    }
+    if (configError) {
+        process.stderr.write(`[codex-review-mcp] degraded: ${configError}\n`);
+    }
+    const server = new Server({
+        name: "codex-review-mcp",
+        version: "0.1.0",
+    }, {
+        capabilities: { tools: {} },
+    });
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+        tools: [
+            designReviewToolSchema,
+            codeReviewToolSchema,
+            fixReviewToolSchema,
+        ],
+    }));
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+        const { name, arguments: args } = request.params;
+        // Degraded mode: no usable config → return the actionable reason instead of dispatching.
+        if (deps === null) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({ ok: false, error: configError ?? "ccsop review bridge not initialized" }, null, 2),
+                    },
+                ],
+            };
+        }
+        const d = deps; // narrowed to FlowDependencies for the closure below
+        const dispatch = async () => {
+            if (name === designReviewToolName) {
+                return handleDesignReview(d, args ?? {});
+            }
+            if (name === codeReviewToolName) {
+                return handleCodeReview(d, args ?? {});
+            }
+            if (name === fixReviewToolName) {
+                return handleFixReview(d, args ?? {});
+            }
+            throw new Error(`Unknown tool: ${name}`);
+        };
+        try {
+            const result = await dispatch();
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            ok: result.ok,
+                            envelope: result.envelope ?? null,
+                            breaker_tripped: result.breakerTripped ?? null,
+                            warnings: result.warnings,
+                            // Manual two-phase prepare (design §4.7): no parse ran; surface the awaiting control result.
+                            awaiting_manual: result.awaitingManual ?? null,
+                            parse_failure: result.parseResult && !result.parseResult.ok
+                                ? result.parseResult
+                                : null,
+                        }, null, 2),
+                    },
+                ],
+            };
+        }
+        catch (err) {
+            return {
+                isError: true,
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({
+                            ok: false,
+                            error: err.message,
+                            stack: err.stack,
+                        }, null, 2),
+                    },
+                ],
+            };
+        }
+    });
+    // Surface "ready" BEFORE connect so observers can grep stderr even if a downstream
+    // bug terminates the connect handshake.
+    process.stderr.write(`[codex-review-mcp] ready (config=${configPath}, mode=${deps ? "active" : "degraded"})\n`);
+    const transport = new StdioServerTransport();
+    process.stderr.write(`[codex-review-mcp] before-connect\n`);
+    try {
+        await server.connect(transport);
+    }
+    catch (err) {
+        process.stderr.write(`[codex-review-mcp] connect-failed: ${err.message}\n${err.stack ?? ""}\n`);
+        throw err;
+    }
+    process.stderr.write(`[codex-review-mcp] after-connect\n`);
+    // Keep the Node event loop alive with a refed timer.
+    // `await new Promise(() => {})` is NOT sufficient: a never-resolving promise has no
+    // refed handle on its own; if stdin happens to be paused / unrefed in some sandbox
+    // setups, Node will treat the loop as empty and exit.  A real refed setInterval
+    // guarantees we stay alive regardless of stdin behavior.
+    // `process.stdin.resume()` is also called explicitly to ref the stdin handle in
+    // environments where the SDK's `.on('data', ...)` does not auto-resume.
+    process.stdin.resume();
+    const keepAlive = setInterval(() => {
+        /* refed no-op; runtime cost ~0 */
+    }, 60_000);
+    process.on("SIGINT", () => {
+        clearInterval(keepAlive);
+        process.stderr.write(`[codex-review-mcp] SIGINT — exiting\n`);
+        process.exit(0);
+    });
+    process.on("SIGTERM", () => {
+        clearInterval(keepAlive);
+        process.stderr.write(`[codex-review-mcp] SIGTERM — exiting\n`);
+        process.exit(0);
+    });
+    process.stderr.write(`[codex-review-mcp] entering serve loop\n`);
+}
+main().catch((err) => {
+    process.stderr.write(`[codex-review-mcp] fatal: ${err.message}\n`);
+    if (err.stack) {
+        process.stderr.write(`${err.stack}\n`);
+    }
+    process.exit(1);
+});
+//# sourceMappingURL=server.js.map

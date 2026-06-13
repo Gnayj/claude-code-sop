@@ -1,4 +1,4 @@
-# Build + install artifacts — the install wizard (design §4.9) runs `npm install && npm run build`.
+# Install artifacts. node_modules is reinstalled by the install wizard (design §4.9).
+# dist/ is intentionally committed in the published repo so installs need no build step.
 node_modules/
-dist/
 *.tsbuildinfo
