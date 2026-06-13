@@ -18,10 +18,10 @@ Install the plugin, run `/sop-init`, pick a review provider, and start shipping 
 ## Quickstart
 
 ```text
-1. install ccsop (plugin marketplace / --plugin-dir)
+1. install ccsop             → /plugin marketplace add Gnayj/claude-code-sop ; /plugin install ccsop@gnayj
 2. /sop-init                 → scaffold docs/ + .codex-review/config.toml + .ccsop/manifest.json
                                (asks: project name, language, review provider, translation provider)
-3. configure the provider    → codex: build the bridge + Codex login
+3. configure the provider    → codex: install bridge deps (npm install) + Codex login
                                claude: export ANTHROPIC_API_KEY
                                manual: nothing
 4. write your first design   → docs/design/<module>/<id>-design.md (from _template-design.txt)
@@ -36,27 +36,34 @@ At session start, invoke `/handoff` for a ~150-line state summary instead of rea
 
 ## Installing & first run
 
-ccsop is a Claude Code plugin. A few setup notes make the first run smooth:
+ccsop is a Claude Code plugin. Released installs ship the review bridge **prebuilt** (its compiled
+`dist/` is committed), so there's no TypeScript build step — you only ever run `npm install` once for
+the bridge's runtime dependencies.
 
-**Installing from a checkout (before it's in a marketplace).** Load ccsop from a **clean clone** —
-a clone contains exactly the plugin's tracked files, so only ccsop's own commands/agents/skills/bridge
-load:
+**Install from the marketplace (recommended).** Inside Claude Code:
+```text
+/plugin marketplace add Gnayj/claude-code-sop
+/plugin install ccsop@gnayj
+```
+ccsop is versioned by commit SHA — there's no version number to bump, so `/plugin marketplace update`
+always pulls the latest.
+
+**Or load from a clone** (e.g. to pin or hack on a revision):
 ```bash
-git clone <repo-url> /path/to/ccsop
-# build the review bridge once (its dist/ is produced on demand, not committed):
-cd /path/to/ccsop/mcp/codex-review && npm install && npm run build
-# launch Claude Code in your target repo with the plugin loaded:
+git clone https://github.com/Gnayj/claude-code-sop /path/to/ccsop
 cd /your/repo && claude --plugin-dir /path/to/ccsop
 ```
-Plugin commands are **namespaced** under the plugin, e.g. `/ccsop:sop-init`.
+
+Either way, plugin commands are **namespaced** under the plugin, e.g. `/ccsop:sop-init`.
 
 **First-run order.** The review bridge reads the config that `/sop-init` writes, so run them in this order:
 1. `/ccsop:sop-init` — scaffolds `docs/`, `.codex-review/config.toml`, and `.ccsop/manifest.json`,
-   and offers to build the bridge. It **only adds files** — it skips anything you already have, makes
-   no commit, and never overwrites without `--force` — so it's safe to adopt in an existing repo.
+   and offers to install the bridge's runtime dependencies (`npm install` in `mcp/codex-review/` —
+   no build, since `dist/` already ships). It **only adds files** — it skips anything you already
+   have, makes no commit, and never overwrites without `--force` — so it's safe to adopt in an existing repo.
 2. `/reload-plugins` (or restart) once after `/sop-init`, so the bridge picks up the new config.
-   Until the config exists and the bridge is built, the `ccsop-review` server stays connected-but-idle
-   and simply tells you to run `/sop-init` — no review work happens before setup is complete.
+   Until the config exists, the `ccsop-review` server stays connected-but-idle and simply tells you
+   to run `/sop-init` — no review work happens before setup is complete.
 
 **Providers are needed only at review time.** Scaffolding (`/sop-init`) needs no provider. Configure
 one when you're ready to review: `codex` (Codex login), `claude` (`ANTHROPIC_API_KEY` — Console
@@ -75,17 +82,28 @@ Switching providers is a one-line `review.provider` change in `.codex-review/con
 
 ## Workflow at a glance
 
-```
-clarify → design ──(§4.5 trigger)──> design review ──Go──> implement → /simplify → self-test
-                                                                                      │
-        closeout ◀── "test passed" ◀── user verify ◀── code review (Pass) ◀──────────┘
-            │
-            └─ ff-only merge to main (4 confirmation points: push feature / merge / push main / delete remote)
+```mermaid
+flowchart TD
+    A([clarify scope]) --> B[write design doc]
+    B -->|"§4.5 trigger"| DR{{design review}}
+    B -->|no trigger| I[implement on a branch]
+    DR -->|"Go / Go-after-fixes"| I
+    I --> S["/simplify pre-screen"]
+    S --> T[self-test]
+    T --> CR{{code review}}
+    CR -->|"Pass / Pass-after-fixes"| V[user verify]
+    CR -->|"No-Go / circuit breaker"| I
+    V -->|"test passed"| C[closeout]
+    C --> M([ff-only merge to main])
+
+    classDef review fill:#fff3cd,stroke:#d39e00,color:#000;
+    class DR,CR review;
 ```
 
-The reviewer runs read-only (no network, no write); the driver executes the verdict mechanically
-and only calls you on a circuit breaker or `No-Go`. Full flow, failure modes, and rollback playbook:
-`docs/methodology/workflow-overview.md`.
+The two yellow nodes are reviewer gates: the reviewer runs **read-only** (no network, no write) and
+the driver executes the verdict mechanically, only calling you on a circuit breaker or `No-Go`. The
+final merge passes **4 confirmation points** (push feature → merge → push main → delete remote). Full
+flow, failure modes, and rollback playbook: `docs/methodology/workflow-overview.md`.
 
 ## Commands & skills
 

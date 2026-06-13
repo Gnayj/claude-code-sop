@@ -67,28 +67,28 @@ For every materialized file, append an entry:
   (allow the bridge's read-only review commands; do not grant destructive prefixes).
 - These are `owner=ccsop` in the manifest.
 
-## Step 6 — MCP build + finish
+## Step 6 — MCP dependency install + finish
 
-- The review bridge ships as **source** under the plugin (`${CLAUDE_PLUGIN_ROOT}/mcp/codex-review`);
-  its `dist/` is gitignored, so a fresh install has no built server. **Build it** so the
-  `ccsop-review` MCP can start:
+- The review bridge ships **prebuilt** under the plugin (`${CLAUDE_PLUGIN_ROOT}/mcp/codex-review`):
+  its compiled `dist/` is committed in released installs, so a fresh install already has the server
+  and needs only its runtime dependencies installed (no build) for the `ccsop-review` MCP to start:
   - With the user's go-ahead (it runs `npm`), run:
-    `cd "${CLAUDE_PLUGIN_ROOT}/mcp/codex-review" && npm install && npm run build`.
+    `cd "${CLAUDE_PLUGIN_ROOT}/mcp/codex-review" && npm install`.
   - If node/npm is missing, offline, or the user declines, **print the command for them to run
-    later** and continue — do not fail `/sop-init` over the build.
-  - The bridge is **degraded-safe**: until it is built AND `.codex-review/config.toml` exists, the
-    `ccsop-review` MCP server either won't load or returns a clear "run /sop-init / build the
-    bridge" error rather than crashing. After building + this scaffold, run **`/reload-plugins`**
-    (or restart) so the server loads with the new config.
-  - For `provider=manual`, no build is strictly required to scaffold, but the bridge is still what
-    runs the manual two-phase flow, so building is recommended.
-- Print a per-file created/skipped summary + the manifest path + whether the bridge was built.
+    later** and continue — do not fail `/sop-init` over it.
+  - The bridge is **degraded-safe**: until its deps are installed AND `.codex-review/config.toml`
+    exists, the `ccsop-review` MCP server either won't load or returns a clear "run /sop-init /
+    install the bridge deps" error rather than crashing. After this scaffold + `npm install`, run
+    **`/reload-plugins`** (or restart) so the server loads with the new config.
+  - For `provider=manual`, deps aren't strictly required to scaffold, but the bridge is still what
+    runs the manual two-phase flow, so installing them is recommended.
+- Print a per-file created/skipped summary + the manifest path + whether the bridge dependencies were installed.
 - Final line: **"Next: `/reload-plugins` (to load the review bridge), then invoke `/handoff` or read `docs/records/current.md` and write your first design."**
 
 ## Boundaries
-- Work in the **target repo**, with ONE exception: the Step 6 bridge **build** may run
-  `npm install && npm run build` inside `${CLAUDE_PLUGIN_ROOT}/mcp/codex-review` (build only —
-  it produces `dist/`). Never **edit** the plugin's own templates/source; the build is the only
+- Work in the **target repo**, with ONE exception: the Step 6 bridge **dependency install** may run
+  `npm install` inside `${CLAUDE_PLUGIN_ROOT}/mcp/codex-review` (deps only — `dist/` already ships
+  prebuilt). Never **edit** the plugin's own templates/source; this `npm install` is the only
   permitted action outside the target repo.
 - Never overwrite an existing file without `--force` (and a backup).
 - Never write secrets into tracked files.
