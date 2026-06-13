@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-marketplace.json",
+  "name": "gnayj",
+  "owner": {
+    "name": "Gnayj"
+  },
+  "metadata": {
+    "description": "Gnayj's private plugin marketplace. Hosts ccsop — the Claude Code SOP delivery-workflow framework."
+  },
+  "plugins": [
+    {
+      "name": "ccsop",
+      "source": ".",
+      "description": "Claude Code SOP framework: an installable plugin packaging a document-driven delivery SOP, dual-model collaboration protocol, pluggable review MCP bridge (codex | claude | manual), tiered subagents, skills, doc scaffolding, and a model-tier strategy. Install, then run /sop-init."
+    }
+  ]
+}

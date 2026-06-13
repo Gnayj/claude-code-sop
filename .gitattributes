@@ -1,0 +1,14 @@
+# Cross-platform install: keep scripts/templates/config as LF. autocrlf working trees can
+# materialize CRLF, which breaks bash wrapper scripts / cron on deploy. This lock keeps the
+# framework and everything it scaffolds at LF.
+* text=auto eol=lf
+
+# Binaries (no eol conversion)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.xls binary
+*.xlsx binary

@@ -1,0 +1,119 @@
+# <Module> <Feature> Design — <design_id>
+
+design_id: <design_id>
+author: <driver>
+date: YYYY-MM-DD
+state: design draft (awaiting design review)
+related: <commits / upstream design / prior closeout>
+
+## 0. Collaboration mode
+
+Advanced per the active collaboration mode (see `docs/records/current.md §1 bullet 4`). If the
+design hits an SOP §4.5 trigger (see §9) → run design review (`codex_design_review`).
+
+## 1. Read first
+
+1. relevant sections of `docs/methodology/project-delivery-sop.md`
+2. `docs/methodology/claude-code-sop-collaboration.md` §2 + §4 + §4.5
+3. `docs/methodology/workflow-overview.md` (flow + failure modes + rollback)
+4. `docs/records/current.md` §1 + active pause points
+5. <this module's topic design doc>
+6. <related prior task cards / closeout docs>
+
+## 2. Background
+
+### 2.1 Trigger
+<what event / requirement / defect / probe finding / upstream decision triggered this design>
+
+### 2.2 Current baseline
+<the real state before the change: interfaces / data contract / flow / perf baseline / known constraints>
+
+### 2.3 Invariant hard constraints
+<boundaries this design must not violate: don't lower quality / don't change contract X / don't bypass review / ...>
+
+## 3. Goals
+On merge:
+- (A) <quantified metric 1>
+- (B) <quantified metric 2>
+- introduce no new <class> risk
+
+## 4. Scope (sub-items)
+
+### 4.1 Sub-item <name>
+**Behavior change**: <one line>
+**Key decision** (Q* — see §11): <locked item>
+**Files** (see §5): <files>
+
+(more sub-items as 4.2 / 4.3 / ...)
+
+## 5. New / changed file list
+
+| File | Type | Change | Sub-item |
+|---|---|---|---|
+| <path> | edit / new / delete | <one line> | <4.X> |
+
+implement commit order: <commit 1> → <commit 2> → ...
+
+**Implement-card decision** (`claude-code-sop-collaboration.md §4.1`):
+- §4 scope is single-round (N=1) → **no implement card**; fold the closeout summary into §14 here.
+- §4 scope splits into phases / relay / mid-round pause (N≥2) → **one implement card per phase** (from `_template-implement.txt`).
+
+## 6. Non-goals / boundary
+- ❌ do not <...>
+- ❌ do not <...>
+
+## 7. Risk + rollback
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| <risk> | <scope> | <mitigation> |
+
+**Rollback**: <path; see workflow-overview.md rollback playbook>
+
+## 8. Acceptance
+
+### 8.1 <Sub-item 1>
+- ✅ <observable condition>
+
+### 8.3 Overall
+- ✅ design review → Go / Go-after-fixes (design enum: {Go, Go-after-fixes, Rereview-after-fixes, No-Go})
+- ✅ code review → Pass / Pass-after-fixes (≤ 1 fix round)
+- ✅ user runs verify + replies "test passed"
+
+## 9. Design pre-review trigger decision
+- **trigger N (<name>)**: <why hit>
+- Net: **must / should / need not** run design review.
+
+## 10. Collaboration boundary
+- no implement before design review passes (Go / Go-after-fixes)
+- after implement + self-test, run code review; report "ready to test" on Pass / Pass-after-fixes
+- after the user's "test passed", the driver closes out (single-subject docs commit + card archive + `code-home:` line)
+- no merge to main before closeout; feature → main ff-only via the §4.6 4 confirmation points
+
+## 11. Locked decisions
+### Q1: <question>
+**A locked**: <answer>
+(Q2-QN same format; keep the decision-trace chain)
+
+## 12. Explicit questions for design review
+- **<point 1>**: <question> (cite §X.Y or a locked-decision id)
+
+## 13. Related
+- upstream design / cards: <path / commit>
+- issue / backlog: <link>
+
+## 14. Implementation record (backfill at closeout)
+- N=1: append the closeout summary here (no separate implement card).
+- N≥2: high-level summary linking each phase's implement-card closeout.
+Template:
+- design self-closeout: `docs(methodology): close out <design-id> design` (commit `<sha>`)
+- review chain: Round 1 <verdict / C+I count> → Round 2 (if any) <verdict>
+- /simplify decision: <TRIGGER / EXEMPT reason>
+- self-test / verify result: <RESULT: PASS / key log excerpt>
+- user verify: <"test passed" / key reply>
+- key deliverables: <list>
+- known leftovers / backlog: <list>
+
+## 15. code-home
+(backfill at closeout; legal values per SOP §3.4: `merged-to-main@<sha>` / `branch=<name>@<sha>(unmerged)` / `deployed@<sha>` / `doc-only` / `superseded-by@<sha>` / `reverted@<sha>`)
+code-home: <value>

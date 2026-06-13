@@ -1,0 +1,91 @@
+# <Module> <Feature> Implement — <design_id>
+
+> ⚠️ This template is ONLY for multi-round (N≥2) or relay round-switch cases.
+> Single-round implements (one design.md, done in one round + one closeout) do NOT need an
+> implement card — fold the closeout summary into design.md §14.
+> Criteria: `docs/methodology/claude-code-sop-collaboration.md §4.1` + `workflow-overview.md`.
+
+design_id: <design-id>
+phase: <phase name>
+author: <driver>
+date: YYYY-MM-DD
+state: implement (awaiting code review)
+related design: <docs/design/<module>/<id>-design.md>
+
+## 0. Collaboration mode
+Per the active mode (`docs/records/current.md §1 bullet 4`). After implement + self-test, run code
+review; report "ready to test" on Pass / Pass-after-fixes; closeout after the user's "test passed".
+
+## 1. Read first
+1. this card's design doc (above)
+2. `docs/methodology/project-delivery-sop.md` §4-§9
+3. `docs/methodology/claude-code-sop-collaboration.md` §4.6 (4 confirmation points to merge main)
+4. `docs/methodology/workflow-overview.md` (flow + failure modes + rollback)
+5. `docs/records/current.md` §1 + active pause points
+6. <code/config entry points this task touches>
+
+## 2. Background
+### 2.1 Referenced trigger
+<one-line reference to the design's trigger, no full repeat>
+### 2.2 This round's contract
+<which subset of design scope this round delivers; why a separate round contract>
+
+## 3. Goals
+This round delivers:
+- <verifiable deliverable 1>
+- passes code review + user verify
+
+## 4. Scope (commit list)
+On feature branch `<branch-name>`, N single-subject commits:
+1. **commit 1 (<sub-item>)**: <one line>
+2. **commit 2**: <one line>
+Each commit single-subject; runs its relevant build/test (see §8).
+
+## 5. Changed file list
+| File | Change | Commit |
+|---|---|---|
+| <path> | <one line> | <commit N> |
+
+## 6. Non-goals / boundary
+- ❌ nothing outside the design scope
+- ❌ no unreviewed design changes mixed in
+- ❌ no cross-sub-item commit
+
+## 7. /simplify trigger decision
+- changed suffix in the code allowlist AND 4-segment numstat (committed+staged+unstaged+untracked) ≥ 30 → run /simplify, self-fix, then code review
+- else exempt (record the reason in self-test evidence)
+
+## 8. Acceptance
+### 8.1 Self-test
+- ✅ build passes (`${BUILD_CMD}`)
+- ✅ tests pass (`${TEST_CMD}`)
+- ✅ /simplify decision executed (run / exempt, recorded)
+- ✅ incremental log window + key-path / verify scripts pass (SOP §6.4)
+### 8.2 User verify
+- copy-paste verify command:
+  ```bash
+  <verify command>
+  ```
+- pass criteria: <log keyword> / <interface behavior> / <perf or cache metric>
+### 8.3 Code review
+- ✅ verdict ∈ {Pass, Pass-after-fixes (≤ 1 fix round)}
+- ✅ 0 Critical; Important findings fixed in-place or accepted after retro
+
+## 9. Collaboration boundary
+- feature branch `<branch-name>` (off main, or off the prior phase's closeout sha)
+- single-subject commits (SOP §9.1)
+- no unilateral push / merge / branch-delete (collaboration §4.6 4 confirmation points)
+- no merge to main before closeout; closeout single commit = handoff closeout + card archive + `code-home:` backfill
+- closeout only after the user's "test passed"
+
+## 10. Closeout summary (backfill)
+- design ref: <path>
+- review chain: Round 1 <verdict / C+I> → Round 2 (if any) <verdict>
+- verify result: <RESULT: PASS / key log excerpt>
+- key deliverables: <list>
+- known leftovers / backlog: <list>
+
+## 11. (optional) new decisions during implement
+(if new decisions arose, lock Q1-QN here; else empty)
+
+code-home: <value backfilled at closeout; legal values per SOP §3.4>

@@ -1,0 +1,4 @@
+# Build + install artifacts — the install wizard (design §4.9) runs `npm install && npm run build`.
+node_modules/
+dist/
+*.tsbuildinfo

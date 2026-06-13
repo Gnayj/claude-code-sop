@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "ccsop",
+  "displayName": "ccsop — Claude Code SOP framework",
+  "version": "0.1.0",
+  "description": "Installable Claude Code plugin packaging a document-driven delivery SOP, dual-model collaboration protocol, pluggable review MCP bridge (codex | claude | manual), tiered subagents, skills, and doc scaffolding. Install, then run /sop-init to adopt the workflow in any repo.",
+  "author": {
+    "name": "Gnayj"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "sop",
+    "workflow",
+    "code-review",
+    "mcp",
+    "agents",
+    "delivery-process"
+  ],
+  "mcpServers": {
+    "ccsop-review": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mcp/codex-review/dist/server.js",
+        "--config",
+        "${CLAUDE_PROJECT_DIR}/.codex-review/config.toml"
+      ],
+      "env": {}
+    }
+  }
+}
