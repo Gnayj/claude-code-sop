@@ -36,8 +36,17 @@ Copy `${CLAUDE_PLUGIN_ROOT}/templates/docs-scaffold/` into the target `docs/`:
 - `{design,runbooks,references}/index.md`; `docs/README.md`
 - `records/current.md` — **only if absent**; fill `<PROJECT_NAME>` / `<YYYY-MM-DD>`; mark `owner=overlay`.
 
-If language ≠ en, run each file through the placeholder-protection translation pipeline (see
-`/sop-lang` Step "Pipeline") before writing — never translate machine-stable surfaces.
+If language ≠ en, resolve the translation **source** (see `docs/design/ccsop-framework/i18n-docs-design.md`).
+**First normalize the language alias to its canonical i18n dir** (`zh` / `zh_CN` / `zh-Hans` → **`zh-CN`**);
+use the canonical form for the manifest lookup, the copied artifacts, and the recorded `language` / `translation_source`:
+- **Maintained language** — `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json` exists:
+  **copy the vetted translated artifacts** for every in-scope target (provenance `translation_source=maintained`).
+  **All-or-nothing**: if any in-scope target is missing from the maintained manifest → **abort with the
+  missing-file list** (never silently mix with on-the-fly).
+- **Unmaintained language** — no such manifest: run each file through the placeholder-protection translation
+  pipeline (see `/sop-lang` Step "Pipeline") before writing — never translate machine-stable surfaces
+  (`translation_source=on-the-fly`).
+- Verify: `/sop-init --lang zh` resolves to `templates/i18n/zh-CN/` (maintained) and records `translation_source=maintained`, not fallback.
 
 **Idempotency & write policy by file class** (classify each target before writing):
 - **overlay** (`records/current.md`): create only if absent; never overwrite, even with `--force`.
@@ -61,10 +70,13 @@ seed policy applies there).
 For every materialized file, append an entry:
 ```json
 { "template_id": "<relative template path>", "version": "<plugin version>",
-  "language": "<lang>", "source_sha": "<sha256 of the canonical template>",
+  "language": "<canonical lang>", "source_sha": "<sha256 of the canonical template>",
   "rendered_sha": "<sha256 of the file actually written>", "path": "<target path>",
-  "owner": "ccsop" | "overlay" | "seed" }
+  "owner": "ccsop" | "overlay" | "seed",
+  "translation_source": "none(en)" | "maintained" | "on-the-fly" }
 ```
+- `translation_source`: `none(en)` for an EN materialization; `maintained` if copied from
+  `templates/i18n/<canonical-lang>/` (Step 3); `on-the-fly` if produced by the §4.3 pipeline.
 - `owner=ccsop` (updatable by `/sop-update`, resettable by `--force`): all `methodology/*.md` **except
   `methodology/index.md`**, `plans/_template-*.txt`, `docs/README.md`, the review **config** (`config.toml`),
   the `settings.json` permission baseline.

@@ -1,0 +1,81 @@
+{
+  "lang": "zh-CN",
+  "generated": "2026-06-14",
+  "files": [
+    {
+      "target_rel": "README.zh-CN.md",
+      "source_path": "README.md",
+      "source_sha": "7e3054aed185a880efd6d2db8dab998d5d379bd649f9bf976db542ecb3756513"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/design/index.md",
+      "source_path": "templates/docs-scaffold/design/index.md",
+      "source_sha": "e7c52beb34d42ddcfb170db8045042f4d297d78533d94806cb62ad06597b7b78"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/claude-code-sop-collaboration.md",
+      "source_path": "templates/docs-scaffold/methodology/claude-code-sop-collaboration.md",
+      "source_sha": "eff7c176304531b255aa6a7dc8a128d073d51109a9331d13791b72d1c1be3c17"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/index.md",
+      "source_path": "templates/docs-scaffold/methodology/index.md",
+      "source_sha": "2617b18ed2f1dab2d25027cc9fe75cfb1e7500a8fdfe8693719553c69c577ac5"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/model-tier-strategy.md",
+      "source_path": "templates/docs-scaffold/methodology/model-tier-strategy.md",
+      "source_sha": "31d8a569eb97b091606a0348001054b781bfc0e4277c891b8169d6fa86472dc5"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/project-delivery-sop.md",
+      "source_path": "templates/docs-scaffold/methodology/project-delivery-sop.md",
+      "source_sha": "d3737879230590aefe6cff92f2b333f0ee53879b869536b608a19429d24df005"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/workflow-overview.md",
+      "source_path": "templates/docs-scaffold/methodology/workflow-overview.md",
+      "source_sha": "2ec83b92cca9ca8aab145066934c001d1c9d80284ae8b78fb85ee4d185ff1e43"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/plans/_template-design.txt",
+      "source_path": "templates/docs-scaffold/plans/_template-design.txt",
+      "source_sha": "3eebb7ec29174fdb8c620b82d681250ec555d7eb820c5d04d5602ccd5b112144"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/plans/_template-implement.txt",
+      "source_path": "templates/docs-scaffold/plans/_template-implement.txt",
+      "source_sha": "a1dbd40f817fdcfb8fc75007863435da6e4383d66c46e373678eeb08ed22e32d"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/README.md",
+      "source_path": "templates/docs-scaffold/README.md",
+      "source_sha": "35ff3991a0b13fa0768ac65dd1c7910d9ad82df79b002cdb475b3c0270425149"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/references/index.md",
+      "source_path": "templates/docs-scaffold/references/index.md",
+      "source_sha": "84ca56682e1220b734d39d8804d444c8b493ef0aa23bc74bf8eb51bb524d6de5"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/docs-scaffold/runbooks/index.md",
+      "source_path": "templates/docs-scaffold/runbooks/index.md",
+      "source_sha": "ac2174d70cfd8dd8fc504dfad7675ae30a5ec850d010806bbb2e9594ea604eae"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/review-prompts/code-review.md.tpl",
+      "source_path": "templates/review-prompts/code-review.md.tpl",
+      "source_sha": "dfd48b3faab6f71dbd4e41a876fb3d7b64dad940625bff80e187e2a4043d183e"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/review-prompts/design-review.md.tpl",
+      "source_path": "templates/review-prompts/design-review.md.tpl",
+      "source_sha": "5b4e0ad46de24f2c7d2888cb846f1253db193d445f3938551249c4d938ab88dc"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/review-prompts/fix-review.md.tpl",
+      "source_path": "templates/review-prompts/fix-review.md.tpl",
+      "source_sha": "22397d0a7e25676eea262a61894da2df5752da8619ad6a58a124d4fee51f0211"
+    }
+  ]
+}

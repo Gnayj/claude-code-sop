@@ -1,0 +1,91 @@
+# <Module> <Feature> Implement — <design_id>
+
+> ⚠️ 本模板仅用于多轮（N≥2）或接力换轮场景。
+> 单轮 implement（一份 design.md，一轮 + 一次 closeout 完成）**不需要** implement card —— 把
+> closeout 摘要并进 design.md §14。
+> 判据：`docs/methodology/claude-code-sop-collaboration.md §4.1` + `workflow-overview.md`。
+
+design_id: <design-id>
+phase: <phase name>
+author: <driver>
+date: YYYY-MM-DD
+state: implement (awaiting code review)
+related design: <docs/design/<module>/<id>-design.md>
+
+## 0. 协作模式
+按 active 模式（`docs/records/current.md §1 bullet 4`）。implement + 自测后跑 code review；
+Pass / Pass-after-fixes 时报 "ready to test"；用户回 "test passed" 后 closeout。
+
+## 1. 必须先读
+1. 本卡的 design 文档（见上）
+2. `docs/methodology/project-delivery-sop.md` §4-§9
+3. `docs/methodology/claude-code-sop-collaboration.md` §4.6（合 main 的 4 确认点）
+4. `docs/methodology/workflow-overview.md`（流程 + 失败模式 + 回滚）
+5. `docs/records/current.md` §1 + 当前暂停点
+6. <本任务触及的代码/配置入口>
+
+## 2. 背景
+### 2.1 引用的触发
+<一行引用 design 的触发，不全文重复>
+### 2.2 本轮契约
+<本轮交付 design scope 的哪个子集；为何单列一轮契约>
+
+## 3. 目标
+本轮交付：
+- <可验证产物 1>
+- 通过 code review + 用户验收
+
+## 4. Scope（commit 清单）
+在 feature 分支 `<branch-name>` 上，N 个单主题 commit：
+1. **commit 1 (<sub-item>)**: <一行>
+2. **commit 2**: <一行>
+每个 commit 单主题；跑其相关的 build/test（见 §8）。
+
+## 5. 改动文件清单
+| 文件 | 改动 | Commit |
+|---|---|---|
+| <path> | <一行> | <commit N> |
+
+## 6. 非目标 / 边界
+- ❌ design scope 之外一律不做
+- ❌ 不混入未评审的设计改动
+- ❌ 不跨子项 commit
+
+## 7. /simplify 触发判定
+- 改动后缀在代码 allowlist 内 且 4 段 numstat（committed+staged+unstaged+untracked）≥ 30 → 跑 /simplify、自修，再 code review
+- 否则 exempt（在自测证据里记录理由）
+
+## 8. 验收
+### 8.1 自测
+- ✅ build 通过（`${BUILD_CMD}`）
+- ✅ test 通过（`${TEST_CMD}`）
+- ✅ /simplify 判定已执行（跑 / exempt，已记录）
+- ✅ 增量日志窗口 + 关键路径 / verify 脚本通过（SOP §6.4）
+### 8.2 用户验收
+- 可复制粘贴的 verify 命令：
+  ```bash
+  <verify command>
+  ```
+- 通过标准：<日志关键词> / <接口行为> / <性能或缓存指标>
+### 8.3 Code review
+- ✅ verdict ∈ {Pass, Pass-after-fixes（≤ 1 轮 fix）}
+- ✅ 0 Critical；Important 项就地修复或回顾后接受
+
+## 9. 协作边界
+- feature 分支 `<branch-name>`（从 main 切，或从上一阶段 closeout sha 切）
+- 单主题 commit（SOP §9.1）
+- 不擅自 push / merge / 删分支（collaboration §4.6 4 确认点）
+- closeout 前不合 main；closeout 单 commit = handoff closeout + 卡归档 + `code-home:` 回填
+- 仅在用户 "test passed" 后 closeout
+
+## 10. Closeout 摘要（回填）
+- design ref: <path>
+- review chain: Round 1 <verdict / C+I> → Round 2（如有）<verdict>
+- verify 结果: <RESULT: PASS / 关键日志摘录>
+- 关键产物: <list>
+- 已知遗留 / backlog: <list>
+
+## 11. （可选）implement 中的新决策
+（若出现新决策，在此锁 Q1-QN；否则留空）
+
+code-home: <closeout 时回填的值；合法值见 SOP §3.4>

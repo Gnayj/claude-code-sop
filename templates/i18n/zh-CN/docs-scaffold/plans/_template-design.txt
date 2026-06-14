@@ -1,0 +1,119 @@
+# <Module> <Feature> Design — <design_id>
+
+design_id: <design_id>
+author: <driver>
+date: YYYY-MM-DD
+state: design draft (awaiting design review)
+related: <commits / upstream design / prior closeout>
+
+## 0. 协作模式
+
+按 active 协作模式推进（见 `docs/records/current.md §1 bullet 4`）。若设计命中 SOP §4.5 触发
+（见 §9）→ 跑 design review（`codex_design_review`）。
+
+## 1. 必须先读
+
+1. `docs/methodology/project-delivery-sop.md` 相关小节
+2. `docs/methodology/claude-code-sop-collaboration.md` §2 + §4 + §4.5
+3. `docs/methodology/workflow-overview.md`（流程 + 失败模式 + 回滚）
+4. `docs/records/current.md` §1 + 当前暂停点
+5. <本模块的专题 design 文档>
+6. <相关的历史任务卡 / closeout 文档>
+
+## 2. 背景
+
+### 2.1 触发
+<什么事件 / 需求 / 缺陷 / 探针发现 / 上游决策触发了本设计>
+
+### 2.2 当前基线
+<改动前的真实状态：接口 / 数据契约 / 流程 / 性能基线 / 已知约束>
+
+### 2.3 不变的硬约束
+<本设计不得违反的边界：不降质量 / 不改契约 X / 不绕过 review / ...>
+
+## 3. 目标
+合并后：
+- (A) <量化指标 1>
+- (B) <量化指标 2>
+- 不引入新的 <类别> 风险
+
+## 4. Scope（子项）
+
+### 4.1 子项 <name>
+**行为改变**：<一行>
+**关键决策**（Q* —— 见 §11）：<锁定项>
+**文件**（见 §5）：<files>
+
+（更多子项作 4.2 / 4.3 / ...）
+
+## 5. 新增 / 改动文件清单
+
+| 文件 | 类型 | 改动 | 子项 |
+|---|---|---|---|
+| <path> | edit / new / delete | <一行> | <4.X> |
+
+implement commit 顺序：<commit 1> → <commit 2> → ...
+
+**Implement-card 判定**（`claude-code-sop-collaboration.md §4.1`）：
+- §4 scope 单轮（N=1）→ **无 implement card**；把 closeout 摘要并进此处 §14。
+- §4 scope 拆成多阶段 / 接力 / 中途暂停（N≥2）→ **每阶段一张 implement card**（从 `_template-implement.txt`）。
+
+## 6. 非目标 / 边界
+- ❌ 不 <...>
+- ❌ 不 <...>
+
+## 7. 风险 + 回滚
+
+| 风险 | 影响 | 缓解 |
+|---|---|---|
+| <risk> | <scope> | <mitigation> |
+
+**回滚**：<路径；见 workflow-overview.md 回滚 playbook>
+
+## 8. 验收
+
+### 8.1 <子项 1>
+- ✅ <可观测条件>
+
+### 8.3 总体
+- ✅ design review → Go / Go-after-fixes（design enum：{Go, Go-after-fixes, Rereview-after-fixes, No-Go}）
+- ✅ code review → Pass / Pass-after-fixes（≤ 1 轮 fix）
+- ✅ 用户跑 verify 后回 "test passed"
+
+## 9. Design pre-review 触发判定
+- **触发 N (<name>)**：<为何命中>
+- 综合：**必须 / 应当 / 无需** 跑 design review。
+
+## 10. 协作边界
+- design review 通过（Go / Go-after-fixes）前不进 implement
+- implement + 自测后跑 code review；Pass / Pass-after-fixes 时报 "ready to test"
+- 用户回 "test passed" 后，driver 做 closeout（单主题 docs commit + 卡归档 + `code-home:` 行）
+- closeout 前不合 main；feature → main 走 §4.6 4 确认点的 ff-only 合并
+
+## 11. 锁定决策
+### Q1: <question>
+**A 锁定**：<answer>
+（Q2-QN 同格式；保留决策痕链）
+
+## 12. 给 design review 的明确问题
+- **<point 1>**: <question>（引用 §X.Y 或某锁定决策 id）
+
+## 13. 关联
+- 上游 design / 卡：<path / commit>
+- issue / backlog：<link>
+
+## 14. 实施记录（closeout 时回填）
+- N=1：把 closeout 摘要追加到这里（无独立 implement card）。
+- N≥2：高层摘要，链接每阶段 implement-card 的 closeout。
+模板：
+- design self-closeout: `docs(methodology): close out <design-id> design`（commit `<sha>`）
+- review chain: Round 1 <verdict / C+I count> → Round 2（如有）<verdict>
+- /simplify decision: <TRIGGER / EXEMPT reason>
+- 自测 / verify 结果: <RESULT: PASS / 关键日志摘录>
+- 用户 verify: <"test passed" / 关键回复>
+- 关键产物: <list>
+- 已知遗留 / backlog: <list>
+
+## 15. code-home
+（closeout 时回填；合法值见 SOP §3.4：`merged-to-main@<sha>` / `branch=<name>@<sha>(unmerged)` / `deployed@<sha>` / `doc-only` / `superseded-by@<sha>` / `reverted@<sha>`）
+code-home: <value>
