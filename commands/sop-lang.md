@@ -9,8 +9,15 @@ Translate-once, in place. Plugin root = `${CLAUDE_PLUGIN_ROOT}`; target = `${CLA
 (via each manifest entry's `template_id`), not the currently-materialized file.
 
 ### Source handling by template origin (dispatch on `template_id`)
-- **docs-scaffold files** (`templates/docs-scaffold/...` → `docs/...`, owner=ccsop): translate via the Pipeline below.
-- **review-prompt templates** (`templates/review-prompts/*.tpl` → `.codex-review/templates/*.tpl`, owner=ccsop): translate via the Pipeline below (prose + masked schema/enums).
+- **docs-scaffold files** (`templates/docs-scaffold/...` → `docs/...`, owner=ccsop) **except the `index.md`
+  nav stubs (see seed below)**: translate via the Pipeline below.
+- **nav/index stubs** (`docs/{methodology,design,runbooks,references}/index.md`, **owner=seed**): translate
+  only if the current file is a **pristine prior render** (on-disk sha == manifest `rendered_sha`);
+  consumer-populated (sha mismatch / no entry) → **preserve + warn**, do not translate over it.
+- **review-prompt templates** (`templates/review-prompts/*.tpl` → `.codex-review/templates/*.tpl`, **owner=seed**):
+  translate via the Pipeline below **only if a pristine prior render** (on-disk sha == `rendered_sha`); if the
+  consumer customized it (sha mismatch / no entry) → **preserve + warn**, do not translate over it (`--force`
+  does not override seed). Seed set is path-based (overrides any old `owner=ccsop`).
 - **review config** (`templates/config.toml.tpl` → `.codex-review/config.toml`, owner=ccsop): **NOT translated** — re-render from the template and set `[meta].language = <lang>` only. Values/keys are machine-stable; do not run it through prose translation. Update its manifest `rendered_sha`, but it is not a "translated entry".
 - **owner=overlay** (`records/current.md`): never touched.
 
@@ -23,7 +30,7 @@ Translate-once, in place. Plugin root = `${CLAUDE_PLUGIN_ROOT}`; target = `${CLA
     bring their own translated templates or set `translation.provider`, and stop. Never borrow the
     review model to translate.
 
-## Pipeline (per translatable owner=ccsop file — docs-scaffold + review-prompts; config is re-rendered per above; owner=overlay is NEVER translated)
+## Pipeline (per translatable file — owner=ccsop docs-scaffold + **pristine** owner=seed nav/index stubs & review-prompts; config is re-rendered per above; **a modified/untracked seed entry — on-disk LF-normalized sha ≠ `rendered_sha` — is preserved+warned, never translated, even with `--force`**; owner=overlay is NEVER translated)
 
 Run this 5-step placeholder-protection pipeline; **abort the whole file atomically if step 4 fails**
 (leave the existing file untouched — no half-translated output):
@@ -54,6 +61,8 @@ Run this 5-step placeholder-protection pipeline; **abort the whole file atomical
 - Confirm with the user before overwriting (show which files change); honor `--force` to skip the prompt.
 
 ## Boundaries
-- owner=ccsop files only; `records/current.md` and user-converted overlay files are never translated.
+- owner=ccsop files + **pristine** owner=seed entries only; a **modified/untracked** seed entry (on-disk
+  LF-normalized sha ≠ `rendered_sha`) is preserved+warned, never translated over (even with `--force`);
+  `records/current.md` and user-converted overlay files are never translated.
 - Translate from the EN canonical, not the already-materialized language (avoid compounding drift).
 - Step-4 verification failure aborts that file with no write — never ship a half-translated doc.

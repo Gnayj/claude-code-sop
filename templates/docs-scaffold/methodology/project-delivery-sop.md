@@ -132,7 +132,7 @@
 efficiency, then fix any issues found"), used as a cheap local pre-screen *before* the reviewer
 gate (`codex_code_review`) to filter dead code / duplication / over-abstraction and cut reviewer rounds.
 
-**Trigger (machine criteria; see `token-efficiency-improvements-design.md §3.1`):**
+**Trigger (machine criteria):**
 - changed-file suffix ∈ a code allowlist (e.g. `.go .ts .tsx .js .py .vue .sh` — adapt to `${STACK}`);
 - feature branch add+del vs base ≥ 30 lines (committed + staged + unstaged + untracked);
 - base ref defaults to `main`; not a git repo / no `main` / detached HEAD → skip → exempt (record reason);

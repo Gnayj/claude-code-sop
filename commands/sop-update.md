@@ -1,5 +1,5 @@
 ---
-description: Incrementally update the ccsop-owned scaffolded files (methodology docs, task templates, nav stubs, review config/prompts) to the current plugin version. Only touches owner=ccsop files; reports conflicts on locally-edited files instead of overwriting; never touches owner=overlay (your records/current.md).
+description: Incrementally update the ccsop-owned scaffolded files (methodology docs, task templates, review config) to the current plugin version. Updates owner=ccsop files and re-renders only pristine owner=seed entries (nav/index stubs + review prompts); reports conflicts on locally-edited files instead of overwriting; never touches owner=overlay or modified owner=seed (your records/current.md + consumer-populated nav/prompts).
 ---
 
 # /sop-update — incremental update of ccsop-owned files
@@ -12,11 +12,26 @@ target repo = `${CLAUDE_PROJECT_DIR}`. `$ARGUMENTS` may contain `--force` and/or
 
 Read `.ccsop/manifest.json`. If absent, tell the user to run `/sop-init` first and stop.
 
-## Step 2 — Per owner=ccsop entry, detect local edits
+## Step 2 — Per managed entry, detect local edits
+
+**LF-normalized sha first (shared by all branches)**: for every entry, compute the on-disk file's current
+`sha256` over **LF-normalized** content (convert CRLF → LF before hashing), matching how `rendered_sha` was
+computed — so an `autocrlf` re-checkout doesn't false-flag a file as locally-edited (F3). **All sha
+comparisons below (both `owner=ccsop` and `owner=seed`) use this LF-normalized sha.**
+
+**Path-based seed override**: treat any path in the **seed set** (matched on the normalized
+target-repo path) — `docs/{methodology,design,runbooks,references}/index.md` + `.codex-review/templates/*.tpl`
+— as **`owner=seed`**, **even if an older manifest entry still says `owner=ccsop`** (back-compat for consumers
+adopted before this fix).
+
+For each `owner == "seed"` entry / seed-set path:
+- **pristine** (LF-normalized on-disk sha == `rendered_sha`): safe to re-render (same as the ccsop pristine path below).
+- **modified, or no manifest entry / no `rendered_sha`** (no trustworthy pristine baseline): **preserve + warn**
+  — record `preserved (consumer-owned)`; do NOT overwrite. `--force` does NOT override this (seed is
+  consumer-owned). Offer `convert-to-overlay` if the user wants ccsop to stop tracking it entirely.
 
 For each entry with `owner == "ccsop"` (skip `owner == "overlay"` entirely):
-- compute the current on-disk file's `sha256`.
-- compare to the manifest's `rendered_sha`:
+- compare the LF-normalized on-disk sha (from the Step 2 preamble) to the manifest's `rendered_sha`:
   - **unchanged locally** (on-disk sha == rendered_sha): safe to update. Re-render the current
     plugin template (in the entry's `language`, through the §4.3 pipeline if not en), write it,
     and update the entry's `source_sha` + `rendered_sha` + `version`. Record `updated`.
@@ -31,16 +46,19 @@ For each entry with `owner == "ccsop"` (skip `owner == "overlay"` entirely):
 
 ## Step 3 — `--force`
 
-`--force` takes `accept-new` for all conflicts (still backing up each `<file>.ccsop-bak` first).
-Even with `--force`, **overlay paths are never touched**.
+`--force` takes `accept-new` for all **`owner=ccsop`** conflicts (still backing up each `<file>.ccsop-bak`
+first). Even with `--force`, **`overlay` paths and modified `seed` paths are never overwritten** (seed is
+consumer-owned; only a pristine seed entry may be re-rendered).
 
 ## Step 4 — Finish
 
-- Print a per-file summary: `updated` / `up-to-date` / `conflict (choice)` / `overlay-skipped`.
+- Print a per-file summary: `updated` / `up-to-date` / `conflict (choice)` / `preserved (consumer-owned)` / `overlay-skipped`.
 - If any methodology rule changed, remind the user the change came from the plugin (single source);
   project-specific overrides should live in runbooks / overlay, not by editing owner=ccsop files.
 
 ## Boundaries
-- Only owner=ccsop files. `records/current.md` (owner=overlay) and any user-converted overlay file are off-limits.
+- `owner=ccsop` files + **pristine** `owner=seed` entries (re-render only on LF-normalized sha match). A
+  **modified/untracked** `owner=seed` entry, `records/current.md` (owner=overlay), and any user-converted
+  overlay file are off-limits (not overwritten, even with `--force`).
 - Never overwrite a locally-edited file without an explicit per-file choice or `--force` (+ backup).
 - Resetting the breakpoint is a separate explicit action (`--reset-breakpoint`), not part of update.
