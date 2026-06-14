@@ -170,6 +170,11 @@ cheap local reuse/quality/efficiency issues; the reviewer still covers architect
 exemption) + user closeout**. Doc-only changes still use a single-subject commit + doc closeout,
 but do not require the words "test passed".
 
+Under **`full-auto`** (`claude-code-sop-collaboration.md §1.A`): the driver's self-verification substitutes for
+the user's "test passed" **only** for machine-checkable acceptance (build / tests / grep-schema-drift
+invariants / spec-conformance). **Subjective quality, real-environment / production acceptance, and the §4.1
+always-confirm actions still require the user** (collaboration §1.B / §1.C).
+
 ### 6.3 On failure
 
 1. Keep the failing log + repro command.

@@ -13,6 +13,11 @@ allowed_doc_roots = [
   ".codex-review/templates/",
 ]
 
+# Operating autonomy (claude-code-sop-collaboration.md §1.A). OPERATIONAL — the driver reads this;
+# the review bridge ignores it. A missing/invalid value is fail-closed to "gated".
+[collaboration]
+autonomy = "gated"               # gated (default) | full-auto
+
 [paths]
 sop = "docs/methodology/project-delivery-sop.md"
 collaboration_sop = "docs/methodology/claude-code-sop-collaboration.md"

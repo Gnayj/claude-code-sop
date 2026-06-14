@@ -33,6 +33,52 @@ neither driver nor reviewer switches modes on its own. Switching to auto review 
 to pass its self-test (`verify-mcp`); on bridge/provider failure auto review degrades to mode 1 and
 does not auto-recover.
 
+## 1.A Autonomy dial (orthogonal to the modes)
+
+A third axis on the **driver-led** modes (it does not change roles, so it is not a 4th mode):
+- **`gated` (default)** — the user confirms the design (§4 chunked confirmation), gives "test passed"
+  (`project-delivery-sop.md §6.2`), and confirms each §4.6 merge point.
+- **`full-auto`** — the driver auto-advances the **routine** gates: design sign-off via the self-checked §4
+  contract + the §3 auto-review loop; acceptance via self-verification **where legitimate** (§1.C); local
+  closeout + a local `git merge --ff-only` to main (§4.2/§4.6). The run ends with a **run report** (§6.A). The
+  driver **breaks the loop and hands control to the user only when the escalation predicate (§1.B) fires.**
+
+Set it in `.codex-review/config.toml` `[collaboration] autonomy = "gated" | "full-auto"` (operational key; the
+review bridge ignores it; a missing/invalid value is **fail-closed to `gated`**). An explicit user instruction
+("full-auto" / "一杆推到底" / "gated this one") overrides per session. full-auto **never** relaxes the §1.B never-auto classes.
+
+## 1.B Escalation predicate (full-auto stops and hands to the user iff)
+
+full-auto runs unattended **except** when any of these holds — then it stops, reports, and recommends ≥1 option:
+1. **Always-confirm (`project-delivery-sop.md §4.1`)** — destructive / irreversible op, production config or
+   service change, irreversible DDL/DML, deploy / restart / wipe. (never auto)
+2. **Exfil-class** — sending private content to an external service (e.g. a private→public push). (never auto)
+3. **Remote externalization (§4.6)** — pushing to a remote, deleting a remote branch, publishing / releasing
+   (local closeout + local ff-only merge to main is auto; **all remote** actions escalate). (never auto)
+4. **Taste / domain / acceptance judgment only the user can make** — subjective quality (prose / translation /
+   UX), real-environment or production acceptance, business-priority calls, "is this acceptable" gates.
+5. **Unresolvable ambiguity** — scope/requirement genuinely under-determined and not resolvable from context,
+   the codebase, or the reviewer. (A choice resolvable by a sensible default or by the reviewer is **not** an
+   escalation — decide, record, proceed.)
+6. **Stall (§9.E)** — the fix loop is not converging (same Critical 2 rounds / Critical total flat 2 rounds /
+   regression ping-pong) → escalate with ≥2 options.
+7. **Review `No-Go` / breaker** — design or code review `No-Go`, or a circuit breaker tripped.
+8. **Technical fork → reviewer first** — a *technical* design fork with no clear default goes to
+   `codex_design_review` (not the user); only a *preference/business* fork goes to the user.
+9. **Execution blocker** — missing credential/key, platform permission denial, sandbox / network / dependency
+   constraint, a required tool unavailable, or a **required verification that cannot actually be run**. Escalate
+   with the failed command + evidence; **never self-verify a check that did not run.**
+
+## 1.C Self-verification boundary + early sample-checkpoint
+
+- **Self-verify MAY substitute** for the user's "test passed" only when the acceptance is **machine-checkable**:
+  build/compile, automated tests, grep/schema/drift-gate invariants, spec-conformance against the design.
+- **Self-verify MAY NOT substitute** (→ escalate per §1.B.4/§1.B.9) for subjective quality, real-environment /
+  production acceptance, or anything needing external observation or domain/business judgment.
+- **Early sample-checkpoint (anti "efficiently wrong"):** for **taste/style-heavy** or **large-batch**
+  deliverables, full-auto produces a small **representative sample** and checkpoints it with the user **before**
+  mass production — don't generate the whole batch on an unconfirmed style/contract.
+
 ## 2. Roles
 
 1. **Driver** — clarification + brainstorming (SOP §4 chunked-confirmation cadence); design,
@@ -53,6 +99,10 @@ does not auto-recover.
 The roles above describe the driver-led modes (§1 modes 1–2). In the **reviewer-led fallback**
 (§1 mode 3 / §8.1) they invert: the reviewer owns design / task cards / acceptance / closeout, and
 the driver is a pure implementer (code + test scripts only).
+
+Under the **autonomy dial** (§1.A): in `full-auto` the User's "confirm destructive / high-impact actions" duty
+(§1.B.1–3) is **unchanged**; what full-auto auto-advances is only the *routine* design sign-off / "test passed"
+/ local-merge gates (per §1.B / §1.C).
 
 ## 3. Auto-review verdict matrix
 
@@ -117,6 +167,10 @@ keep it from bloating and let `code-home:` be maintained per phase.
 
   `git push` / `git merge main` are **not** done here by default — see §4.6.
 
+  Under **`full-auto` (§1.A)**: the driver may run closeout **+ a local `git merge --ff-only` to main** without
+  stopping, **only after** the closeout commit + self-verification (§1.C), and **fail-fast** (pause + report) if
+  ff-only fails. **Remote** push/merge still escalate (§1.B.3 / §4.6).
+
 ### 4.5 Design pre-review trigger list
 
 The driver does **not** request design pre-review by default; it **must** when any of these hold
@@ -150,6 +204,12 @@ go-ahead before the next — never bundling steps:
 
 These confirmation points are not auto-allowed by "execute per the SOP"; one "go ahead" does not
 authorize a chain of remote git actions.
+
+Under **`full-auto` (§1.A)**: `gated` keeps all four confirmation points. full-auto auto-advances only the
+**local** actions — the closeout commit + `git checkout main && git merge --ff-only <feature-branch>` (after
+self-verification; **fail-fast** if ff-only fails). **All remote actions always escalate** (§1.B.3):
+`git push origin <feature-branch>`, `git push origin main`, `git push origin --delete <feature-branch>`, and any
+publish/release. Even full-auto never bundles remote git actions.
 
 ### 4.7 git worktree for parallel sessions
 
@@ -222,9 +282,27 @@ auto-validating wrapper):
 9. `designReview` — `required` | `skipped` | `done`.
 10. `knownRisks` / `nextStep` — for quick reviewer triage.
 
+## 6.A Run report (full-auto)
+
+A **`full-auto` (§1.A)** run ends with a single **run report** (distinct from each segment's closeout),
+aggregating the §6 fields over the run:
+1. **delivered scope** per segment / slice;
+2. each segment's **review chain** — verdicts + Critical/Important counts + `review_id`s;
+3. **escalations raised + how each was resolved** (the §1.B stops);
+4. **deviations** from the original plan;
+5. **verification-evidence** summary (what was self-verified vs user-signed);
+6. `code-home:` per segment;
+7. **leftovers / backlog**.
+
+It lands as a concise report in the final message + a durable run-summary pointer in `docs/records/current.md`
+(no new per-run file by default).
+
 ## 8. The closed loop
 
 ### 8.0 Driver-led (default), 8 steps
+
+(Under **`full-auto` (§1.A)**: steps 2–8 auto-advance per the §1.B predicate + §1.C self-verify boundary — the
+user is called back only on an escalation; otherwise the run ends at a §6.A report.)
 
 1. Clarify / brainstorm with the user (§4.2 cadence; exemptible).
 2. Driver produces design + task card (`docs/plans/active/`); judges §4.5 pre-review need.

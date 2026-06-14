@@ -107,6 +107,40 @@ the driver executes the verdict mechanically, only calling you on a circuit brea
 final merge passes **4 confirmation points** (push feature → merge → push main → delete remote). Full
 flow, failure modes, and rollback playbook: `docs/methodology/workflow-overview.md`.
 
+## Execution framework — why it works, best practices, cautions
+
+**What you get.** A single closed loop — *contract → design → review → implement → review → test → closeout →
+merge* — where every step lands in docs, so work resumes cold and nothing is re-derived. Concretely:
+
+- **Contract-first, small steps**: a behavior contract + acceptance is locked before code; one verifiable
+  sub-item per round (not-done-until-accepted).
+- **Independent, pluggable review**: design/code/fix review by an independent model — `codex` (default) gives
+  cross-model heterogeneity that catches your own model's blind spots; `claude` / `manual` also work.
+- **Docs as the breakpoint**: `current.md` + task cards + `code-home:` keep a months-later-recoverable trail.
+- **Model tiering**: a strong model for judgment, a cheaper tier for mechanical agents (`model-tier-strategy.md`).
+- **Autonomy dial** (`[collaboration] autonomy` in config): run **`gated`** (you confirm each gate) or
+  **`full-auto`** — the driver runs the whole loop and only stops to escalate when a decision is genuinely
+  yours, ending in a single run report.
+
+**Best practices.**
+
+- Start **`gated`**; graduate to **`full-auto`** for well-specified work with machine-checkable acceptance.
+- For **taste/style-heavy** or **large-batch** work, take an early **sample checkpoint** before mass output —
+  full-auto bakes this in, so it can't be "efficiently wrong" at scale.
+- Let the **reviewer** arbitrate technical forks; reserve your attention for preference / business / acceptance calls.
+- Keep `current.md` the single source of current state; invoke `/handoff` at session start.
+
+**Cautions.**
+
+- `full-auto` **never** auto-does destructive / production / irreversible actions, **never** pushes private →
+  public or to any remote, and **never** auto-publishes/deploys — those always escalate to you.
+- **Self-verification ≠ your acceptance** for subjective quality or real-environment behavior; full-auto
+  escalates those (it self-verifies only machine-checkable gates).
+- If a required check **can't run** (missing key / permission / tool), full-auto **stops** rather than claim it passed.
+
+See `docs/methodology/claude-code-sop-collaboration.md` §1.A–§1.C (autonomy dial + escalation predicate +
+self-verify boundary) and `workflow-overview.md` for the full flow.
+
 ## Commands & skills
 
 - `/sop-init` — first-time scaffold wizard.

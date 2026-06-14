@@ -102,6 +102,37 @@ flowchart TD
 断路器或 `No-Go` 时叫你。最终合并过 **4 确认点**（push feature → merge → push main → 删远端）。
 完整流程、失败模式、回滚 playbook：`docs/methodology/workflow-overview.md`。
 
+## 执行框架 —— 为什么有效、最佳实践、注意点
+
+**你得到什么。** 一个单一闭环 —— *契约 → design → review → implement → review → test → closeout → 合并*
+—— 每一步都落进文档，使工作可冷启动恢复、不重新推导。具体：
+
+- **契约先行、小步推进**：编码前锁定行为契约 + 验收；每轮一个可验证子项（未验收不算完成）。
+- **独立、可插拔的 review**：design/code/fix review 由独立模型做 —— `codex`（默认）给跨模型异构、抓你自己
+  模型的盲区；`claude` / `manual` 也行。
+- **文档即断点**：`current.md` + 任务卡 + `code-home:` 留下几个月后可恢复的痕迹。
+- **模型分级**：判断用强模型，机械 agent 用更省的档（`model-tier-strategy.md`）。
+- **自治档位**（config 里 `[collaboration] autonomy`）：跑 **`gated`**（你确认每道闸）或 **`full-auto`** ——
+  driver 跑完整循环、只在某个决定确实该你拍时才停，最后出一份 run 报告。
+
+**最佳实践。**
+
+- 先 **`gated`**；对验收可机器验的良定义工作再升到 **`full-auto`**。
+- 对**品味/风格重**或**大批量**工作，先取一份**抽样 checkpoint** 再批量产出 —— full-auto 内建这条，使它不会
+  在规模上"高效地跑偏"。
+- 让 **reviewer** 裁技术分叉；把你的注意力留给 偏好/业务/验收 类判断。
+- 让 `current.md` 当当前状态的单一真源；session 启动调 `/handoff`。
+
+**注意点。**
+
+- `full-auto` **绝不**自动做 破坏性/生产/不可逆 动作、**绝不** push 私→公或推任何远端、**绝不**自动发布/部署
+  —— 这些永远升级给你。
+- 对主观质量或真实环境行为，**自验 ≠ 你的验收**；full-auto 会升级这些（它只自验机器可验的闸）。
+- 若某个所需检查**跑不了**（缺 key / 权限 / 工具），full-auto **停下**，而非声称它过了。
+
+见 `docs/methodology/claude-code-sop-collaboration.md` §1.A–§1.C（自治档位 + 升级谓词 + 自验边界）和
+`workflow-overview.md` 看完整流程。
+
 ## 命令与 skills
 
 - `/sop-init` —— 首次脚手架向导。

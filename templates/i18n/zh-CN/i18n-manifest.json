@@ -5,7 +5,7 @@
     {
       "target_rel": "README.zh-CN.md",
       "source_path": "README.md",
-      "source_sha": "7e3054aed185a880efd6d2db8dab998d5d379bd649f9bf976db542ecb3756513"
+      "source_sha": "e10224055f76657f34509ab831021e1c6295dd338435f8407da6f7717d7cf7f2"
     },
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/design/index.md",
@@ -15,7 +15,7 @@
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/claude-code-sop-collaboration.md",
       "source_path": "templates/docs-scaffold/methodology/claude-code-sop-collaboration.md",
-      "source_sha": "eff7c176304531b255aa6a7dc8a128d073d51109a9331d13791b72d1c1be3c17"
+      "source_sha": "11ac02b6b38c2b7951a95e9c9b3cb1dd17b9746ce2e076165989eee2a1812461"
     },
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/index.md",
@@ -30,7 +30,7 @@
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/project-delivery-sop.md",
       "source_path": "templates/docs-scaffold/methodology/project-delivery-sop.md",
-      "source_sha": "d3737879230590aefe6cff92f2b333f0ee53879b869536b608a19429d24df005"
+      "source_sha": "8dc393624d35def916d73f663678074b6dc7e548fba2685938fd8110d801b2e4"
     },
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/workflow-overview.md",

@@ -151,6 +151,10 @@ then fix any issues found"），用作 reviewer 闸门（`codex_code_review`）*
 **review Pass（`codex_code_review` / `codex_design_review` Pass / All-fixed，或显式豁免）+ 用户 closeout**。
 纯文档改动仍用单主题 commit + 文档 closeout，但不要求"test passed"字样。
 
+在 **`full-auto`**（`claude-code-sop-collaboration.md §1.A`）下：driver 的自验**仅**对机器可验的验收（build /
+测试 / grep-schema-drift 不变式 / spec 符合性）顶替用户"test passed"。**主观质量、真实环境/生产验收、以及
+§4.1 永远确认动作仍需用户**（collaboration §1.B / §1.C）。
+
 ### 6.3 失败时
 
 1. 保留失败日志 + 复现命令。
