@@ -4,8 +4,10 @@ description: Show or set the standing ccsop collaboration flow for Claude-driven
 
 # /sop-flow — inspect or switch the collaboration flow
 
-Work in `${CLAUDE_PROJECT_DIR}`. This command is non-interactive: `$ARGUMENTS` is empty or exactly
-one flow name. It has no wizard questions or flags.
+Work in `${CLAUDE_PROJECT_DIR}`. The typed-argument form is direct, deterministic, and scriptable.
+The no-argument path prints status, then may offer an interactive selection. The set flow itself
+asks no wizard questions: one pick maps to one action, equivalent to the single argument. There
+are no flags.
 
 ## Step 0 — Guards
 
@@ -39,7 +41,11 @@ Classify the owner state:
 
 Trim whitespace, then:
 
-- Empty: print the status template below and stop.
+- Empty: print the status template below, then offer an interactive selection with exactly three
+  options: `claude+claude`, `claude+codex`, and `keep current`. Mark the active flow in its option
+  label. A flow pick continues to Step 3 exactly as if that flow were passed as the argument.
+  `keep current` stops with no write. If no interactive selection surface is available, print the
+  two set commands from the status template and stop (the v1 fallback).
 - `claude+claude` or `claude+codex`: continue to Step 3.
 - `codex+codex` or `codex+claude`: reject without writing. Explain that the driving CLI is the
   `design_owner` CLI (collaboration.md §1.D rule 2), so Codex-driven flows must be switched from
