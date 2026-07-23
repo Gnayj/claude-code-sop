@@ -14,5 +14,8 @@
 **从这里开始**：跑 `/handoff`（或读 `records/current.md`）了解当前状态。规则在
 `methodology/project-delivery-sop.md`（单一真源）；`project-sop` skill 是执行地图。
 
-受管文件来源记录在 `.ccsop/manifest.json`（逐文件 owner + 双 sha）。`owner=ccsop` 的文件由
-`/sop-update` 维护；`records/current.md` 是 `owner=overlay`（归你）。
+受管文件来源记录在 `.ccsop/manifest.json`（逐文件 owner + source/render 双 sha，翻译文档另有
+maintained 译文源 sha）。`owner=ccsop` 的文件由 `/sop-update` 维护；`records/current.md` 是
+`owner=overlay`（归你）。想在托管 Markdown 文档**内部**加自己的内容而不 fork 它，用消费者扩展块
+包起来（`<!-- consumer:begin <slug> anchor="<章节号>" -->` … `<!-- consumer:end <slug> -->`）——
+更新会原位保留它。

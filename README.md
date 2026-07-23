@@ -149,6 +149,10 @@ merge* — where every step lands in docs, so work resumes cold and nothing is r
 - **Flow matrix** (`[collaboration] design_owner / implement_owner`): split design and implementation
   between the two models (4 flows, "Collaboration flows" above) — the counterpart always reviews, and you
   drive from the design owner's CLI.
+- **Consumer extension blocks**: keep project-owned content inside ccsop-managed Markdown docs
+  (`<!-- consumer:begin <slug> anchor="<section>" -->` … `<!-- consumer:end <slug> -->`) — `/sop-update`
+  re-renders around them, so framework updates and your extensions coexist; translation-only fixes now
+  also reach translated repos (`translation_source_sha`).
 
 **Best practices.**
 

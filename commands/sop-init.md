@@ -10,6 +10,12 @@ You are scaffolding the **ccsop** delivery workflow into the user's repository. 
 Argument `$ARGUMENTS` may contain flags: `--lang <en|zh|...>`, `--provider <codex|claude|manual>`,
 `--force`. If absent, ask interactively (Step 2).
 
+## Step 0 — Orphaned-root guard
+
+If `${CLAUDE_PLUGIN_ROOT}/.orphaned_at` exists, **abort**: the plugin root is an orphaned cache
+snapshot (plugin updated mid-session). Materializing from it scaffolds a stale version. Tell the
+user to restart the session / reload plugins, then re-run. Never auto-resolve to a sibling dir.
+
 ## Step 1 — Detect environment
 
 - Is this a git repo? If not, tell the user to `git init` first and stop (or proceed if they confirm).
@@ -38,6 +44,15 @@ Ask, one decision at a time (chunked confirmation, SOP §4):
 
 ## Step 3 — Materialize the docs scaffold
 
+**Step 3.0 — maintained-language preflight (BEFORE any target write, when language ≠ en and a
+maintained manifest exists)**: normalize the language alias to its canonical i18n dir first, then
+resolve **every** in-scope target through
+`${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json`: each `template_id` must
+match **exactly one** manifest entry (`source_path` equality) AND that entry's `target_rel` artifact
+must exist on disk. Collect ALL failures (missing, ambiguous, artifact-absent); if any → **abort the
+whole command with the failure list** — copy nothing, create nothing, back up nothing, update
+nothing. Only a fully-resolved preflight may proceed to materialization.
+
 Copy `${CLAUDE_PLUGIN_ROOT}/templates/docs-scaffold/` into the target `docs/`:
 - `methodology/{project-delivery-sop,claude-code-sop-collaboration,workflow-overview,model-tier-strategy,index}.md`
 - `plans/_template-{design,implement}.txt`; create empty `plans/active/` + `plans/completed/`
@@ -49,8 +64,8 @@ If language ≠ en, resolve the translation **source** (see `docs/design/ccsop-f
 use the canonical form for the manifest lookup, the copied artifacts, and the recorded `language` / `translation_source`:
 - **Maintained language** — `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json` exists:
   **copy the vetted translated artifacts** for every in-scope target (provenance `translation_source=maintained`).
-  **All-or-nothing**: if any in-scope target is missing from the maintained manifest → **abort with the
-  missing-file list** (never silently mix with on-the-fly).
+  **All-or-nothing = the Step 3.0 preflight** (exactly-one mapping + artifact existence for every
+  in-scope target, verified **before any write**; never silently mix with on-the-fly).
 - **Unmaintained language** — no such manifest: run each file through the placeholder-protection translation
   pipeline (see `/sop-lang` Step "Pipeline") before writing — never translate machine-stable surfaces
   (`translation_source=on-the-fly`).
@@ -99,8 +114,13 @@ For every materialized file, append an entry:
   "language": "<canonical lang>", "source_sha": "<sha256 of the canonical template>",
   "rendered_sha": "<sha256 of the file actually written>", "path": "<target path>",
   "owner": "ccsop" | "overlay" | "seed",
-  "translation_source": "none(en)" | "maintained" | "on-the-fly" }
+  "translation_source": "none(en)" | "maintained" | "on-the-fly",
+  "translation_source_sha": "<sha256 of the maintained i18n artifact — maintained entries ONLY>" }
 ```
+- `translation_source_sha` (maintained entries only): LF-normalized sha of the maintained artifact
+  (resolved via the language's `i18n-manifest.json` — the entry whose `source_path` equals this
+  `template_id`) at render time. It lets `/sop-update` detect **translation-only revisions**
+  (changed zh artifact, unchanged EN source). Omit for `none(en)` / `on-the-fly`.
 - `translation_source`: `none(en)` for an EN materialization; `maintained` if copied from
   `templates/i18n/<canonical-lang>/` (Step 3); `on-the-fly` if produced by the §4.3 pipeline.
 - `owner=ccsop` (updatable by `/sop-update`, resettable by `--force`): all `methodology/*.md` **except
@@ -112,6 +132,11 @@ For every materialized file, append an entry:
   Written per the Step 3 seed policy (preserve+warn once consumer-populated);
   `/sop-update` & `/sop-lang` may re-render only a **pristine** entry (on-disk sha == `rendered_sha`), else preserve+warn.
 - `owner=overlay` (bootstrap-once; `/sop-update` and `/sop-lang` NEVER touch): `records/current.md`.
+- **Consumer extension blocks**: consumers may keep project-owned content inside ccsop-managed
+  **Markdown** docs via `<!-- consumer:begin <slug> anchor="<token>" -->` … `<!-- consumer:end
+  <slug> -->` blocks — `/sop-update`/`/sop-lang` preserve them across re-renders (grammar +
+  algorithm: `commands/sop-update.md` Step 2.A). This is the sanctioned way to extend an
+  owner=ccsop file without forking it.
 - Compute sha with `sha256sum` over **LF-normalized** content (convert CRLF → LF before hashing) so
   `rendered_sha` is line-ending-insensitive — otherwise an `autocrlf` checkout re-introduces CRLF and
   `/sop-update` false-flags every file as locally-edited (F3). `rendered_sha` lets `/sop-update` detect

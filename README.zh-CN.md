@@ -139,6 +139,9 @@ flowchart TD
   driver 跑完整循环、只在某个决定确实该你拍时才停，最后出一份 run 报告。
 - **流程矩阵**（config 里 `[collaboration] design_owner / implement_owner`）：把 design 和 implement 在两个
   模型间拆分（4 个流程，见上文"协作流程"）—— 对侧恒 review，你从 design owner 的 CLI 主推。
+- **消费者扩展块**：把项目自有内容放进 ccsop 托管的 Markdown 文档里
+  （`<!-- consumer:begin <slug> anchor="<章节号>" -->` … `<!-- consumer:end <slug> -->`）——`/sop-update`
+  绕着它重渲染，框架更新与你的扩展共存；纯译文修订现在也能送达翻译仓（`translation_source_sha`）。
 
 **最佳实践。**
 

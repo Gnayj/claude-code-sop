@@ -8,6 +8,9 @@ Translate-once, in place. Plugin root = `${CLAUDE_PLUGIN_ROOT}`; target = `${CLA
 `$ARGUMENTS` = target language (e.g. `zh`), or `--check <lang>` (drift report). The canonical source is always
 the EN plugin template (via each manifest entry's `template_id`), not the currently-materialized file.
 
+**Step 0 — orphaned-root guard**: if `${CLAUDE_PLUGIN_ROOT}/.orphaned_at` exists, abort (stale
+cache snapshot; restart the session / reload plugins first). Never auto-resolve to a sibling dir.
+
 ## Mode & source resolution (maintained-first)
 
 See `docs/design/ccsop-framework/i18n-docs-design.md`. **First normalize the language alias to its canonical
@@ -17,8 +20,13 @@ the copied artifacts, and recorded `language` / `translation_source`.
 **Translate mode** (`/sop-lang <lang>`) — resolve the source first:
 - **Maintained language** — `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json` exists: **copy the
   vetted translated artifacts** for every in-scope target (record `translation_source=maintained` in the
-  `.ccsop/manifest.json` entry). **All-or-nothing**: if any in-scope target is missing from the maintained
-  manifest → **abort with the missing-file list** (never silently mix with on-the-fly). The seed/owner write
+  `.ccsop/manifest.json` entry). **All-or-nothing preflight**: resolve **every** in-scope target through the
+  maintained manifest **before any write** (exactly one mapping each); any missing/ambiguous mapping →
+  **abort the whole command with the missing-file list** (never silently mix with on-the-fly; per-entry
+  continue is `/sop-update`-only). The maintained-copy path is verbatim copying and **requires no
+  translation provider**. On each **accepted successful** write, record `translation_source_sha` (the
+  artifact's LF-normalized sha) alongside the other baselines **atomically** — never on preserved/failed
+  entries; entries switched to `en`/`on-the-fly` **delete** the field. The seed/owner write
   policy below still applies (a consumer-modified seed file is preserved+warned, not overwritten).
 - **Unmaintained language** — no such manifest: run the on-the-fly placeholder **Pipeline** below
   (`translation_source=on-the-fly`).
@@ -51,13 +59,22 @@ the copied artifacts, and recorded `language` / `translation_source`.
 ## Preconditions
 
 - Read `.ccsop/manifest.json` (run `/sop-init` first if absent).
-- Determine `translation.provider` from `.codex-review/config.toml`:
+- **Provider prerequisite — on-the-fly branch ONLY** (the **maintained** branch is verbatim copying
+  and needs no translation provider; it MUST proceed regardless of `translation.provider`):
+  when (and only when) the target language is **unmaintained**, determine `translation.provider`
+  from `.codex-review/config.toml`:
   - `claude` → use it to translate prose.
-  - `none` / unset, or `review.provider = manual` → **translation is unsupported**: tell the user to
-    bring their own translated templates or set `translation.provider`, and stop. Never borrow the
-    review model to translate.
+  - `none` / unset, or `review.provider = manual` → **on-the-fly translation is unsupported**: tell
+    the user to bring their own translated templates or set `translation.provider`, and stop. Never
+    borrow the review model to translate.
 
-## Pipeline (per translatable file — owner=ccsop docs-scaffold + **pristine** owner=seed nav/index stubs & review-prompts; config is re-rendered per above; **a modified/untracked seed entry — on-disk LF-normalized sha ≠ `rendered_sha` — is preserved+warned, never translated, even with `--force`**; owner=overlay is NEVER translated)
+**Consumer extension blocks** (Markdown managed docs only — `commands/sop-update.md` Step 2.A):
+before any pristine check or write, parse+validate blocks (fail-closed: malformed set ⇒ file +
+manifest entry untouched + blocking warning), extract + strip, run the pristine check **on stripped
+content**, then re-insert the blocks (never translated, payload bytes immutable) into the new
+render per the anchor rule, single atomic write.
+
+## Pipeline (per translatable file — owner=ccsop docs-scaffold + **pristine** owner=seed nav/index stubs & review-prompts; config is re-rendered per above; **a modified/untracked seed entry — **effective** LF-normalized sha ≠ `rendered_sha` (effective = stripped-of-valid-consumer-blocks for eligible Markdown, raw otherwise; fail-closed on malformed blocks) — is preserved+warned, never translated, even with `--force`**; owner=overlay is NEVER translated)
 
 Run this 5-step placeholder-protection pipeline; **abort the whole file atomically if step 4 fails**
 (leave the existing file untouched — no half-translated output):
@@ -83,14 +100,19 @@ Run this 5-step placeholder-protection pipeline; **abort the whole file atomical
 
 ## After translation
 
-- Update each translated entry's `language` + `rendered_sha` + `translation_source` in the manifest
-  (`translation_source=maintained` if copied from `templates/i18n/<canonical-lang>/`, else `on-the-fly`).
+- Per entry, **only after an accepted successful write**, advance ALL baselines **atomically**:
+  `source_sha` + `rendered_sha` + `language` + `translation_source` + `version`, **plus
+  `translation_source_sha`** (the maintained artifact's LF-normalized sha) for maintained copies;
+  **delete** `translation_source_sha` when the entry becomes `en` / `on-the-fly`. Entries that were
+  preserved, aborted, or failed keep **every** baseline unchanged (the pending change resurfaces on
+  the next run).
 - Re-render `.codex-review/config.toml` `[meta].language` to `<lang>`.
 - Confirm with the user before overwriting (show which files change); honor `--force` to skip the prompt.
 
 ## Boundaries
-- owner=ccsop files + **pristine** owner=seed entries only; a **modified/untracked** seed entry (on-disk
-  LF-normalized sha ≠ `rendered_sha`) is preserved+warned, never translated over (even with `--force`);
+- owner=ccsop files + **pristine** owner=seed entries only; a **modified/untracked** seed entry
+  (**effective** LF-normalized sha ≠ `rendered_sha` — stripped content for block-eligible Markdown,
+  raw otherwise) is preserved+warned, never translated over (even with `--force`);
   `records/current.md` and user-converted overlay files are never translated.
 - Translate from the EN canonical, not the already-materialized language (avoid compounding drift).
 - Step-4 verification failure aborts that file with no write — never ship a half-translated doc.
