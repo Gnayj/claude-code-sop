@@ -38,7 +38,7 @@ const CircuitBreakersSchema = z.object({
   max_design_review_rounds: z.number().int().positive().default(3),
   max_code_review_rounds: z.number().int().positive().default(3),
   max_fix_review_rounds: z.number().int().positive().default(3),
-  scope_drift_lines_threshold: z.number().int().positive().default(200),
+  scope_drift_lines_threshold: z.number().int().positive().default(400),
   context_warn_pct: z.number().min(0).max(1).default(0.6),
   context_force_new_thread_pct: z.number().min(0).max(1).default(0.8),
   codex_failure_streak_threshold: z.number().int().positive().default(3),
