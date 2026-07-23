@@ -135,7 +135,7 @@ describe("ClaudeProvider through the flow — context_usage_pct is overridden by
         {
           config,
           configBaseDir: root,
-          provider,
+          providerFor: () => provider,
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -237,7 +237,7 @@ describe("ManualProvider through the flow — prepare then submit (§8.3)", () =
       const deps = {
         config,
         configBaseDir: root,
-        provider,
+        providerFor: () => provider,
         threadManager: tm,
         promptRenderer: renderer,
         breakers,

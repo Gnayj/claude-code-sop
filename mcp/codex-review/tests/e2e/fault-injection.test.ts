@@ -88,7 +88,7 @@ describe("fault-injection: codex_unavailable after 3 SDK failures", () => {
             {
               config,
               configBaseDir: root,
-              provider: makeCodexProvider(codex),
+              providerFor: () => makeCodexProvider(codex),
               threadManager: tm,
               promptRenderer: renderer,
               breakers,
@@ -116,7 +116,7 @@ describe("fault-injection: codex_unavailable after 3 SDK failures", () => {
         {
           config,
           configBaseDir: root,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -172,7 +172,7 @@ describe("fault-injection: parser_unavailable after 3 unparseable outputs", () =
           {
             config,
             configBaseDir: root,
-            provider: makeCodexProvider(garbageCodex),
+            providerFor: () => makeCodexProvider(garbageCodex),
             threadManager: tm,
             promptRenderer: renderer,
             breakers,
@@ -282,7 +282,7 @@ describe("fault-injection: high context usage triggers thread rebuild + cold-sta
         {
           config,
           configBaseDir: root,
-          provider: makeCodexProvider(codexBundle.client),
+          providerFor: () => makeCodexProvider(codexBundle.client),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -307,7 +307,7 @@ describe("fault-injection: high context usage triggers thread rebuild + cold-sta
         {
           config,
           configBaseDir: root,
-          provider: makeCodexProvider(codexBundle.client),
+          providerFor: () => makeCodexProvider(codexBundle.client),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -380,7 +380,7 @@ describe("fault-injection: scope_drift breaker fires when cumulative fix lines e
       const flowDeps = {
         config,
         configBaseDir: root,
-        provider: makeCodexProvider(codex),
+        providerFor: () => makeCodexProvider(codex),
         threadManager: tm,
         promptRenderer: renderer,
         breakers,

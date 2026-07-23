@@ -230,7 +230,7 @@ describe("Q7 — switching review.provider invalidates the old session", () => {
         {
           config, // config.review.provider defaults to "codex"
           configBaseDir: root,
-          provider: makeCodexProvider(mock, root),
+          providerFor: () => makeCodexProvider(mock, root),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -306,7 +306,7 @@ describe("Q7 — switching review.provider invalidates the old session", () => {
         {
           config,
           configBaseDir: root,
-          provider: makeCodexProvider(mock, root),
+          providerFor: () => makeCodexProvider(mock, root),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,

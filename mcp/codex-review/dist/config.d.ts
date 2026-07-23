@@ -108,6 +108,19 @@ export declare const ConfigSchema: z.ZodObject<{
     }, {
         extra_danger_verbs_regex?: string | undefined;
     }>>;
+    collaboration: z.ZodDefault<z.ZodObject<{
+        autonomy: z.ZodOptional<z.ZodString>;
+        design_owner: z.ZodOptional<z.ZodEnum<["claude", "codex"]>>;
+        implement_owner: z.ZodOptional<z.ZodEnum<["claude", "codex"]>>;
+    }, "strip", z.ZodTypeAny, {
+        autonomy?: string | undefined;
+        design_owner?: "codex" | "claude" | undefined;
+        implement_owner?: "codex" | "claude" | undefined;
+    }, {
+        autonomy?: string | undefined;
+        design_owner?: "codex" | "claude" | undefined;
+        implement_owner?: "codex" | "claude" | undefined;
+    }>>;
     review: z.ZodObject<{
         provider: z.ZodDefault<z.ZodEnum<["codex", "claude", "manual"]>>;
         design: z.ZodObject<{
@@ -307,6 +320,11 @@ export declare const ConfigSchema: z.ZodObject<{
     safety: {
         extra_danger_verbs_regex: string;
     };
+    collaboration: {
+        autonomy?: string | undefined;
+        design_owner?: "codex" | "claude" | undefined;
+        implement_owner?: "codex" | "claude" | undefined;
+    };
     review: {
         design: {
             prompt_template: string;
@@ -416,6 +434,11 @@ export declare const ConfigSchema: z.ZodObject<{
     } | undefined;
     safety?: {
         extra_danger_verbs_regex?: string | undefined;
+    } | undefined;
+    collaboration?: {
+        autonomy?: string | undefined;
+        design_owner?: "codex" | "claude" | undefined;
+        implement_owner?: "codex" | "claude" | undefined;
     } | undefined;
 }>;
 export type ResolvedConfig = z.infer<typeof ConfigSchema>;

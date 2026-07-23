@@ -21,8 +21,10 @@ comparisons below (both `owner=ccsop` and `owner=seed`) use this LF-normalized s
 
 **Path-based seed override**: treat any path in the **seed set** (matched on the normalized
 target-repo path) — `docs/{methodology,design,runbooks,references}/index.md` + `.codex-review/templates/*.tpl`
++ the codex-side skill `.codex/skills/project-sop/SKILL.md` (flow-matrix scaffold, sop-init Step 3.A)
 — as **`owner=seed`**, **even if an older manifest entry still says `owner=ccsop`** (back-compat for consumers
-adopted before this fix).
+adopted before this fix). (The repo-root `AGENTS.md` ccsop **block** is `owner=ccsop` but block-scoped:
+update only the ccsop-managed block, never the consumer's surrounding content.)
 
 For each `owner == "seed"` entry / seed-set path:
 - **pristine** (LF-normalized on-disk sha == `rendered_sha`): safe to re-render (same as the ccsop pristine path below).

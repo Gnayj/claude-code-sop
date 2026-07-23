@@ -1,8 +1,9 @@
 # Collaboration Protocol (driver + reviewer)
 
 > ccsop canonical (English). Pairs with `project-delivery-sop.md` and `workflow-overview.md`.
-> The "reviewer" is whatever `review.provider` selects (`codex` | `claude` | `manual`); the
-> "driver" is the implementing agent (e.g. Claude Code). This protocol genericizes a
+> The "driver" is the agent that owns the driving session (see §1.D — its CLI is the designer's
+> CLI); the "reviewer" of each stage is the **counterpart model of that stage's owner** (derived —
+> see §1.D), delivered via the review bridge or manually per §1. This protocol genericizes a
 > battle-tested workflow; it keeps the rules and only swaps project anchors for `${...}`.
 
 ## 1. Modes
@@ -28,10 +29,10 @@ how review is delivered, the third is a **reviewer-led** fallback:
 
 All modes obey `project-delivery-sop.md` and must close the full loop
 (design → implement → test → review → fix → closeout); doing only a middle segment is not "done".
-**Mode is selected explicitly** — by the user (an explicit switch instruction) or project config;
-neither driver nor reviewer switches modes on its own. Switching to auto review requires the bridge
-to pass its self-test (`verify-mcp`); on bridge/provider failure auto review degrades to mode 1 and
-does not auto-recover.
+**Mode — and the §1.D flow — are selected explicitly** — by the user (an explicit switch
+instruction) or project config; neither driver nor reviewer switches modes or flows on its own.
+Switching to auto review requires the bridge to pass its self-test (`verify-mcp`); on
+bridge/provider failure auto review degrades to mode 1 and does not auto-recover.
 
 ## 1.A Autonomy dial (orthogonal to the modes)
 
@@ -79,6 +80,46 @@ full-auto runs unattended **except** when any of these holds — then it stops, 
   deliverables, full-auto produces a small **representative sample** and checkpoints it with the user **before**
   mass production — don't generate the whole batch on an unconfirmed style/contract.
 
+## 1.D Flow matrix (who designs × who implements — orthogonal to §1 modes and §1.A)
+
+A fourth axis. The "driver" decomposes into two **stage owners** — `design_owner` and
+`implement_owner`, each `claude` or `codex` — giving **4 switchable flows** (named
+`<design_owner>+<implement_owner>`):
+
+| flow | design | design review | implement | code review | driving CLI |
+|---|---|---|---|---|---|
+| `claude+claude` (default) | claude | codex | claude | codex | Claude Code |
+| `claude+codex` | claude | codex | codex | claude | Claude Code |
+| `codex+codex` | codex | claude | codex | claude | Codex |
+| `codex+claude` | codex | claude | claude | codex | Codex |
+
+Rules:
+1. **Reviewers are derived, never configured**: the reviewer of a stage is always the **counterpart
+   model of that stage's owner** (design review ← counterpart(design_owner); code review ←
+   counterpart(implement_owner); fix review is re-judged by the reviewer who raised the findings).
+   Self-review is therefore *unrepresentable*, not merely forbidden.
+2. **The driving session lives in the design_owner's CLI** ("whichever model designs, you drive from
+   its CLI"). The designer(-driver) owns clarification, design, task cards, acceptance orchestration,
+   and closeout; the implementer owns implement + self-test + fix and returns §6 structured results.
+   When the owners coincide, this is exactly the single-driver behavior described elsewhere in this
+   protocol.
+3. **Split flows** (`design_owner ≠ implement_owner`) are a true relay: an **implement task card is
+   mandatory** (§4.1 — a split flow is N≥2 by definition). The implement segment — implement →
+   self-test → code review → fix loop → ready-to-test — runs **wholly in the implementer's CLI
+   session**; hand-back to the driving CLI is via the §6 structured results + the `current.md`
+   breakpoint. The user carries the CLI switch (no automation harness is part of ccsop).
+4. **Config**: `.codex-review/config.toml` `[collaboration] design_owner / implement_owner`
+   (operational + read by the review bridge for reviewer derivation). **Key presence matters**:
+   with **both keys absent** the bridge stays in **legacy mode** — the global `review.provider`
+   governs every stage exactly as before this axis existed. With **any key present** derivation is
+   active (a missing counterpart key resolves `claude`). Invalid values fail loud (bridge degraded),
+   never silently fall back. An explicit user instruction ("this one codex+claude") overrides per
+   session, same convention as §1.A.
+5. `review.provider = manual` keeps forcing **manual delivery** for every stage — the flows stay
+   valid; the user forwards each stage's prompt/verdict to the counterpart model by hand.
+6. The **reviewer-led fallback (§1 mode 3)** is, in matrix terms, approximately the `codex+claude`
+   flow under manual delivery — it predates this axis and is kept as a documented legacy alias.
+
 ## 2. Roles
 
 1. **Driver** — clarification + brainstorming (SOP §4 chunked-confirmation cadence); design,
@@ -96,9 +137,13 @@ full-auto runs unattended **except** when any of these holds — then it stops, 
    destructive / high-impact actions (merge to main, push, branch deletion); in manual mode,
    forwards driver↔reviewer communication.
 
-The roles above describe the driver-led modes (§1 modes 1–2). In the **reviewer-led fallback**
-(§1 mode 3 / §8.1) they invert: the reviewer owns design / task cards / acceptance / closeout, and
-the driver is a pure implementer (code + test scripts only).
+The roles above describe the driver-led modes (§1 modes 1–2) with coinciding stage owners (§1.D
+`claude+claude` / `codex+codex`). In a **split flow** (§1.D rule 3) the Driver role splits along the
+stage boundary: the designer-driver keeps clarification / design / cards / acceptance / closeout,
+while the implement + self-test + fix duties move to the implementer (counterpart CLI), which
+reports back via §6. In the **reviewer-led fallback** (§1 mode 3 / §8.1) the roles invert: the
+reviewer owns design / task cards / acceptance / closeout, and the driver is a pure implementer
+(code + test scripts only).
 
 Under the **autonomy dial** (§1.A): in `full-auto` the User's "confirm destructive / high-impact actions" duty
 (§1.B.1–3) is **unchanged**; what full-auto auto-advances is only the *routine* design sign-off / "test passed"
@@ -145,6 +190,7 @@ into **multiple independent implement phases** (each with its own closeout + `co
 | **N=1** single-round implement | **No implement card.** Fold the closeout summary into the design's implementation-record section. The design doc is the round contract. |
 | **N≥2** multi-phase (each phase independent closeout / different ship cadence) | **One implement card per phase** `<design-id>-<phase>-implement.txt` from `docs/plans/_template-implement.txt`; each archived to `docs/plans/completed/<module>/`. |
 | **N=1 but paused / handed off mid-round** | Create the implement card after the first phase closes. |
+| **Split flow (§1.D, `design_owner ≠ implement_owner`)** | **Implement card always required** (N≥2 by definition — the card is the cross-CLI relay contract). |
 
 Rationale: in single-round cases an implement card is redundant (everything folds into the design
 doc); in multi-round cases the design doc is the persistent cross-round doc and per-phase cards
@@ -279,6 +325,8 @@ auto-validating wrapper):
 6. `handoffUpdated` — whether the breakpoint doc was updated.
 7. `commit` — whether a commit happened; non-closeout must be `performed=false`.
 8. `mode` — `driver-led-reviewer-gate` | `driver-led-auto-review` | `reviewer-led-closed-loop`.
+8.A `flow` — the §1.D flow this round ran under (`claude+claude` | `claude+codex` | `codex+codex` |
+   `codex+claude`); omit when the repo has no `[collaboration]` owner keys (legacy).
 9. `designReview` — `required` | `skipped` | `done`.
 10. `knownRisks` / `nextStep` — for quick reviewer triage.
 
@@ -312,6 +360,12 @@ user is called back only on an escalation; otherwise the run ends at a §6.A rep
 6. Driver fixes (Critical before Important), looping to step 5 as needed.
 7. User runs verify scripts.
 8. After the user replies "test passed", driver closes out (§4.2 closeout). Push/merge per §4.6.
+
+Under a **split flow** (§1.D rule 3) the same 8 steps hold with two handoff points: after step 3 the
+designer-driver writes the implement card and the user switches to the implementer's CLI; steps 4–6
+(implement → code review → fix, reviewer = counterpart(implement_owner)) run wholly in the
+implementer's session, which then reports §6 results + updates `current.md`; the user switches back
+to the driving CLI for steps 7–8 (acceptance + closeout stay with the designer-driver).
 
 ### 8.1 Reviewer-led closed loop (fallback), 7 steps
 

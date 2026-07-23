@@ -15,8 +15,24 @@ allowed_doc_roots = [
 
 # Operating autonomy (claude-code-sop-collaboration.md §1.A). OPERATIONAL — the driver reads this;
 # the review bridge ignores it. A missing/invalid value is fail-closed to "gated".
+#
+# Flow matrix (collaboration.md §1.D): who designs × who implements. The review bridge READS the
+# two owner keys to derive each stage's reviewer (design review ← counterpart(design_owner);
+# code review ← counterpart(implement_owner); fix review inherits the session's reviewer).
+# PRECEDENCE / presence semantics:
+#   - BOTH owner keys absent  -> legacy mode: [review].provider governs every stage (pre-flow-matrix
+#     behavior, back-compat). Keep them absent if you only want a single global reviewer.
+#   - ANY owner key present   -> derivation active (a missing counterpart key resolves "claude");
+#     [review].provider = codex|claude is then ignored for stage selection.
+#   - [review].provider = manual always forces manual delivery for every stage (flows stay valid;
+#     the user forwards prompts/verdicts by hand).
+#   - Invalid values fail LOUD (bridge starts degraded) — never a silent fallback.
 [collaboration]
 autonomy = "gated"               # gated (default) | full-auto
+# Default flow claude+claude = keys ABSENT (legacy mode, honors [review].provider). /sop-init
+# uncomments + fills these only when a non-default flow is chosen:
+# design_owner = "claude"        # claude | codex — who designs; the driving session is this CLI
+# implement_owner = "claude"     # claude | codex — who implements (fix loop runs in its CLI)
 
 [paths]
 sop = "docs/methodology/project-delivery-sop.md"

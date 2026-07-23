@@ -6,6 +6,7 @@ import { resolveProjectPath } from "./config.js";
 import { estimateTokensFromChars } from "./context-monitor.js";
 import { planDrift, renderDriftPreface } from "./drift-detector.js";
 import { parseCodexOutput } from "./output-parser.js";
+import { providerKindForStage } from "./providers/factory.js";
 /**
  * Server-authoritative review id. Codex cannot know this value when generating its
  * envelope text, so any value Codex writes is discarded by the flow and replaced
@@ -19,12 +20,15 @@ function generateReviewId(designId, stage, round) {
     return `rev_${sanitized}_${stage}_${round}_${short}`;
 }
 export async function runReviewFlow(deps, input) {
-    const { config, configBaseDir, provider, threadManager, promptRenderer, breakers, breakerState } = deps;
+    const { config, configBaseDir, providerFor, threadManager, promptRenderer, breakers, breakerState } = deps;
     const cb = config.circuit_breakers;
     const release = threadManager.acquireLock(input.designId);
     // Opened below; released in the outer finally so closeSession runs on EVERY exit path
     // (normal turn, parse-failure, breaker, awaiting_manual, throw) — slice-2 review carryover.
     let session = null;
+    // The backend that opened `session` (resolved per call inside the try — §1.D); the finally
+    // must close the session against the SAME backend instance.
+    let activeProvider = null;
     try {
         // ---------- 1) Load existing state ----------
         //
@@ -34,6 +38,21 @@ export async function runReviewFlow(deps, input) {
         // tokens_used_estimate_total so that max_review_rounds / scope_drift breakers and
         // audit chain stay continuous across thread boundaries within the same design_id.
         const existingState = threadManager.read(input.designId);
+        // ---------- 1.A) Resolve this call's review backend (flow matrix §1.D) ----------
+        // `review.provider = manual` short-circuits EVERY stage — including a fix whose session
+        // was opened under codex/claude (code r1 i_fix_manual_short_circuit): switching the repo
+        // to manual mid-thread goes manual via the provider_switch rebuild, exactly like the
+        // pre-flow-matrix behavior. Otherwise design / code derive from the [collaboration]
+        // owner keys (legacy: review.provider), and fix INHERITS the live session's
+        // provider_kind — the reviewer who raised the findings re-judges the fix — falling back
+        // to the code-stage derivation when no live session.
+        const stageKind = config.review.provider === "manual"
+            ? "manual"
+            : input.stage === "fix" && existingState && !existingState.archived
+                ? existingState.provider_kind
+                : providerKindForStage(input.stage, config);
+        const provider = providerFor(stageKind);
+        activeProvider = provider;
         // ---------- 2) Hydrate breakerState from persisted ThreadState ----------
         // Per task §6.3 + code_review round 4 c_round_breaker_not_hydrated_from_state:
         // `breakerState.rounds` and `scope_drift_lines` MUST be hydrated from per-design_id
@@ -86,7 +105,13 @@ export async function runReviewFlow(deps, input) {
         if (existingState && !existingState.archived) {
             // Provider switch (Q7) is a hard invalidation and takes priority: a session opened by
             // another provider's backend cannot be resumed (no cross-provider thread/history reuse).
-            if (existingState.provider_kind !== config.review.provider) {
+            // Under the flow matrix (§1.D) this also covers the intended per-stage reviewer change
+            // within one design_id (e.g. design reviewed by codex, code reviewed by claude): the
+            // stage's derived kind differs from the session's → fresh session + cold-start preface,
+            // with rounds/drift/token counters preserved. Fix inherits the session's kind (stageKind
+            // above) and therefore only rebuilds here on a switch to review.provider=manual (the
+            // manual short-circuit outranks inheritance — i_fix_manual_short_circuit).
+            if (existingState.provider_kind !== stageKind) {
                 didRebuildThisCall = true;
                 rebuildReason = "provider_switch";
             }
@@ -329,8 +354,8 @@ export async function runReviewFlow(deps, input) {
         };
     }
     finally {
-        if (session)
-            provider.closeSession(session);
+        if (session && activeProvider)
+            activeProvider.closeSession(session);
         release();
     }
 }
@@ -347,7 +372,7 @@ function renderColdStartPreface(recent, oldUsagePct, reason) {
     const reasonLine = reason === "force_new_thread"
         ? `caller 主动设置 force_new_thread=true（context_exhausted 恢复路径）；旧 thread context_usage_pct=${oldUsagePct.toFixed(2)} 时被替换。`
         : reason === "provider_switch"
-            ? `review.provider 已切换（Q7）：旧 provider 的 session 作废，本轮起用新 provider 的全新 session（不跨 provider 复用 thread/history）。`
+            ? `本阶段的 reviewer 与旧 session 的 provider 不同（Q7 review.provider 切换，或 §1.D flow-matrix 按阶段派生）：旧 provider 的 session 作废，本轮起用新 provider 的全新 session（不跨 provider 复用 thread/history）。`
             : `旧 thread context_usage_pct=${oldUsagePct.toFixed(2)} 已超过 force-rebuild 阈值，自动替换。`;
     const lines = [
         "## Thread 重建后的冷启动上下文（design §4.4）",

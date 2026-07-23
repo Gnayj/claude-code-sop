@@ -96,12 +96,28 @@ const ManualProviderConfig = z.object({
   sessions_dir: z.string().default(""),
 }).default({ sessions_dir: "" });
 
+// ---------- Flow matrix config (collaboration.md §1.D, design ccsop-flow-matrix) ----------
+// The two owner keys are OPTIONAL WITH NO DEFAULT — presence is load-bearing
+// (c_legacy_owner_presence): with BOTH absent the bridge stays in legacy mode and
+// `review.provider` governs every stage; with any present, per-stage reviewer derivation is
+// active (see providers/factory.ts providerKindForStage). An invalid value is a schema error
+// (server starts degraded) — never a silent fallback to a default owner.
+const OwnerSchema = z.enum(["claude", "codex"]);
+const CollaborationSchema = z.object({
+  // Operational autonomy dial (collaboration.md §1.A) — accepted here so consumer configs
+  // validate; the bridge itself ignores it.
+  autonomy: z.string().optional(),
+  design_owner: OwnerSchema.optional(),
+  implement_owner: OwnerSchema.optional(),
+}).default({});
+
 export const ConfigSchema = z.object({
   meta: MetaSchema,
   paths: PathsSchema,
   state: StateSchema.default({} as Record<string, never>),
   circuit_breakers: CircuitBreakersSchema.default({} as Record<string, never>),
   safety: SafetySchema.default({ extra_danger_verbs_regex: "" }),
+  collaboration: CollaborationSchema,
   review: z.object({
     provider: ProviderKindSchema.default("codex"),
     design: ReviewStageConfig,

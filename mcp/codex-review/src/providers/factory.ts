@@ -6,6 +6,7 @@
 // a backend; switching providers is a one-line config change (§8.3).
 
 import { resolve as resolvePath } from "node:path";
+import type { ProviderKind, ReviewStage } from "../types.js";
 import type { ResolvedConfig } from "../config.js";
 import type { CodexClient } from "../codex-client.js";
 import { OpenAICodexClient } from "../codex-client.js";
@@ -29,10 +30,45 @@ export interface ProviderFactoryDeps {
   /** Injectable clients (tests pass mocks; server passes the real SDK-backed clients). */
   codexClient?: CodexClient;
   claudeClient?: ClaudeClient;
+  /** Construct a specific backend instead of config.review.provider — used by the per-stage
+   * flow-matrix derivation (collaboration.md §1.D); the config's provider tuning subtables
+   * ([review.codex] / [review.claude] / [review.manual]) still apply. */
+  kindOverride?: ProviderKind;
+}
+
+/** The §1.D heterogeneous-review invariant: a stage's reviewer is the other model. */
+export function counterpartOf(owner: "claude" | "codex"): ProviderKind {
+  return owner === "claude" ? "codex" : "claude";
+}
+
+/**
+ * Per-stage reviewer derivation (collaboration.md §1.D, design ccsop-flow-matrix).
+ *
+ * - `review.provider = manual` short-circuits EVERY stage to manual delivery.
+ * - Both `[collaboration]` owner keys absent → legacy mode: `review.provider` governs all
+ *   stages exactly as before the flow axis existed (c_legacy_owner_presence — presence is
+ *   observable because the schema gives the keys no default).
+ * - Otherwise: design → counterpart(design_owner ?? "claude"); code → counterpart(
+ *   implement_owner ?? "claude"). The fix stage normally INHERITS the persisted session's
+ *   provider_kind (the reviewer who raised the findings re-judges the fix) — that resolution
+ *   needs the session state and lives in run-review-flow; this function's "fix" answer is the
+ *   no-session fallback and mirrors the code stage.
+ */
+export function providerKindForStage(
+  stage: ReviewStage,
+  config: ResolvedConfig,
+): ProviderKind {
+  if (config.review.provider === "manual") return "manual";
+  const { design_owner, implement_owner } = config.collaboration;
+  if (design_owner === undefined && implement_owner === undefined) {
+    return config.review.provider; // legacy mode: global reviewer, pre-flow-matrix behavior
+  }
+  if (stage === "design") return counterpartOf(design_owner ?? "claude");
+  return counterpartOf(implement_owner ?? "claude");
 }
 
 export function createReviewProvider(deps: ProviderFactoryDeps): ReviewProvider {
-  const provider = deps.config.review.provider;
+  const provider = deps.kindOverride ?? deps.config.review.provider;
   switch (provider) {
     case "codex": {
       const model =

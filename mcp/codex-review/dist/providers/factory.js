@@ -13,8 +13,36 @@ import { ManualProvider } from "./manual.js";
 // Strong default claude model when review.claude.model is unset (Q5 "fresh high-effort
 // instance"). Overridable via [review.claude].model.
 const DEFAULT_CLAUDE_MODEL = "claude-opus-4-8";
+/** The §1.D heterogeneous-review invariant: a stage's reviewer is the other model. */
+export function counterpartOf(owner) {
+    return owner === "claude" ? "codex" : "claude";
+}
+/**
+ * Per-stage reviewer derivation (collaboration.md §1.D, design ccsop-flow-matrix).
+ *
+ * - `review.provider = manual` short-circuits EVERY stage to manual delivery.
+ * - Both `[collaboration]` owner keys absent → legacy mode: `review.provider` governs all
+ *   stages exactly as before the flow axis existed (c_legacy_owner_presence — presence is
+ *   observable because the schema gives the keys no default).
+ * - Otherwise: design → counterpart(design_owner ?? "claude"); code → counterpart(
+ *   implement_owner ?? "claude"). The fix stage normally INHERITS the persisted session's
+ *   provider_kind (the reviewer who raised the findings re-judges the fix) — that resolution
+ *   needs the session state and lives in run-review-flow; this function's "fix" answer is the
+ *   no-session fallback and mirrors the code stage.
+ */
+export function providerKindForStage(stage, config) {
+    if (config.review.provider === "manual")
+        return "manual";
+    const { design_owner, implement_owner } = config.collaboration;
+    if (design_owner === undefined && implement_owner === undefined) {
+        return config.review.provider; // legacy mode: global reviewer, pre-flow-matrix behavior
+    }
+    if (stage === "design")
+        return counterpartOf(design_owner ?? "claude");
+    return counterpartOf(implement_owner ?? "claude");
+}
 export function createReviewProvider(deps) {
-    const provider = deps.config.review.provider;
+    const provider = deps.kindOverride ?? deps.config.review.provider;
     switch (provider) {
         case "codex": {
             const model = deps.config.review.codex.model ||

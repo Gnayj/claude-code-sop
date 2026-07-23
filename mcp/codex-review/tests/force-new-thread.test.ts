@@ -252,7 +252,7 @@ describe("§8.1 #3 — force_new_thread=true + existing state → startThread + 
         {
           config,
           configBaseDir: root,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -285,7 +285,7 @@ describe("§8.1 #3 — force_new_thread=true + existing state → startThread + 
         {
           config,
           configBaseDir: root,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -338,7 +338,7 @@ describe("§8.1 #4 — force_new_thread=false + existing state → resume (regre
       const flowDeps = {
         config,
         configBaseDir: root,
-        provider: makeCodexProvider(codex),
+        providerFor: () => makeCodexProvider(codex),
         threadManager: tm,
         promptRenderer: renderer,
         breakers,
@@ -434,7 +434,7 @@ describe("§8.1 #6 — force_new_thread preserves rounds counters / history / dr
       const flowDeps = {
         config,
         configBaseDir: root,
-        provider: makeCodexProvider(codex),
+        providerFor: () => makeCodexProvider(codex),
         threadManager: tm,
         promptRenderer: renderer,
         breakers,
@@ -527,7 +527,7 @@ describe("§8.1 #7 — force_new_thread=true + previous_round_id → startThread
       const flowDeps = {
         config,
         configBaseDir: root,
-        provider: makeCodexProvider(codex),
+        providerFor: () => makeCodexProvider(codex),
         threadManager: tm,
         promptRenderer: renderer,
         breakers,
@@ -628,7 +628,7 @@ describe("round breaker hydration from persisted state (round 4 RC c_round_break
         {
           config,
           configBaseDir: root,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -655,7 +655,7 @@ describe("round breaker hydration from persisted state (round 4 RC c_round_break
         {
           config,
           configBaseDir: root,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -694,7 +694,7 @@ describe("round breaker hydration from persisted state (round 4 RC c_round_break
       const flowDeps = {
         config,
         configBaseDir: root,
-        provider: makeCodexProvider(codex),
+        providerFor: () => makeCodexProvider(codex),
         threadManager: tm,
         promptRenderer: renderer,
         breakers,
@@ -761,7 +761,7 @@ describe("§8.2 #1 — e2e dogfood: code_review with force_new_thread=true yield
       const flowDeps = {
         config,
         configBaseDir: root,
-        provider: makeCodexProvider(codex),
+        providerFor: () => makeCodexProvider(codex),
         threadManager: tm,
         promptRenderer: renderer,
         breakers,

@@ -79,6 +79,8 @@ export function defaultConfig(overrides: Partial<ResolvedConfig> = {}): Resolved
       code_mechanical_max_modules: 1,
     },
     safety: { extra_danger_verbs_regex: "" },
+    // Flow matrix (§1.D): both owner keys absent = legacy mode (review.provider governs).
+    collaboration: {},
     review: {
       provider: "codex",
       design: {

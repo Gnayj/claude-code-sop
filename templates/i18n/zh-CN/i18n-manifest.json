@@ -5,7 +5,17 @@
     {
       "target_rel": "README.zh-CN.md",
       "source_path": "README.md",
-      "source_sha": "e10224055f76657f34509ab831021e1c6295dd338435f8407da6f7717d7cf7f2"
+      "source_sha": "737a7fe47e5b68fe7c2064c70e8083c372be88fd2568df07cd83a4660d659cae"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/project-sop/SKILL.md",
+      "source_path": "templates/codex-scaffold/skills/project-sop/SKILL.md",
+      "source_sha": "e6b4d47541b2c1b957f91492d6bfa85a19370bd3a5aa7a3da3260faa5022e5ca"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/codex-scaffold/AGENTS-snippet.md",
+      "source_path": "templates/codex-scaffold/AGENTS-snippet.md",
+      "source_sha": "80cf64f3f36c2b90394cf2a554091d979e055e0e983c32f190c5abf3b0a5af39"
     },
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/design/index.md",
@@ -15,7 +25,7 @@
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/claude-code-sop-collaboration.md",
       "source_path": "templates/docs-scaffold/methodology/claude-code-sop-collaboration.md",
-      "source_sha": "11ac02b6b38c2b7951a95e9c9b3cb1dd17b9746ce2e076165989eee2a1812461"
+      "source_sha": "1b1fdf9f6969d33e02c3bc79471f05330fb54a33ec27a5f4714545e185f35993"
     },
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/index.md",

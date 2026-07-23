@@ -39,6 +39,12 @@ the copied artifacts, and recorded `language` / `translation_source`.
   translate via the Pipeline below **only if a pristine prior render** (on-disk sha == `rendered_sha`); if the
   consumer customized it (sha mismatch / no entry) → **preserve + warn**, do not translate over it (`--force`
   does not override seed). Seed set is path-based (overrides any old `owner=ccsop`).
+- **codex-side scaffold** (`templates/codex-scaffold/skills/project-sop/SKILL.md` →
+  `.codex/skills/project-sop/SKILL.md`, **owner=seed**; flow-matrix, sop-init Step 3.A): same
+  pristine-only seed rule as the review prompts. Maintained mirror lives at
+  `templates/i18n/<canonical-lang>/codex-scaffold/**` (all-or-nothing with the rest of the maintained
+  set). The repo-root `AGENTS.md` ccsop block is machine-stable pointer content — re-render the block
+  from the (translated) snippet template, never prose-translate the consumer's surrounding file.
 - **review config** (`templates/config.toml.tpl` → `.codex-review/config.toml`, owner=ccsop): **NOT translated** — re-render from the template and set `[meta].language = <lang>` only. Values/keys are machine-stable; do not run it through prose translation. Update its manifest `rendered_sha`, but it is not a "translated entry".
 - **owner=overlay** (`records/current.md`): never touched.
 

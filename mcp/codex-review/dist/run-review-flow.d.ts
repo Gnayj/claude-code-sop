@@ -4,13 +4,14 @@ import { type ParseResult } from "./output-parser.js";
 import { PromptRenderer, type PromptVars } from "./prompt-renderer.js";
 import type { ReviewProvider } from "./review-provider.js";
 import { ThreadManager } from "./thread-manager.js";
-import type { ReviewEnvelope, ReviewStage } from "./types.js";
+import type { ProviderKind, ReviewEnvelope, ReviewStage } from "./types.js";
 export interface FlowDependencies {
     config: ResolvedConfig;
     configBaseDir: string;
-    /** Review backend behind the raw-turn boundary (design §4.7). Selected by the factory
-     * from config.review.provider. Replaces the previous direct `codex: CodexClient`. */
-    provider: ReviewProvider;
+    /** Review backend registry behind the raw-turn boundary (design §4.7). The flow resolves the
+     * stage's provider KIND per call (flow matrix, collaboration.md §1.D: per-stage derivation;
+     * fix inherits the session's provider_kind) and asks this registry for the backend. */
+    providerFor: (kind: ProviderKind) => ReviewProvider;
     threadManager: ThreadManager;
     promptRenderer: PromptRenderer;
     breakers: BreakerEngine;

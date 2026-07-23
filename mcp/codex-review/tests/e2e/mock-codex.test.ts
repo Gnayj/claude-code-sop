@@ -130,7 +130,7 @@ describe("e2e: design-review + drift inject + code-review + fix-review (mock SDK
         {
           config,
           configBaseDir: baseDir,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -162,7 +162,7 @@ describe("e2e: design-review + drift inject + code-review + fix-review (mock SDK
         {
           config,
           configBaseDir: baseDir,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -190,7 +190,7 @@ describe("e2e: design-review + drift inject + code-review + fix-review (mock SDK
         {
           config,
           configBaseDir: baseDir,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -251,7 +251,7 @@ describe("e2e: server-authoritative envelope.thread_id and review_id (override C
         {
           config,
           configBaseDir: baseDir,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,
@@ -310,7 +310,7 @@ describe("e2e: parser force-upgrade rounds counted, mock returns stale enum -> r
         {
           config,
           configBaseDir: baseDir,
-          provider: makeCodexProvider(codex),
+          providerFor: () => makeCodexProvider(codex),
           threadManager: tm,
           promptRenderer: renderer,
           breakers,

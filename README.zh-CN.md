@@ -78,6 +78,29 @@ cd /your/repo && claude --plugin-dir /path/to/ccsop
 切 provider 是 `.codex-review/config.toml` 里 `review.provider` 一行改动（切换作废旧 session ——
 无跨 provider thread 复用）。
 
+## 协作流程（谁 design × 谁 implement）
+
+除了选 reviewer，你还可以把**工作本身**在两个模型之间拆分
+（`claude-code-sop-collaboration.md §1.D`）。4 个可切换流程，命名
+`<design_owner>+<implement_owner>`：
+
+| 流程 | design | design review | implement | code review | 你在哪个 CLI 推 |
+|---|---|---|---|---|---|
+| `claude+claude`（默认） | claude | codex | claude | codex | Claude Code |
+| `claude+codex` | claude | codex | codex | claude | Claude Code |
+| `codex+codex` | codex | claude | codex | claude | Codex CLI |
+| `codex+claude` | codex | claude | claude | codex | Codex CLI |
+
+- **reviewer 派生、不可配** —— 每个阶段由该阶段 owner 的对侧模型 review，因此每个流程都保住跨模型
+  review，self-review 不可表达。
+- **你从 design owner 的 CLI 主推。** 拆分流程（`claude+codex` / `codex+claude`）下 implement 段
+  （implement → code review → fix → ready-to-test）在 implementer 的 CLI 里对着一张必出的
+  implement 任务卡跑完；交接靠 `current.md` + 任务卡。
+- **切换**：改 `.codex-review/config.toml` `[collaboration] design_owner / implement_owner`
+  （两键都不写 = 默认 —— 此时 `review.provider` 统管，即上表第一行），或按 session 口头指定
+  （"这单 codex+claude"）。`/sop-init` 把它作为初始化问题之一，流程涉及 codex 时会一并铺 Codex 侧
+  执行地图（`.codex/skills/` + `AGENTS.md` 指针）。
+
 ## 工作流一览
 
 ```mermaid
@@ -114,6 +137,8 @@ flowchart TD
 - **模型分级**：判断用强模型，机械 agent 用更省的档（`model-tier-strategy.md`）。
 - **自治档位**（config 里 `[collaboration] autonomy`）：跑 **`gated`**（你确认每道闸）或 **`full-auto`** ——
   driver 跑完整循环、只在某个决定确实该你拍时才停，最后出一份 run 报告。
+- **流程矩阵**（config 里 `[collaboration] design_owner / implement_owner`）：把 design 和 implement 在两个
+  模型间拆分（4 个流程，见上文"协作流程"）—— 对侧恒 review，你从 design owner 的 CLI 主推。
 
 **最佳实践。**
 

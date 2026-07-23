@@ -15,6 +15,8 @@ import {
 import { loadConfig, resolveProjectPath, type ResolvedConfig } from "./config.js";
 import { enforceMinSafetyPolicy } from "./safety.js";
 import { createReviewProvider } from "./providers/factory.js";
+import type { ProviderKind } from "./types.js";
+import type { ReviewProvider } from "./review-provider.js";
 import { ThreadManager } from "./thread-manager.js";
 import { PromptRenderer } from "./prompt-renderer.js";
 import { BreakerEngine, initialBreakerState } from "./circuit-breakers.js";
@@ -102,17 +104,28 @@ async function main(): Promise<void> {
       const promptRenderer = new PromptRenderer(config, projectRoot);
       const breakers = new BreakerEngine(config);
       const breakerState = initialBreakerState();
-      // Select the review backend from config.review.provider (design §4.7). The factory
-      // constructs the SDK-backed client internally for codex / claude.
-      const provider = createReviewProvider({
-        config,
-        workingDirectory: projectRoot,
-        sessionsDir,
-      });
+      // Review backends are constructed lazily PER KIND (flow matrix, collaboration.md §1.D):
+      // the stage→kind derivation happens per call in run-review-flow; this memoized registry
+      // hands it a backend for whatever kind it resolves (legacy configs only ever ask for
+      // config.review.provider's kind). The factory constructs the SDK-backed client
+      // internally for codex / claude.
+      const providerCache = new Map<ProviderKind, ReviewProvider>();
+      const providerFor = (kind: ProviderKind): ReviewProvider => {
+        const cached = providerCache.get(kind);
+        if (cached) return cached;
+        const created = createReviewProvider({
+          config,
+          workingDirectory: projectRoot,
+          sessionsDir,
+          kindOverride: kind,
+        });
+        providerCache.set(kind, created);
+        return created;
+      };
       deps = {
         config,
         configBaseDir: baseDir,
-        provider,
+        providerFor,
         threadManager,
         promptRenderer,
         breakers,

@@ -27,6 +27,14 @@ Ask, one decision at a time (chunked confirmation, SOP §4):
 2. **language** for materialized docs (`en` canonical, or `zh`/other → translated once via the §4.3 pipeline; see `/sop-lang`).
 3. **review.provider** (`codex` default | `claude` | `manual`) — note the codex heterogeneity advantage + the claude caveat.
 4. **translation.provider** (only if language ≠ en): `claude` | `none` (BYO translated docs). If review.provider=manual, translation defaults to `none` (do NOT borrow the review model).
+5. **collaboration flow** (`claude+claude` default | `claude+codex` | `codex+codex` | `codex+claude`) —
+   who designs × who implements (collaboration.md §1.D); each stage's reviewer is the counterpart
+   model, and the driving session lives in the design owner's CLI.
+   - `claude+claude` → leave the `[collaboration]` owner keys **absent** (legacy mode: `review.provider`
+     governs — this also keeps a `review.provider=claude` choice meaningful).
+   - Any other flow → uncomment + fill `design_owner` / `implement_owner` in the config (Step 5) and
+     materialize the **codex-side scaffold** (Step 3.A). Non-default flows pair naturally with
+     `review.provider=codex|claude` (auto delivery); `manual` still forces manual delivery per stage.
 
 ## Step 3 — Materialize the docs scaffold
 
@@ -65,6 +73,24 @@ normalized target-repo path:** the nav/index stubs `docs/{methodology,design,run
 + the review-prompt templates `.codex-review/templates/*.tpl` (the latter materialized in Step 5 — the same
 seed policy applies there).
 
+## Step 3.A — Codex-side scaffold (only when the chosen flow involves `codex`, or on request)
+
+Materialize `${CLAUDE_PLUGIN_ROOT}/templates/codex-scaffold/` into the target repo so Codex-side
+sessions (driving or implementer, §1.D) get the same execution map Claude-side ones have:
+- `skills/project-sop/SKILL.md` → `.codex/skills/project-sop/SKILL.md` — **`owner=seed`** (same
+  class + write policy as the nav stubs: create if absent; preserve+warn once consumer-owned;
+  pristine-only re-render by `/sop-update` / `/sop-lang`).
+- `AGENTS-snippet.md` is NOT copied as a file — **append its ccsop-managed block once** to the
+  repo-root `AGENTS.md` (create the file if missing; idempotent — don't duplicate, don't touch the
+  consumer's other content; same pattern as the Step 5 `.gitattributes` block). Codex CLI auto-reads
+  `AGENTS.md`; the block points at the codex skill + `docs/methodology/`. The block is `owner=ccsop`.
+- If language ≠ en, both go through the same Step 3 translation-source resolution
+  (maintained mirror: `templates/i18n/<canonical-lang>/codex-scaffold/**`; else the placeholder
+  pipeline).
+- Remind the user: to run **auto review from the Codex side**, register the same review-bridge
+  stdio server in Codex CLI's MCP config (`~/.codex/config.toml [mcp_servers]`, same `--config`
+  argument); this wiring is user-verified — the bridge itself is CLI-neutral.
+
 ## Step 4 — Write `.ccsop/manifest.json` (provenance, per-file owner + double sha)
 
 For every materialized file, append an entry:
@@ -82,7 +108,8 @@ For every materialized file, append an entry:
   the `settings.json` permission baseline.
 - `owner=seed` (ccsop-seeded, consumer-owned — **path-based, overrides any prior `owner`**): the nav/index
   stubs `docs/{methodology,design,runbooks,references}/index.md` + the review-**prompt** templates
-  `.codex-review/templates/*.tpl`. Written per the Step 3 seed policy (preserve+warn once consumer-populated);
+  `.codex-review/templates/*.tpl` + the codex-side skill `.codex/skills/project-sop/SKILL.md` (Step 3.A).
+  Written per the Step 3 seed policy (preserve+warn once consumer-populated);
   `/sop-update` & `/sop-lang` may re-render only a **pristine** entry (on-disk sha == `rendered_sha`), else preserve+warn.
 - `owner=overlay` (bootstrap-once; `/sop-update` and `/sop-lang` NEVER touch): `records/current.md`.
 - Compute sha with `sha256sum` over **LF-normalized** content (convert CRLF → LF before hashing) so
@@ -93,7 +120,10 @@ For every materialized file, append an entry:
 ## Step 5 — Review config + permission baseline
 
 - Render `${CLAUDE_PLUGIN_ROOT}/templates/config.toml.tpl` → `.codex-review/config.toml`, filling
-  `<PROJECT_ID>/<PROJECT_NAME>/<LANGUAGE>/<REVIEW_PROVIDER>/<TRANSLATION_PROVIDER>`.
+  `<PROJECT_ID>/<PROJECT_NAME>/<LANGUAGE>/<REVIEW_PROVIDER>/<TRANSLATION_PROVIDER>`. For a
+  non-default collaboration flow (Step 2.5) also uncomment + fill the `[collaboration]`
+  `design_owner` / `implement_owner` keys; for `claude+claude` leave them commented (absent =
+  legacy semantics — see the tpl's precedence comment).
 - Copy `${CLAUDE_PLUGIN_ROOT}/templates/review-prompts/*.tpl` → `.codex-review/templates/` **per the Step 3
   seed policy** (these are `owner=seed`: copy only if absent or a pristine prior render; preserve+warn if the
   consumer has customized them).

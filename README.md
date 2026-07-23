@@ -82,6 +82,31 @@ billing, separate from a Pro/Max plan), or `manual` (nothing). See the table bel
 Switching providers is a one-line `review.provider` change in `.codex-review/config.toml`
 (switching invalidates the prior session — no cross-provider thread reuse).
 
+## Collaboration flows (who designs × who implements)
+
+Beyond picking a reviewer, you can split the **work itself** between the two models
+(`claude-code-sop-collaboration.md §1.D`). Four switchable flows, named
+`<design_owner>+<implement_owner>`:
+
+| flow | design | design review | implement | code review | you drive from |
+|---|---|---|---|---|---|
+| `claude+claude` (default) | claude | codex | claude | codex | Claude Code |
+| `claude+codex` | claude | codex | codex | claude | Claude Code |
+| `codex+codex` | codex | claude | codex | claude | Codex CLI |
+| `codex+claude` | codex | claude | claude | codex | Codex CLI |
+
+- **Reviewers are derived, not configured** — each stage is reviewed by the counterpart of that
+  stage's owner, so cross-model review is preserved in every flow and self-review is
+  unrepresentable.
+- **You drive from the design owner's CLI.** In split flows (`claude+codex` / `codex+claude`) the
+  implement segment (implement → code review → fix → ready-to-test) runs in the implementer's CLI
+  against a mandatory implement task card; `current.md` + the card carry the handoff.
+- **Switch** via `[collaboration] design_owner / implement_owner` in `.codex-review/config.toml`
+  (leave both absent for the default — then `review.provider` governs, exactly the table above), or
+  per session by telling the driver ("this one codex+claude"). `/sop-init` asks this as a setup
+  question and scaffolds the Codex-side execution map (`.codex/skills/` + an `AGENTS.md` pointer)
+  when a flow involves codex.
+
 ## Workflow at a glance
 
 ```mermaid
@@ -121,6 +146,9 @@ merge* — where every step lands in docs, so work resumes cold and nothing is r
 - **Autonomy dial** (`[collaboration] autonomy` in config): run **`gated`** (you confirm each gate) or
   **`full-auto`** — the driver runs the whole loop and only stops to escalate when a decision is genuinely
   yours, ending in a single run report.
+- **Flow matrix** (`[collaboration] design_owner / implement_owner`): split design and implementation
+  between the two models (4 flows, "Collaboration flows" above) — the counterpart always reviews, and you
+  drive from the design owner's CLI.
 
 **Best practices.**
 
