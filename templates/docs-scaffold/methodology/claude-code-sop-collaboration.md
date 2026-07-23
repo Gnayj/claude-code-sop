@@ -129,7 +129,8 @@ Rules:
    governs every stage exactly as before this axis existed. With **any key present** derivation is
    active (a missing counterpart key resolves `claude`). Invalid values fail loud (bridge degraded),
    never silently fall back. An explicit user instruction ("this one codex+claude") overrides per
-   session, same convention as §1.A.
+   session, same convention as §1.A. For Claude-driven flows, `/sop-flow` switches the standing
+   default by writing both owner keys and the coupled implement gate; reload the bridge to pick it up.
 5. `review.provider = manual` keeps forcing **manual delivery** for every stage — the flows stay
    valid; the user forwards each stage's prompt/verdict to the counterpart model by hand.
 6. The **reviewer-led fallback (§1 mode 3)** is, in matrix terms, approximately the `codex+claude`

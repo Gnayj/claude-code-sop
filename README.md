@@ -111,7 +111,8 @@ Beyond picking a reviewer, you can split the **work itself** between the two mod
   (leave both absent for the default — then `review.provider` governs, exactly the table above), or
   per session by telling the driver ("this one codex+claude"). `/sop-init` asks this as a setup
   question and scaffolds the Codex-side execution map (`.codex/skills/` + an `AGENTS.md` pointer)
-  when a flow involves codex.
+  when a flow involves codex. For the Claude-driven column, `/sop-flow` is the preferred
+  standing-default switch surface; Codex-driven flows are switched from the Codex side or config.
 
 ## Workflow at a glance
 
@@ -182,6 +183,7 @@ self-verify boundary) and `workflow-overview.md` for the full flow.
 ## Commands & skills
 
 - `/sop-init` — first-time scaffold wizard.
+- `/sop-flow` — show or switch the standing collaboration flow for Claude-driven work (`claude+claude` ↔ `claude+codex`; writes the `[collaboration]` owner keys + coupled `[implement].enabled` gate; reload needed).
 - `/sop-update` — pull ccsop-owned doc updates (conflict-safe; never touches your `records/current.md`).
 - `/sop-lang <lang>` — re-materialize docs in another language (translate-once, machine-stable surfaces preserved).
 - `/handoff` — structured project state for session start / task switch.
@@ -192,7 +194,7 @@ self-verify boundary) and `workflow-overview.md` for the full flow.
 ```
 ccsop/
 ├─ .claude-plugin/plugin.json        plugin manifest (commands/agents/skills/mcpServers)
-├─ commands/                          /sop-init · /sop-update · /sop-lang
+├─ commands/                          /sop-init · /sop-flow · /sop-update · /sop-lang
 ├─ agents/                            verify-runner · doc-sync · deploy-runner (sonnet tier)
 ├─ skills/                            handoff · project-sop
 ├─ mcp/codex-review/                  the pluggable review bridge (ReviewProvider abstraction)

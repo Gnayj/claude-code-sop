@@ -36,6 +36,7 @@ Ask, one decision at a time (chunked confirmation, SOP §4):
 5. **collaboration flow** (`claude+claude` default | `claude+codex` | `codex+codex` | `codex+claude`) —
    who designs × who implements (collaboration.md §1.D); each stage's reviewer is the counterpart
    model, and the driving session lives in the design owner's CLI.
+   The standing default can be changed later with `/sop-flow` (Claude-driven flows only).
    - `claude+claude` → leave the `[collaboration]` owner keys **absent** (legacy mode: `review.provider`
      governs — this also keeps a `review.provider=claude` choice meaningful).
    - Any other flow → uncomment + fill `design_owner` / `implement_owner` in the config (Step 5) and

@@ -104,7 +104,8 @@ cd /your/repo && claude --plugin-dir /path/to/ccsop
 - **切换**：改 `.codex-review/config.toml` `[collaboration] design_owner / implement_owner`
   （两键都不写 = 默认 —— 此时 `review.provider` 统管，即上表第一行），或按 session 口头指定
   （"这单 codex+claude"）。`/sop-init` 把它作为初始化问题之一，流程涉及 codex 时会一并铺 Codex 侧
-  执行地图（`.codex/skills/` + `AGENTS.md` 指针）。
+  执行地图（`.codex/skills/` + `AGENTS.md` 指针）。claude 主推列首选用 `/sop-flow` 切 standing
+  default；codex 主推流仍从 Codex 侧或 config 切换。
 
 ## 工作流一览
 
@@ -169,6 +170,7 @@ flowchart TD
 ## 命令与 skills
 
 - `/sop-init` —— 首次脚手架向导。
+- `/sop-flow` —— 查看或切换 claude 主推工作的 standing 协作流程（`claude+claude` ↔ `claude+codex`；写 `[collaboration]` owner 键 + 联动 `[implement].enabled` gate；需 reload）。
 - `/sop-update` —— 拉 ccsop-owned 文档更新（冲突安全；绝不碰你的 `records/current.md`）。
 - `/sop-lang <lang>` —— 用另一种语言重新物化文档（翻译一次，机器稳定面保留）。
 - `/handoff` —— session 启动 / 切任务的结构化项目状态。
@@ -179,7 +181,7 @@ flowchart TD
 ```
 ccsop/
 ├─ .claude-plugin/plugin.json        插件 manifest（commands/agents/skills/mcpServers）
-├─ commands/                          /sop-init · /sop-update · /sop-lang
+├─ commands/                          /sop-init · /sop-flow · /sop-update · /sop-lang
 ├─ agents/                            verify-runner · doc-sync · deploy-runner（sonnet 档）
 ├─ skills/                            handoff · project-sop
 ├─ mcp/codex-review/                  可插拔 review 桥（ReviewProvider 抽象）
