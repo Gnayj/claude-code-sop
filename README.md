@@ -101,6 +101,12 @@ Beyond picking a reviewer, you can split the **work itself** between the two mod
 - **You drive from the design owner's CLI.** In split flows (`claude+codex` / `codex+claude`) the
   implement segment (implement → code review → fix → ready-to-test) runs in the implementer's CLI
   against a mandatory implement task card; `current.md` + the card carry the handoff.
+- **`claude+codex` bonus — preside mode**: this cell can skip the CLI switch entirely. With
+  `[implement] enabled = true` the driver dispatches bounded work orders to a codex writer via
+  `codex_implement`: codex works in an isolated scratch, the server validates the result against
+  the card's ```files allowlist (any out-of-scope end-state change ⇒ rejected, nothing emitted)
+  and returns a **patch artifact** — which the driver reviews and applies itself
+  (`git apply --check` → `git apply`). The tool never writes your repo and nothing auto-applies.
 - **Switch** via `[collaboration] design_owner / implement_owner` in `.codex-review/config.toml`
   (leave both absent for the default — then `review.provider` governs, exactly the table above), or
   per session by telling the driver ("this one codex+claude"). `/sop-init` asks this as a setup

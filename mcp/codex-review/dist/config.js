@@ -97,6 +97,16 @@ const CollaborationSchema = z.object({
     design_owner: OwnerSchema.optional(),
     implement_owner: OwnerSchema.optional(),
 }).default({});
+// ---------- codex_implement config (design ccsop-codex-implement, proposal mode v3) ----------
+// Ships DISABLED. /sop-init enables it only for the exact preside flow
+// design_owner=claude ∧ implement_owner=codex. Thresholds are shrink-only vs the
+// IMPLEMENT_MIN_POLICY defaults (enforced in safety.ts — config may tighten, never widen).
+const ImplementConfig = z.object({
+    enabled: z.boolean().default(false),
+    max_implement_rounds: z.number().int().positive().default(3),
+    // v1 text-only patch contract (design §4.2.D): per-file byte cap applied to BOTH delta sides.
+    max_file_bytes: z.number().int().positive().default(2 * 1024 * 1024),
+}).default({});
 export const ConfigSchema = z.object({
     meta: MetaSchema,
     paths: PathsSchema,
@@ -104,6 +114,7 @@ export const ConfigSchema = z.object({
     circuit_breakers: CircuitBreakersSchema.default({}),
     safety: SafetySchema.default({ extra_danger_verbs_regex: "" }),
     collaboration: CollaborationSchema,
+    implement: ImplementConfig,
     review: z.object({
         provider: ProviderKindSchema.default("codex"),
         design: ReviewStageConfig,

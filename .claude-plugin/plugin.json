@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ccsop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "displayName": "ccsop — Claude Code SOP framework",
   "description": "Installable Claude Code plugin packaging a document-driven delivery SOP, dual-model collaboration protocol, pluggable review MCP bridge (codex | claude | manual), tiered subagents, skills, and doc scaffolding. Install, then run /sop-init to adopt the workflow in any repo.",
   "author": {

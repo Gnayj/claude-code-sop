@@ -31,6 +31,29 @@ export const MIN_SAFETY_POLICY: MinSafetyPolicy = {
   defaultCodeMechanicalMaxModules: 1,
 };
 
+// ---------- Per-tool-class tiering (design ccsop-codex-implement §4.3 / §6.1) ----------
+// The REVIEW class keeps MIN_SAFETY_POLICY above byte-for-byte (test-pinned; nothing in the
+// implement feature touches review construction paths). The IMPLEMENT class gets its own
+// write-tier minimum: the writer may write ONLY inside its scratch workspace, never gains
+// approval prompts, network, or web search, and its thresholds are shrink-only.
+export interface ImplementMinPolicy {
+  readonly sandboxMode: "workspace-write";
+  readonly approvalPolicy: "never";
+  readonly network: false;
+  readonly webSearch: false;
+  readonly defaultMaxImplementRounds: 3;
+  readonly defaultMaxFileBytes: 2097152;
+}
+
+export const IMPLEMENT_MIN_POLICY: ImplementMinPolicy = {
+  sandboxMode: "workspace-write",
+  approvalPolicy: "never",
+  network: false,
+  webSearch: false,
+  defaultMaxImplementRounds: 3,
+  defaultMaxFileBytes: 2097152,
+};
+
 export class SafetyPolicyViolation extends Error {
   constructor(
     public readonly violations: readonly string[],
@@ -90,6 +113,22 @@ export function enforceMinSafetyPolicy(
     );
   }
 
+  // 1.A) Implement-class thresholds — shrink-only vs IMPLEMENT_MIN_POLICY defaults
+  //      (design ccsop-codex-implement §4.3/§4.2.D: config may tighten or disable, never widen).
+  const imp = config.implement;
+  if (imp.max_implement_rounds > IMPLEMENT_MIN_POLICY.defaultMaxImplementRounds) {
+    violations.push(
+      `implement.max_implement_rounds=${imp.max_implement_rounds} ` +
+        `exceeds server max ${IMPLEMENT_MIN_POLICY.defaultMaxImplementRounds}; only shrink allowed.`,
+    );
+  }
+  if (imp.max_file_bytes > IMPLEMENT_MIN_POLICY.defaultMaxFileBytes) {
+    violations.push(
+      `implement.max_file_bytes=${imp.max_file_bytes} ` +
+        `exceeds server max ${IMPLEMENT_MIN_POLICY.defaultMaxFileBytes}; only shrink allowed.`,
+    );
+  }
+
   // 2) Defense in depth: if project sneaks SDK ThreadOption fields into [codex] or [safety],
   //    reject any attempt to disable read-only / approval=never / network=false / web_search=false.
   //    This is a passthrough check — the schema does not currently surface these fields, but if
@@ -117,6 +156,18 @@ export function enforceMinSafetyPolicy(
       checkRelaxAttempt(safetyRaw, "network_access_enabled", false, violations);
       checkRelaxAttempt(safetyRaw, "web_search_enabled", false, violations);
       checkRelaxAttempt(safetyRaw, "web_search_mode", "disabled", violations);
+    }
+    // Implement class: the writer tier is fixed at workspace-write/never/no-network/no-search.
+    // Any raw attempt to widen (danger-full-access, approvals, network) rejects at startup.
+    const implementRaw = raw["implement"] as Record<string, unknown> | undefined;
+    if (implementRaw) {
+      checkRelaxAttempt(implementRaw, "sandbox_mode", "workspace-write", violations);
+      checkRelaxAttempt(implementRaw, "approval_policy", "never", violations);
+      checkRelaxAttempt(implementRaw, "network", false, violations);
+      checkRelaxAttempt(implementRaw, "web_search", false, violations);
+      checkRelaxAttempt(implementRaw, "network_access_enabled", false, violations);
+      checkRelaxAttempt(implementRaw, "web_search_enabled", false, violations);
+      checkRelaxAttempt(implementRaw, "web_search_mode", "disabled", violations);
     }
   }
 

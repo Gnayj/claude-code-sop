@@ -18,7 +18,7 @@
 // Per task card §5 hard-constraint 5: SDK names already verified against package typings;
 // any future SDK API change is fix-in-place here.
 import { Codex } from "@openai/codex-sdk";
-import { MIN_SAFETY_POLICY } from "./safety.js";
+import { IMPLEMENT_MIN_POLICY, MIN_SAFETY_POLICY } from "./safety.js";
 export class CodexCapabilityMissingError extends Error {
     constructor(missing) {
         super(`Codex SDK is missing required capabilities: ${missing.join(", ")}. ` +
@@ -32,7 +32,16 @@ export class CodexCapabilityMissingError extends Error {
  * Maps our internal MIN_SAFETY_POLICY (which uses canonical short names like `network`)
  * to the actual SDK ThreadOptions field names.
  */
-export function forcedThreadOptions() {
+export function forcedThreadOptions(tier = "review") {
+    if (tier === "implement") {
+        return {
+            sandboxMode: IMPLEMENT_MIN_POLICY.sandboxMode, // workspace-write (scratch-scoped)
+            approvalPolicy: IMPLEMENT_MIN_POLICY.approvalPolicy,
+            networkAccessEnabled: IMPLEMENT_MIN_POLICY.network, // false
+            webSearchEnabled: IMPLEMENT_MIN_POLICY.webSearch, // false
+            webSearchMode: "disabled",
+        };
+    }
     return {
         sandboxMode: MIN_SAFETY_POLICY.sandboxMode,
         approvalPolicy: MIN_SAFETY_POLICY.approvalPolicy,
@@ -57,7 +66,10 @@ export class OpenAICodexClient {
         if (this.agent !== null)
             return this.agent;
         try {
-            this.agent = new Codex({});
+            this.agent = new Codex({
+                ...(this.options.env ? { env: this.options.env } : {}),
+                ...(this.options.config ? { config: this.options.config } : {}),
+            });
         }
         catch (err) {
             throw new CodexCapabilityMissingError([
@@ -73,15 +85,21 @@ export class OpenAICodexClient {
             ...(opts.model || this.options.defaultModel
                 ? { model: opts.model || this.options.defaultModel }
                 : {}),
-            ...forcedThreadOptions(),
+            ...forcedThreadOptions(opts.tier ?? "review"),
         });
         // For a fresh thread, SDK populates Thread.id only after the first run.
         // Wrap with no fallback; caller must call runTurn before reading threadId.
         return wrapThread(thread, null);
     }
-    async resumeThread(threadId) {
+    async resumeThread(threadId, opts) {
         const agent = this.getAgent();
-        const thread = agent.resumeThread(threadId, forcedThreadOptions());
+        const thread = agent.resumeThread(threadId, {
+            ...(opts?.workingDirectory ? { workingDirectory: opts.workingDirectory } : {}),
+            ...(opts?.model || this.options.defaultModel
+                ? { model: opts?.model || this.options.defaultModel }
+                : {}),
+            ...forcedThreadOptions(opts?.tier ?? "review"),
+        });
         // Resume case: caller already knows the id; surface it immediately.
         return wrapThread(thread, threadId);
     }
@@ -98,8 +116,8 @@ function wrapThread(thread, fallbackId) {
         get threadId() {
             return thread.id ?? fallbackId ?? "";
         },
-        async runTurn(input) {
-            const turn = await thread.run(input);
+        async runTurn(input, signal) {
+            const turn = await thread.run(input, signal ? { signal } : undefined);
             const text = turn.finalResponse;
             if (!text) {
                 throw new CodexCapabilityMissingError([

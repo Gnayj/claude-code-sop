@@ -76,6 +76,16 @@ context_window = 200000          # basis for the estimated context_usage_pct
 [review.manual]
 sessions_dir = ""                # "" = reuse paths.sessions_dir
 
+# codex_implement — "Claude presides + codex writes" dispatch tool (collaboration.md §1.D,
+# claude+codex flow only; design ccsop-codex-implement, proposal mode). The tool NEVER writes
+# your repository: it returns a validated patch under .codex-review/dispatches/ which the DRIVER
+# reviews and applies (`git apply --check` then `git apply`). Ships DISABLED; /sop-init enables it
+# only when design_owner=claude AND implement_owner=codex. Thresholds are shrink-only.
+[implement]
+enabled = false
+max_implement_rounds = 3         # dispatch budget per design_id (shrink-only, server max 3)
+max_file_bytes = 2097152         # v1 text-only patch contract: per-file cap, BOTH delta sides (shrink-only)
+
 # Doc translation provider (design §4.3 / Q8) — INDEPENDENT of review.provider. When
 # review.provider=manual, translation defaults to unsupported (bring your own translated
 # templates or set translation.provider explicitly); never silently borrow the review model.

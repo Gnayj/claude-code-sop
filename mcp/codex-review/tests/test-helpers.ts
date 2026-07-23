@@ -81,6 +81,8 @@ export function defaultConfig(overrides: Partial<ResolvedConfig> = {}): Resolved
     safety: { extra_danger_verbs_regex: "" },
     // Flow matrix (§1.D): both owner keys absent = legacy mode (review.provider governs).
     collaboration: {},
+    // codex_implement (proposal mode): ships disabled; tests opt in explicitly.
+    implement: { enabled: false, max_implement_rounds: 3, max_file_bytes: 2097152 },
     review: {
       provider: "codex",
       design: {

@@ -41,6 +41,11 @@ Ask, one decision at a time (chunked confirmation, SOP §4):
    - Any other flow → uncomment + fill `design_owner` / `implement_owner` in the config (Step 5) and
      materialize the **codex-side scaffold** (Step 3.A). Non-default flows pair naturally with
      `review.provider=codex|claude` (auto delivery); `manual` still forces manual delivery per stage.
+   - **Exactly `claude+codex`** (and ONLY that conjunction — not `codex+codex`, not partial-owner
+     configs): additionally set `[implement] enabled = true` (Step 5) to activate the
+     `codex_implement` preside-mode dispatch tool (collaboration.md §1.D rule 3.A — the tool never
+     writes the repo; it returns patch artifacts the driver reviews + applies). All other flows
+     keep `enabled = false`.
 
 ## Step 3 — Materialize the docs scaffold
 

@@ -1,7 +1,9 @@
 # <Module> <Feature> Implement — <design_id>
 
-> ⚠️ 本模板仅用于多轮（N≥2）或接力换轮场景。
-> 单轮 implement（一份 design.md，一轮 + 一次 closeout 完成）**不需要** implement card —— 把
+> ⚠️ 本模板仅用于多轮（N≥2）或接力换轮场景 —— 外加一个例外：`claude+codex` 主持流程的派工
+> （`codex_implement`，collaboration.md §1.D）**即使 N=1 也必须出本卡**，因为卡就是派工契约，
+> 其 §5.A ```files 块是机器解析的写入白名单。
+> 其它单轮 implement（一份 design.md，一轮 + 一次 closeout 完成）**不需要** implement card —— 把
 > closeout 摘要并进 design.md §14。
 > 判据：`docs/methodology/claude-code-sop-collaboration.md §4.1` + `workflow-overview.md`。
 
@@ -45,6 +47,15 @@ Pass / Pass-after-fixes 时报 "ready to test"；用户回 "test passed" 后 clo
 | 文件 | 改动 | Commit |
 |---|---|---|
 | <path> | <一行> | <commit N> |
+
+### 5.A ```files 白名单（codex_implement 派工时**必填**；否则删除本节）
+由桥机器解析（文法：精确的常规文件仓库相对 POSIX 路径，一行一个；不允许 glob/目录/根 dot 路径）。
+工具入参必须与本块 canonical 化后逐字节相等。rename 需要两个路径都列出；delete 需要列出被删路径。
+
+```files
+<path/one.ext>
+<path/two.ext>
+```
 
 ## 6. 非目标 / 边界
 - ❌ design scope 之外一律不做

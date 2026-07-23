@@ -16,6 +16,9 @@ import { BreakerEngine, initialBreakerState } from "./circuit-breakers.js";
 import { designReviewToolName, designReviewToolSchema, handleDesignReview, } from "./tools/design-review.js";
 import { codeReviewToolName, codeReviewToolSchema, handleCodeReview, } from "./tools/code-review.js";
 import { fixReviewToolName, fixReviewToolSchema, handleFixReview, } from "./tools/fix-review.js";
+import { implementToolName, implementToolSchema, handleImplement, } from "./tools/implement.js";
+import { ImplementStore } from "./implement-workspace.js";
+import { OpenAICodexClient } from "./codex-client.js";
 function parseArgs(argv) {
     let configPath = "";
     for (let i = 0; i < argv.length; i++) {
@@ -47,6 +50,7 @@ async function main() {
     // tools, and tool CALLS return a clear, actionable error. The common case is a fresh install
     // before /sop-init has written .codex-review/config.toml.
     let deps = null;
+    let implementDeps = null;
     let configError = null;
     try {
         if (!existsSync(configPath)) {
@@ -99,6 +103,39 @@ async function main() {
                 breakers,
                 breakerState,
             };
+            // codex_implement (proposal mode, design ccsop-codex-implement): writer runs a fresh
+            // OpenAICodexClient per dispatch with the isolated CODEX_HOME env (§4.2.C) at the
+            // implement tier (workspace-write scoped to the scratch root).
+            implementDeps = {
+                config,
+                configBaseDir: baseDir,
+                // State/locks anchor at the control root (.codex-review/implement-state, design
+                // §4.2.E), no-follow-resolved per operation — the configured sessions_dir is
+                // deliberately not honored here.
+                store: new ImplementStore(projectRoot),
+                runWriterTurn: async (req) => {
+                    // FRESH thread per dispatch (design Q16, user-ratified): every dispatch carries its
+                    // complete context; the disposable CODEX_HOME makes cross-dispatch resume moot. The
+                    // per-dispatch thread id is recorded for audit only. The sandbox tmp exclusions
+                    // (Q19) ride both the server-authored CODEX_HOME config AND the CLI --config
+                    // overrides; cancellation rides TurnOptions.signal (design §4.4).
+                    const client = new OpenAICodexClient({
+                        ...(req.model ? { defaultModel: req.model } : {}),
+                        env: req.env,
+                        ...(req.cliConfigOverrides ? { config: req.cliConfigOverrides } : {}),
+                    });
+                    const thread = await client.startThread({
+                        workingDirectory: req.scratchRoot,
+                        tier: "implement",
+                    });
+                    const turn = await thread.runTurn(req.prompt, req.signal);
+                    return {
+                        text: turn.text,
+                        threadId: thread.threadId,
+                        ...(turn.usage?.totalTokens != null ? { tokensTotal: turn.usage.totalTokens } : {}),
+                    };
+                },
+            };
         }
     }
     catch (err) {
@@ -120,9 +157,12 @@ async function main() {
             designReviewToolSchema,
             codeReviewToolSchema,
             fixReviewToolSchema,
+            // Listed even when [implement] enabled=false — a disabled call returns the actionable
+            // enable-instructions error (design §4.3 default-off).
+            implementToolSchema,
         ],
     }));
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
         const { name, arguments: args } = request.params;
         // Degraded mode: no usable config → return the actionable reason instead of dispatching.
         if (deps === null) {
@@ -137,6 +177,32 @@ async function main() {
             };
         }
         const d = deps; // narrowed to FlowDependencies for the closure below
+        if (name === implementToolName) {
+            // Separate result shape from the review envelope — return the flow result directly.
+            try {
+                const impl = implementDeps;
+                if (impl === null)
+                    throw new Error(configError ?? "bridge not initialized");
+                // MCP cancellation: a cancelled call must never publish (design §4.1; the SDK cannot
+                // abort a running turn mid-flight — the flow checks the signal at each boundary).
+                const result = await handleImplement(impl, args ?? {}, extra?.signal);
+                return {
+                    content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+                    ...(result.ok ? {} : { isError: true }),
+                };
+            }
+            catch (err) {
+                return {
+                    isError: true,
+                    content: [
+                        {
+                            type: "text",
+                            text: JSON.stringify({ ok: false, error: err.message, stack: err.stack }, null, 2),
+                        },
+                    ],
+                };
+            }
+        }
         const dispatch = async () => {
             if (name === designReviewToolName) {
                 return handleDesignReview(d, args ?? {});

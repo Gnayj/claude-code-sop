@@ -96,6 +96,11 @@ cd /your/repo && claude --plugin-dir /path/to/ccsop
 - **你从 design owner 的 CLI 主推。** 拆分流程（`claude+codex` / `codex+claude`）下 implement 段
   （implement → code review → fix → ready-to-test）在 implementer 的 CLI 里对着一张必出的
   implement 任务卡跑完；交接靠 `current.md` + 任务卡。
+- **`claude+codex` 加成 —— 主持模式**：该格可以完全不切 CLI。配置 `[implement] enabled = true`
+  后，driver 经 `codex_implement` 向 codex 写手派发有界工单：codex 在隔离 scratch 干活，server
+  按卡内 ```files 白名单校验结果（任何越界终态改动 ⇒ 整单拒绝、什么都不产出）并返回 **patch
+  工件** —— driver 自己 review 后亲手 apply（`git apply --check` → `git apply`）。工具从不写你的
+  仓库，也没有任何自动 apply。
 - **切换**：改 `.codex-review/config.toml` `[collaboration] design_owner / implement_owner`
   （两键都不写 = 默认 —— 此时 `review.provider` 统管，即上表第一行），或按 session 口头指定
   （"这单 codex+claude"）。`/sop-init` 把它作为初始化问题之一，流程涉及 codex 时会一并铺 Codex 侧

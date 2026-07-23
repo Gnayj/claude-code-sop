@@ -121,6 +121,19 @@ export declare const ConfigSchema: z.ZodObject<{
         design_owner?: "codex" | "claude" | undefined;
         implement_owner?: "codex" | "claude" | undefined;
     }>>;
+    implement: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        max_implement_rounds: z.ZodDefault<z.ZodNumber>;
+        max_file_bytes: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        max_implement_rounds: number;
+        max_file_bytes: number;
+    }, {
+        enabled?: boolean | undefined;
+        max_implement_rounds?: number | undefined;
+        max_file_bytes?: number | undefined;
+    }>>;
     review: z.ZodObject<{
         provider: z.ZodDefault<z.ZodEnum<["codex", "claude", "manual"]>>;
         design: z.ZodObject<{
@@ -325,6 +338,11 @@ export declare const ConfigSchema: z.ZodObject<{
         design_owner?: "codex" | "claude" | undefined;
         implement_owner?: "codex" | "claude" | undefined;
     };
+    implement: {
+        enabled: boolean;
+        max_implement_rounds: number;
+        max_file_bytes: number;
+    };
     review: {
         design: {
             prompt_template: string;
@@ -439,6 +457,11 @@ export declare const ConfigSchema: z.ZodObject<{
         autonomy?: string | undefined;
         design_owner?: "codex" | "claude" | undefined;
         implement_owner?: "codex" | "claude" | undefined;
+    } | undefined;
+    implement?: {
+        enabled?: boolean | undefined;
+        max_implement_rounds?: number | undefined;
+        max_file_bytes?: number | undefined;
     } | undefined;
 }>;
 export type ResolvedConfig = z.infer<typeof ConfigSchema>;

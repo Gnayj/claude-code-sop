@@ -1,7 +1,10 @@
 # <Module> <Feature> Implement — <design_id>
 
-> ⚠️ This template is ONLY for multi-round (N≥2) or relay round-switch cases.
-> Single-round implements (one design.md, done in one round + one closeout) do NOT need an
+> ⚠️ This template is ONLY for multi-round (N≥2) or relay round-switch cases — PLUS one
+> exception: a `claude+codex` preside-flow dispatch (`codex_implement`, collaboration.md §1.D)
+> ALWAYS requires this card even for N=1, because the card is the dispatch contract and its
+> §5.A ```files block is the machine-parsed write allowlist.
+> Other single-round implements (one design.md, done in one round + one closeout) do NOT need an
 > implement card — fold the closeout summary into design.md §14.
 > Criteria: `docs/methodology/claude-code-sop-collaboration.md §4.1` + `workflow-overview.md`.
 
@@ -45,6 +48,16 @@ Each commit single-subject; runs its relevant build/test (see §8).
 | File | Change | Commit |
 |---|---|---|
 | <path> | <one line> | <commit N> |
+
+### 5.A ```files allowlist (MANDATORY for a codex_implement dispatch; delete this section otherwise)
+Machine-parsed by the bridge (grammar: exact regular-file repo-relative POSIX paths, one per line;
+no globs/dirs/dot-root paths). The tool input must equal this block byte-for-byte after
+canonicalization. Renames need both paths listed; deletes need the deleted path listed.
+
+```files
+<path/one.ext>
+<path/two.ext>
+```
 
 ## 6. Non-goals / boundary
 - ❌ nothing outside the design scope

@@ -107,7 +107,22 @@ Rules:
    mandatory** (§4.1 — a split flow is N≥2 by definition). The implement segment — implement →
    self-test → code review → fix loop → ready-to-test — runs **wholly in the implementer's CLI
    session**; hand-back to the driving CLI is via the §6 structured results + the `current.md`
-   breakpoint. The user carries the CLI switch (no automation harness is part of ccsop).
+   breakpoint. The user carries the CLI switch (no automation harness is part of ccsop) — **except
+   the `claude+codex` cell, which supports the single-session preside mode of rule 3.A below.**
+
+3.A **Preside mode (`claude+codex` only): "Claude presides + codex writes" — no CLI switch.**
+   In this cell the code reviewer = counterpart(codex) = claude = the driving session itself, so
+   the whole loop can run inside one Claude session: the driver designs, writes the implement card
+   (still mandatory — it is the dispatch contract, §4.1; its ```files block is the machine-parsed
+   write allowlist), then dispatches bounded work orders to a codex writer via the bridge tool
+   **`codex_implement`** (config `[implement] enabled=true`, set by `/sop-init` only for this
+   exact flow; default off). The tool NEVER writes the repository: codex works in an isolated
+   scratch; the server validates the result (any out-of-allowlist end-state delta ⇒ rejected, no
+   artifact) and returns a **patch artifact** under `.codex-review/dispatches/`. The driver then
+   **reviews the patch per §9 directly** (cross-model — the implementer is codex; no bridge review
+   call, no self-review) and **applies it itself**: `git apply --check` → `git apply`. Fix rounds
+   are new dispatches with the driver's graded findings. Judgment never leaves the driver; nothing
+   auto-applies; there is no automated fix loop.
 4. **Config**: `.codex-review/config.toml` `[collaboration] design_owner / implement_owner`
    (operational + read by the review bridge for reviewer derivation). **Key presence matters**:
    with **both keys absent** the bridge stays in **legacy mode** — the global `review.provider`

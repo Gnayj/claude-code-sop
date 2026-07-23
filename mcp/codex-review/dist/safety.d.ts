@@ -11,6 +11,15 @@ export interface MinSafetyPolicy {
     readonly defaultCodeMechanicalMaxModules: 1;
 }
 export declare const MIN_SAFETY_POLICY: MinSafetyPolicy;
+export interface ImplementMinPolicy {
+    readonly sandboxMode: "workspace-write";
+    readonly approvalPolicy: "never";
+    readonly network: false;
+    readonly webSearch: false;
+    readonly defaultMaxImplementRounds: 3;
+    readonly defaultMaxFileBytes: 2097152;
+}
+export declare const IMPLEMENT_MIN_POLICY: ImplementMinPolicy;
 export declare class SafetyPolicyViolation extends Error {
     readonly violations: readonly string[];
     constructor(violations: readonly string[]);
