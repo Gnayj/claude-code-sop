@@ -20,7 +20,11 @@ export class CodexProvider {
             prior.provider_kind === "codex" &&
             prior.external_session_id.length > 0;
         if (canResume) {
-            const handle = await this.codex.resumeThread(prior.external_session_id);
+            const handle = await this.codex.resumeThread(prior.external_session_id, {
+                workingDirectory: this.opts.workingDirectory,
+                model: this.opts.model,
+                effort: this.opts.effort,
+            });
             return {
                 kind: "codex",
                 designId,
@@ -32,6 +36,7 @@ export class CodexProvider {
         const handle = await this.codex.startThread({
             workingDirectory: this.opts.workingDirectory,
             model: this.opts.model,
+            effort: this.opts.effort,
         });
         // Fresh thread: SDK Thread.id is null until the first run; "" until runTurn populates it.
         return { kind: "codex", designId, stage, externalSessionId: "", handle };

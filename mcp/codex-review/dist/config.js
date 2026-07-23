@@ -56,9 +56,11 @@ const ReviewStageConfig = z.object({
     trigger_clauses: z.string().optional(),
     rule_sections: z.array(z.string()).optional(),
 });
+export const EffortSchema = z.enum(["", "minimal", "low", "medium", "high", "xhigh"]);
 const CodexConfig = z.object({
     default_model: z.string().default(""),
-}).default({ default_model: "" });
+    default_effort: EffortSchema.default(""),
+}).default({ default_model: "", default_effort: "" });
 // ---------- Provider abstraction config (design §4.7, slice 2) ----------
 // `[review] provider` selects the ReviewProvider; per-provider subtables tune each backend.
 // `provider` defaults to "codex" so pre-abstraction configs (no [review.*] provider keys)
@@ -66,9 +68,7 @@ const CodexConfig = z.object({
 const CodexProviderConfig = z.object({
     // Model id for the codex turn; "" = SDK default. (Falls back to top-level [codex].default_model.)
     model: z.string().default(""),
-    // Reserved: reasoning effort. @openai/codex-sdk@0.128.0 verified ThreadOptions does NOT expose
-    // an effort field, so this is accepted but not yet applied to the SDK call (wiring deferred).
-    effort: z.string().default(""),
+    effort: EffortSchema.default(""),
 }).default({ model: "", effort: "" });
 const ClaudeProviderConfig = z.object({
     model: z.string().default(""),
@@ -103,6 +103,8 @@ const CollaborationSchema = z.object({
 // IMPLEMENT_MIN_POLICY defaults (enforced in safety.ts — config may tighten, never widen).
 const ImplementConfig = z.object({
     enabled: z.boolean().default(false),
+    model: z.string().default(""),
+    effort: EffortSchema.default(""),
     max_implement_rounds: z.number().int().positive().default(3),
     // v1 text-only patch contract (design §4.2.D): per-file byte cap applied to BOTH delta sides.
     max_file_bytes: z.number().int().positive().default(2 * 1024 * 1024),
@@ -126,6 +128,17 @@ export const ConfigSchema = z.object({
     }),
     codex: CodexConfig,
 });
+/** Single authority for the per-class codex tier chains (model-effort design §3):
+ * review:    review.codex.model/effort → codex.default_model/default_effort → SDK default
+ * implement: implement.model/effort    → codex.default_model/default_effort → SDK default
+ * The implement writer never inherits review.codex.model (borrow removed, regression-pinned). */
+export function resolveCodexTier(config, scope) {
+    const tier = scope === "review" ? config.review.codex : config.implement;
+    return {
+        model: tier.model || config.codex.default_model || undefined,
+        effort: tier.effort || config.codex.default_effort || undefined,
+    };
+}
 export function loadConfig(opts) {
     const text = readFileSync(opts.configPath, "utf8");
     const parsed = TOML.parse(text);

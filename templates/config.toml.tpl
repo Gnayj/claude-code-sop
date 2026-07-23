@@ -62,10 +62,18 @@ rule_sections = ["9.A", "9.B", "9.C"]
 prompt_template = ".codex-review/templates/fix-review.md.tpl"
 verdict_enum = ["All-fixed", "Partial", "New-issues", "Rereview-after-fixes", "No-Go"]
 
+# Shared codex defaults. Fallbacks:
+# review model/effort: review.codex.model/effort -> codex.default_model/default_effort -> SDK default
+# implement model/effort: implement.model/effort -> codex.default_model/default_effort -> SDK default
+# The implement writer no longer inherits review.codex.model.
+[codex]
+default_model = ""
+default_effort = ""
+
 # Per-provider tuning.
 [review.codex]
 model = ""                       # "" = SDK default
-effort = ""                      # reserved (SDK has no effort field yet)
+effort = ""                      # "" | minimal | low | medium | high | xhigh
 
 [review.claude]
 model = ""                       # "" = a strong default (claude-opus-4-8)
@@ -83,6 +91,8 @@ sessions_dir = ""                # "" = reuse paths.sessions_dir
 # only when design_owner=claude AND implement_owner=codex. Thresholds are shrink-only.
 [implement]
 enabled = false
+model = ""                       # see codex fallback chains above
+effort = ""                      # "" | minimal | low | medium | high | xhigh; see chains above
 max_implement_rounds = 3         # dispatch budget per design_id (shrink-only, server max 3)
 max_file_bytes = 2097152         # v1 text-only patch contract: per-file cap, BOTH delta sides (shrink-only)
 

@@ -1,4 +1,5 @@
 import { type ThreadOptions } from "@openai/codex-sdk";
+import type { CodexEffort } from "./config.js";
 export interface ThreadHandle {
     threadId: string;
     /** Send one user-turn input; receive Codex assistant text + usage estimate. The optional
@@ -19,6 +20,8 @@ export interface StartThreadOptions {
     workingDirectory: string;
     /** Optional model id; "" = SDK default. */
     model?: string;
+    /** Optional reasoning effort; undefined = SDK default. */
+    effort?: CodexEffort;
     /**
      * Safety tier for the thread (design ccsop-codex-implement §4.3). Default "review" keeps the
      * byte-pinned read-only MIN_SAFETY_POLICY. "implement" applies IMPLEMENT_MIN_POLICY:
@@ -53,6 +56,7 @@ export declare class OpenAICodexClient implements CodexClient {
     private agent;
     constructor(options?: {
         defaultModel?: string;
+        defaultEffort?: CodexEffort;
         /** Full replacement env for the spawned CLI (design §4.2.C writer isolation: pass the
          * dedicated minimal CODEX_HOME env; the SDK then does NOT inherit process.env). */
         env?: Record<string, string>;

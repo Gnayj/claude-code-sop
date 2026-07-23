@@ -5,6 +5,7 @@
 // rather than silently. The factory is the single place run-review-flow / server choose
 // a backend; switching providers is a one-line config change (§8.3).
 import { resolve as resolvePath } from "node:path";
+import { resolveCodexTier } from "../config.js";
 import { OpenAICodexClient } from "../codex-client.js";
 import { AnthropicClaudeClient } from "../claude-client.js";
 import { CodexProvider } from "./codex.js";
@@ -45,13 +46,14 @@ export function createReviewProvider(deps) {
     const provider = deps.kindOverride ?? deps.config.review.provider;
     switch (provider) {
         case "codex": {
-            const model = deps.config.review.codex.model ||
-                deps.config.codex.default_model ||
-                undefined;
-            const codexClient = deps.codexClient ?? new OpenAICodexClient({ defaultModel: model });
+            // CodexProviderOptions is the single model/effort channel: the provider passes both on
+            // start AND resume, so injected (test) and SDK clients observe identical opts.
+            const { model, effort } = resolveCodexTier(deps.config, "review");
+            const codexClient = deps.codexClient ?? new OpenAICodexClient();
             return new CodexProvider(codexClient, {
                 workingDirectory: deps.workingDirectory,
                 model,
+                effort,
             });
         }
         case "claude": {

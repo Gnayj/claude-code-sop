@@ -8,6 +8,7 @@
 import { resolve as resolvePath } from "node:path";
 import type { ProviderKind, ReviewStage } from "../types.js";
 import type { ResolvedConfig } from "../config.js";
+import { resolveCodexTier } from "../config.js";
 import type { CodexClient } from "../codex-client.js";
 import { OpenAICodexClient } from "../codex-client.js";
 import type { ClaudeClient } from "../claude-client.js";
@@ -71,15 +72,14 @@ export function createReviewProvider(deps: ProviderFactoryDeps): ReviewProvider 
   const provider = deps.kindOverride ?? deps.config.review.provider;
   switch (provider) {
     case "codex": {
-      const model =
-        deps.config.review.codex.model ||
-        deps.config.codex.default_model ||
-        undefined;
-      const codexClient =
-        deps.codexClient ?? new OpenAICodexClient({ defaultModel: model });
+      // CodexProviderOptions is the single model/effort channel: the provider passes both on
+      // start AND resume, so injected (test) and SDK clients observe identical opts.
+      const { model, effort } = resolveCodexTier(deps.config, "review");
+      const codexClient = deps.codexClient ?? new OpenAICodexClient();
       return new CodexProvider(codexClient, {
         workingDirectory: deps.workingDirectory,
         model,
+        effort,
       });
     }
     case "claude": {

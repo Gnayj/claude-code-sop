@@ -20,6 +20,7 @@
 
 import { Codex, type Thread, type ThreadOptions } from "@openai/codex-sdk";
 import { IMPLEMENT_MIN_POLICY, MIN_SAFETY_POLICY } from "./safety.js";
+import type { CodexEffort } from "./config.js";
 
 export interface ThreadHandle {
   threadId: string;
@@ -43,6 +44,8 @@ export interface StartThreadOptions {
   workingDirectory: string;
   /** Optional model id; "" = SDK default. */
   model?: string;
+  /** Optional reasoning effort; undefined = SDK default. */
+  effort?: CodexEffort;
   /**
    * Safety tier for the thread (design ccsop-codex-implement §4.3). Default "review" keeps the
    * byte-pinned read-only MIN_SAFETY_POLICY. "implement" applies IMPLEMENT_MIN_POLICY:
@@ -113,6 +116,7 @@ export class OpenAICodexClient implements CodexClient {
   constructor(
     private readonly options: {
       defaultModel?: string;
+      defaultEffort?: CodexEffort;
       /** Full replacement env for the spawned CLI (design §4.2.C writer isolation: pass the
        * dedicated minimal CODEX_HOME env; the SDK then does NOT inherit process.env). */
       env?: Record<string, string>;
@@ -139,11 +143,12 @@ export class OpenAICodexClient implements CodexClient {
 
   async startThread(opts: StartThreadOptions): Promise<ThreadHandle> {
     const agent = this.getAgent();
+    const model = opts.model || this.options.defaultModel;
+    const effort = opts.effort || this.options.defaultEffort;
     const thread = agent.startThread({
       workingDirectory: opts.workingDirectory,
-      ...(opts.model || this.options.defaultModel
-        ? { model: opts.model || this.options.defaultModel }
-        : {}),
+      ...(model ? { model } : {}),
+      ...(effort ? { modelReasoningEffort: effort } : {}),
       ...forcedThreadOptions(opts.tier ?? "review"),
     });
     // For a fresh thread, SDK populates Thread.id only after the first run.
@@ -153,11 +158,12 @@ export class OpenAICodexClient implements CodexClient {
 
   async resumeThread(threadId: string, opts?: StartThreadOptions): Promise<ThreadHandle> {
     const agent = this.getAgent();
+    const model = opts?.model || this.options.defaultModel;
+    const effort = opts?.effort || this.options.defaultEffort;
     const thread = agent.resumeThread(threadId, {
       ...(opts?.workingDirectory ? { workingDirectory: opts.workingDirectory } : {}),
-      ...(opts?.model || this.options.defaultModel
-        ? { model: opts?.model || this.options.defaultModel }
-        : {}),
+      ...(model ? { model } : {}),
+      ...(effort ? { modelReasoningEffort: effort } : {}),
       ...forcedThreadOptions(opts?.tier ?? "review"),
     });
     // Resume case: caller already knows the id; surface it immediately.

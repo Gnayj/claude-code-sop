@@ -82,7 +82,7 @@ export function defaultConfig(overrides: Partial<ResolvedConfig> = {}): Resolved
     // Flow matrix (§1.D): both owner keys absent = legacy mode (review.provider governs).
     collaboration: {},
     // codex_implement (proposal mode): ships disabled; tests opt in explicitly.
-    implement: { enabled: false, max_implement_rounds: 3, max_file_bytes: 2097152 },
+    implement: { enabled: false, model: "", effort: "", max_implement_rounds: 3, max_file_bytes: 2097152 },
     review: {
       provider: "codex",
       design: {
@@ -109,7 +109,7 @@ export function defaultConfig(overrides: Partial<ResolvedConfig> = {}): Resolved
       claude: { model: "", max_tokens: 16000, key_env: "ANTHROPIC_API_KEY", context_window: 200000 },
       manual: { sessions_dir: "" },
     },
-    codex: { default_model: "" },
+    codex: { default_model: "", default_effort: "" },
     ...overrides,
   };
 }

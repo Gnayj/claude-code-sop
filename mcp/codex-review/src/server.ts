@@ -158,6 +158,7 @@ async function main(): Promise<void> {
           // overrides; cancellation rides TurnOptions.signal (design §4.4).
           const client = new OpenAICodexClient({
             ...(req.model ? { defaultModel: req.model } : {}),
+            ...(req.effort ? { defaultEffort: req.effort } : {}),
             env: req.env,
             ...(req.cliConfigOverrides ? { config: req.cliConfigOverrides } : {}),
           });

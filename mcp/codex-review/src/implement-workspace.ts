@@ -1193,6 +1193,8 @@ export interface WriterEnvironment {
     plugins: number;
     excludeSlashTmp: boolean;
     excludeTmpdirEnvVar: boolean;
+    model?: string;
+    effort?: string;
     configPath: string;
   };
   discard(): void;
@@ -1201,7 +1203,11 @@ export interface WriterEnvironment {
 /** Build the dedicated minimal CODEX_HOME at the DERIVED per-dispatch location (§4.2.F): auth
  * material copied from the user's real home (if present), plus a server-authored config.toml
  * with ZERO mcp_servers/plugins and the sandbox tmp-write exclusions (Q19). */
-export function buildWriterEnvironment(homeDir: string, model?: string): WriterEnvironment {
+export function buildWriterEnvironment(
+  homeDir: string,
+  model?: string,
+  effort?: string,
+): WriterEnvironment {
   const codexHome = homeDir;
   const realHome = process.env.CODEX_HOME || join(process.env.HOME ?? "", ".codex");
   for (const authFile of ["auth.json"]) {
@@ -1217,6 +1223,7 @@ export function buildWriterEnvironment(homeDir: string, model?: string): WriterE
     "# Deliberately minimal: NO mcp_servers, NO plugins/connectors, NO projects trust grants.",
   ];
   if (model) configLines.push(`model = ${JSON.stringify(model)}`);
+  if (effort) configLines.push(`model_reasoning_effort = ${JSON.stringify(effort)}`);
   configLines.push(
     "",
     "# Q19: the codex default tmp write grants are OFF — the writer's writable world is exactly",
@@ -1234,6 +1241,10 @@ export function buildWriterEnvironment(homeDir: string, model?: string): WriterE
     plugins: (written.match(/^\[plugins/gm) ?? []).length,
     excludeSlashTmp: /^\s*exclude_slash_tmp\s*=\s*true\s*$/m.test(inSandboxSection),
     excludeTmpdirEnvVar: /^\s*exclude_tmpdir_env_var\s*=\s*true\s*$/m.test(inSandboxSection),
+    // Audit echo of the tier the server resolved and wrote above (not a security gate — the
+    // Q19 gate covers only the sandbox facts; file contents are pinned in tests).
+    model,
+    effort,
     configPath,
   };
   const env: Record<string, string> = {

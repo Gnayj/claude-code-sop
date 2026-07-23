@@ -17,12 +17,15 @@ import type {
   PersistedProviderSession,
 } from "../review-provider.js";
 import type { ReviewStage } from "../types.js";
+import type { CodexEffort } from "../config.js";
 
 export interface CodexProviderOptions {
   /** Repo root the codex agent operates within (read-only). Constant per server. */
   workingDirectory: string;
   /** Optional model id; "" / undefined = SDK default. */
   model?: string;
+  /** Optional reasoning effort; undefined = SDK default. */
+  effort?: CodexEffort;
 }
 
 export class CodexProvider implements ReviewProvider {
@@ -43,7 +46,11 @@ export class CodexProvider implements ReviewProvider {
       prior.provider_kind === "codex" &&
       prior.external_session_id.length > 0;
     if (canResume) {
-      const handle = await this.codex.resumeThread(prior!.external_session_id);
+      const handle = await this.codex.resumeThread(prior!.external_session_id, {
+        workingDirectory: this.opts.workingDirectory,
+        model: this.opts.model,
+        effort: this.opts.effort,
+      });
       return {
         kind: "codex",
         designId,
@@ -55,6 +62,7 @@ export class CodexProvider implements ReviewProvider {
     const handle = await this.codex.startThread({
       workingDirectory: this.opts.workingDirectory,
       model: this.opts.model,
+      effort: this.opts.effort,
     });
     // Fresh thread: SDK Thread.id is null until the first run; "" until runTurn populates it.
     return { kind: "codex", designId, stage, externalSessionId: "", handle };

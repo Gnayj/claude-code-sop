@@ -1,4 +1,7 @@
 import { z } from "zod";
+export declare const EffortSchema: z.ZodEnum<["", "minimal", "low", "medium", "high", "xhigh"]>;
+/** Non-empty effort union — exactly the SDK's ThreadOptions.modelReasoningEffort domain. */
+export type CodexEffort = Exclude<z.infer<typeof EffortSchema>, "">;
 export declare const ConfigSchema: z.ZodObject<{
     meta: z.ZodObject<{
         project_id: z.ZodString;
@@ -123,13 +126,19 @@ export declare const ConfigSchema: z.ZodObject<{
     }>>;
     implement: z.ZodDefault<z.ZodObject<{
         enabled: z.ZodDefault<z.ZodBoolean>;
+        model: z.ZodDefault<z.ZodString>;
+        effort: z.ZodDefault<z.ZodEnum<["", "minimal", "low", "medium", "high", "xhigh"]>>;
         max_implement_rounds: z.ZodDefault<z.ZodNumber>;
         max_file_bytes: z.ZodDefault<z.ZodNumber>;
     }, "strip", z.ZodTypeAny, {
+        model: string;
+        effort: "" | "minimal" | "low" | "medium" | "high" | "xhigh";
         enabled: boolean;
         max_implement_rounds: number;
         max_file_bytes: number;
     }, {
+        model?: string | undefined;
+        effort?: "" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined;
         enabled?: boolean | undefined;
         max_implement_rounds?: number | undefined;
         max_file_bytes?: number | undefined;
@@ -186,13 +195,13 @@ export declare const ConfigSchema: z.ZodObject<{
         }>;
         codex: z.ZodDefault<z.ZodObject<{
             model: z.ZodDefault<z.ZodString>;
-            effort: z.ZodDefault<z.ZodString>;
+            effort: z.ZodDefault<z.ZodEnum<["", "minimal", "low", "medium", "high", "xhigh"]>>;
         }, "strip", z.ZodTypeAny, {
             model: string;
-            effort: string;
+            effort: "" | "minimal" | "low" | "medium" | "high" | "xhigh";
         }, {
             model?: string | undefined;
-            effort?: string | undefined;
+            effort?: "" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined;
         }>>;
         claude: z.ZodDefault<z.ZodObject<{
             model: z.ZodDefault<z.ZodString>;
@@ -238,7 +247,7 @@ export declare const ConfigSchema: z.ZodObject<{
         };
         codex: {
             model: string;
-            effort: string;
+            effort: "" | "minimal" | "low" | "medium" | "high" | "xhigh";
         };
         claude: {
             model: string;
@@ -271,7 +280,7 @@ export declare const ConfigSchema: z.ZodObject<{
         };
         codex?: {
             model?: string | undefined;
-            effort?: string | undefined;
+            effort?: "" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined;
         } | undefined;
         claude?: {
             model?: string | undefined;
@@ -286,14 +295,18 @@ export declare const ConfigSchema: z.ZodObject<{
     }>;
     codex: z.ZodDefault<z.ZodObject<{
         default_model: z.ZodDefault<z.ZodString>;
+        default_effort: z.ZodDefault<z.ZodEnum<["", "minimal", "low", "medium", "high", "xhigh"]>>;
     }, "strip", z.ZodTypeAny, {
         default_model: string;
+        default_effort: "" | "minimal" | "low" | "medium" | "high" | "xhigh";
     }, {
         default_model?: string | undefined;
+        default_effort?: "" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
     codex: {
         default_model: string;
+        default_effort: "" | "minimal" | "low" | "medium" | "high" | "xhigh";
     };
     meta: {
         project_id: string;
@@ -339,6 +352,8 @@ export declare const ConfigSchema: z.ZodObject<{
         implement_owner?: "codex" | "claude" | undefined;
     };
     implement: {
+        model: string;
+        effort: "" | "minimal" | "low" | "medium" | "high" | "xhigh";
         enabled: boolean;
         max_implement_rounds: number;
         max_file_bytes: number;
@@ -364,7 +379,7 @@ export declare const ConfigSchema: z.ZodObject<{
         };
         codex: {
             model: string;
-            effort: string;
+            effort: "" | "minimal" | "low" | "medium" | "high" | "xhigh";
         };
         claude: {
             model: string;
@@ -416,7 +431,7 @@ export declare const ConfigSchema: z.ZodObject<{
         };
         codex?: {
             model?: string | undefined;
-            effort?: string | undefined;
+            effort?: "" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined;
         } | undefined;
         claude?: {
             model?: string | undefined;
@@ -431,6 +446,7 @@ export declare const ConfigSchema: z.ZodObject<{
     };
     codex?: {
         default_model?: string | undefined;
+        default_effort?: "" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined;
     } | undefined;
     state?: {
         lock_timeout_seconds?: number | undefined;
@@ -459,12 +475,22 @@ export declare const ConfigSchema: z.ZodObject<{
         implement_owner?: "codex" | "claude" | undefined;
     } | undefined;
     implement?: {
+        model?: string | undefined;
+        effort?: "" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined;
         enabled?: boolean | undefined;
         max_implement_rounds?: number | undefined;
         max_file_bytes?: number | undefined;
     } | undefined;
 }>;
 export type ResolvedConfig = z.infer<typeof ConfigSchema>;
+/** Single authority for the per-class codex tier chains (model-effort design §3):
+ * review:    review.codex.model/effort → codex.default_model/default_effort → SDK default
+ * implement: implement.model/effort    → codex.default_model/default_effort → SDK default
+ * The implement writer never inherits review.codex.model (borrow removed, regression-pinned). */
+export declare function resolveCodexTier(config: ResolvedConfig, scope: "review" | "implement"): {
+    model: string | undefined;
+    effort: CodexEffort | undefined;
+};
 export interface LoadConfigOptions {
     configPath: string;
     /** Absolute path used to resolve all relative entries. Defaults to dirname(configPath). */

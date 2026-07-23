@@ -15,6 +15,7 @@ import type {
   StartThreadOptions,
   ThreadHandle,
 } from "../src/codex-client.js";
+import { OpenAICodexClient } from "../src/codex-client.js";
 import { runReviewFlow } from "../src/run-review-flow.js";
 import { BreakerEngine, initialBreakerState } from "../src/circuit-breakers.js";
 import { PromptRenderer } from "../src/prompt-renderer.js";
@@ -34,6 +35,7 @@ class TrackingMockCodex implements CodexClient {
   startCalls = 0;
   resumeCalls = 0;
   lastStartOpts: StartThreadOptions | null = null;
+  lastResumeOpts: StartThreadOptions | undefined;
   scriptedReplies: string[] = [];
 
   async startThread(opts: StartThreadOptions): Promise<ThreadHandle> {
@@ -41,8 +43,9 @@ class TrackingMockCodex implements CodexClient {
     this.lastStartOpts = opts;
     return this.makeHandle(`thr_start_${this.startCalls}`);
   }
-  async resumeThread(threadId: string): Promise<ThreadHandle> {
+  async resumeThread(threadId: string, opts?: StartThreadOptions): Promise<ThreadHandle> {
     this.resumeCalls++;
+    this.lastResumeOpts = opts;
     return this.makeHandle(threadId);
   }
   async ping(): Promise<void> {}
@@ -73,6 +76,27 @@ describe("createReviewProvider (factory, §4.7) — config-only provider selecti
     });
     expect(provider.kind).toBe("codex");
     expect(provider).toBeInstanceOf(CodexProvider);
+  });
+
+  it.each([
+    ["review tier", "review-m", "high", "default-m", "low", "review-m", "high"],
+    ["default tier", "", "", "default-m", "low", "default-m", "low"],
+    ["SDK defaults", "", "", "", "", undefined, undefined],
+  ])("resolves model/effort from the %s for injected start + resume", async (
+    _name, reviewModel, reviewEffort, defaultModel, defaultEffort, model, effort,
+  ) => {
+    const config = defaultConfig();
+    Object.assign(config.review.codex, { model: reviewModel, effort: reviewEffort });
+    Object.assign(config.codex, { default_model: defaultModel, default_effort: defaultEffort });
+    const mock = new TrackingMockCodex();
+    const provider = createReviewProvider({ config, ...baseDeps, codexClient: mock });
+    await provider.openSession("code", "d1");
+    expect(mock.lastStartOpts).toMatchObject({ model, effort });
+    await provider.openSession("code", "d1", {
+      provider_kind: "codex", external_session_id: "prior",
+      context_usage_source: "native", created_at: "2026-01-01T00:00:00Z",
+    });
+    expect(mock.lastResumeOpts).toMatchObject({ model, effort });
   });
 
   it("returns a ClaudeProvider when review.provider=claude (zero code change)", () => {
@@ -155,6 +179,30 @@ describe("CodexProvider (raw-turn boundary, §4.7)", () => {
       expect(result.usage.total).toBe(15);
       expect(result.usage.context_usage_pct).toBeUndefined(); // codex: orchestrator-owned
     }
+  });
+});
+
+describe("OpenAICodexClient effort ThreadOptions", () => {
+  it("passes resolved effort on start and resume, and omits empty", async () => {
+    const seen: unknown[] = [];
+    const thread = { id: "t", run: async () => ({ finalResponse: "ok", items: [] }) };
+    const agent = {
+      startThread: (opts: unknown) => (seen.push(opts), thread),
+      resumeThread: (_id: string, opts: unknown) => (seen.push(opts), thread),
+    };
+    const client = new OpenAICodexClient({ defaultEffort: "medium" });
+    (client as any).agent = agent;
+    await client.startThread({ workingDirectory: "/tmp/wd" });
+    await client.resumeThread("t", { workingDirectory: "/tmp/wd", effort: "high" });
+    expect(seen).toMatchObject([
+      { modelReasoningEffort: "medium" },
+      { modelReasoningEffort: "high" },
+    ]);
+
+    const empty = new OpenAICodexClient();
+    (empty as any).agent = agent;
+    await empty.startThread({ workingDirectory: "/tmp/wd" });
+    expect(seen[2]).not.toHaveProperty("modelReasoningEffort");
   });
 });
 

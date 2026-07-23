@@ -105,7 +105,10 @@ function implConfig(root: string, over: Partial<ResolvedConfig["implement"]> = {
       allowed_doc_roots: ["docs/", ".codex-review/templates/"],
     },
   });
-  config.implement = { enabled: true, max_implement_rounds: 3, max_file_bytes: 2097152, ...over };
+  config.implement = {
+    enabled: true, model: "", effort: "",
+    max_implement_rounds: 3, max_file_bytes: 2097152, ...over,
+  };
   return config;
 }
 
@@ -248,6 +251,28 @@ describe("codex_implement flow (proposal mode)", () => {
       } finally {
         rmDir(applyRoot);
       }
+    } finally {
+      repo.cleanup();
+    }
+  });
+
+  it("uses implement/default model and effort, never review.codex.model", async () => {
+    const repo = makeCallerRepo();
+    try {
+      const config = implConfig(repo.root, { effort: "high" });
+      config.review.codex.model = "review-model-x";
+      config.codex.default_model = "writer-default";
+      const card = makeCard(repo.root, ["src.txt"]);
+      const { deps, calls, writerConfigs } = makeDeps(repo.root, config, () => {});
+      await runImplementFlow(deps, baseInput(card, ["src.txt"]));
+      expect(calls[0]).toMatchObject({ model: "writer-default", effort: "high" });
+      expect(calls[0]!.model).not.toBe("review-model-x");
+      expect(writerConfigs[0]).toMatch(/^model = "writer-default"$/m);
+      expect(writerConfigs[0]).toMatch(/^model_reasoning_effort = "high"$/m);
+      config.implement.model = "writer-own";
+      config.implement.effort = "low";
+      await runImplementFlow(deps, baseInput(card, ["src.txt"], "k2"));
+      expect(calls[1]).toMatchObject({ model: "writer-own", effort: "low" });
     } finally {
       repo.cleanup();
     }

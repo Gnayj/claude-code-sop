@@ -1,4 +1,4 @@
-import type { ResolvedConfig } from "./config.js";
+import type { CodexEffort, ResolvedConfig } from "./config.js";
 import { ImplementStore, type FileChangeFact, buildWriterEnvironment } from "./implement-workspace.js";
 export interface WriterTurnRequest {
     scratchRoot: string;
@@ -8,6 +8,7 @@ export interface WriterTurnRequest {
     /** CLI `--config` overrides (sandbox tmp exclusions — Q19 defense in depth). */
     cliConfigOverrides?: Record<string, unknown>;
     model?: string;
+    effort?: CodexEffort;
     /** Cancellation — MUST be forwarded into the SDK turn (TurnOptions.signal; design §4.4). */
     signal?: AbortSignal;
 }

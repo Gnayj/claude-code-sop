@@ -290,6 +290,8 @@ export interface WriterEnvironment {
         plugins: number;
         excludeSlashTmp: boolean;
         excludeTmpdirEnvVar: boolean;
+        model?: string;
+        effort?: string;
         configPath: string;
     };
     discard(): void;
@@ -297,5 +299,5 @@ export interface WriterEnvironment {
 /** Build the dedicated minimal CODEX_HOME at the DERIVED per-dispatch location (§4.2.F): auth
  * material copied from the user's real home (if present), plus a server-authored config.toml
  * with ZERO mcp_servers/plugins and the sandbox tmp-write exclusions (Q19). */
-export declare function buildWriterEnvironment(homeDir: string, model?: string): WriterEnvironment;
+export declare function buildWriterEnvironment(homeDir: string, model?: string, effort?: string): WriterEnvironment;
 //# sourceMappingURL=implement-workspace.d.ts.map

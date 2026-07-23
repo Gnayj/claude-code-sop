@@ -80,11 +80,12 @@ export class OpenAICodexClient {
     }
     async startThread(opts) {
         const agent = this.getAgent();
+        const model = opts.model || this.options.defaultModel;
+        const effort = opts.effort || this.options.defaultEffort;
         const thread = agent.startThread({
             workingDirectory: opts.workingDirectory,
-            ...(opts.model || this.options.defaultModel
-                ? { model: opts.model || this.options.defaultModel }
-                : {}),
+            ...(model ? { model } : {}),
+            ...(effort ? { modelReasoningEffort: effort } : {}),
             ...forcedThreadOptions(opts.tier ?? "review"),
         });
         // For a fresh thread, SDK populates Thread.id only after the first run.
@@ -93,11 +94,12 @@ export class OpenAICodexClient {
     }
     async resumeThread(threadId, opts) {
         const agent = this.getAgent();
+        const model = opts?.model || this.options.defaultModel;
+        const effort = opts?.effort || this.options.defaultEffort;
         const thread = agent.resumeThread(threadId, {
             ...(opts?.workingDirectory ? { workingDirectory: opts.workingDirectory } : {}),
-            ...(opts?.model || this.options.defaultModel
-                ? { model: opts?.model || this.options.defaultModel }
-                : {}),
+            ...(model ? { model } : {}),
+            ...(effort ? { modelReasoningEffort: effort } : {}),
             ...forcedThreadOptions(opts?.tier ?? "review"),
         });
         // Resume case: caller already knows the id; surface it immediately.

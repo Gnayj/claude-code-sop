@@ -930,7 +930,7 @@ export class ImplementStore {
 /** Build the dedicated minimal CODEX_HOME at the DERIVED per-dispatch location (§4.2.F): auth
  * material copied from the user's real home (if present), plus a server-authored config.toml
  * with ZERO mcp_servers/plugins and the sandbox tmp-write exclusions (Q19). */
-export function buildWriterEnvironment(homeDir, model) {
+export function buildWriterEnvironment(homeDir, model, effort) {
     const codexHome = homeDir;
     const realHome = process.env.CODEX_HOME || join(process.env.HOME ?? "", ".codex");
     for (const authFile of ["auth.json"]) {
@@ -948,6 +948,8 @@ export function buildWriterEnvironment(homeDir, model) {
     ];
     if (model)
         configLines.push(`model = ${JSON.stringify(model)}`);
+    if (effort)
+        configLines.push(`model_reasoning_effort = ${JSON.stringify(effort)}`);
     configLines.push("", "# Q19: the codex default tmp write grants are OFF — the writer's writable world is exactly", "# the scratch subtree (sealed stores/staging are unreachable by path grant AND tmp channel).", "[sandbox_workspace_write]", "exclude_slash_tmp = true", "exclude_tmpdir_env_var = true");
     const configPath = join(codexHome, "config.toml");
     writeFileSync(configPath, configLines.join("\n") + "\n");
@@ -958,6 +960,10 @@ export function buildWriterEnvironment(homeDir, model) {
         plugins: (written.match(/^\[plugins/gm) ?? []).length,
         excludeSlashTmp: /^\s*exclude_slash_tmp\s*=\s*true\s*$/m.test(inSandboxSection),
         excludeTmpdirEnvVar: /^\s*exclude_tmpdir_env_var\s*=\s*true\s*$/m.test(inSandboxSection),
+        // Audit echo of the tier the server resolved and wrote above (not a security gate — the
+        // Q19 gate covers only the sandbox facts; file contents are pinned in tests).
+        model,
+        effort,
         configPath,
     };
     const env = {

@@ -13,7 +13,7 @@
 import { readFileSync } from "node:fs";
 import { relative } from "node:path";
 import { z } from "zod";
-import { resolveProjectPath } from "./config.js";
+import { resolveCodexTier, resolveProjectPath } from "./config.js";
 import { canonicalSetsEqual, parseAllowlist, parseFilesBlockFromCard, } from "./allowlist.js";
 import { PROCESS_EPOCH_STARTED_AT, PROCESS_EPOCH_START_TOKEN, getDispatch, allocateDispatchResources, BlobStore, buildSnapshot, buildWriterEnvironment, computePayloadSha, discardDispatchResources, ensureFlockSupport, generatePatch, materializeScratch, newArtifactId, publishArtifact, sealCapture, sha256, validateCapture, validateDispatchKey, } from "./implement-workspace.js";
 import { LockCancelledError, LockTimeoutError, acquisitionDeadline, } from "./locks.js";
@@ -268,7 +268,8 @@ export async function runImplementFlow(deps, input) {
                 const captureStore = new BlobStore(resources.capBlobs);
                 // Writer environment + attestation gate (Q11 + Q19): a constructed config missing
                 // either tmp exclusion hard-fails BEFORE the writer spawns.
-                const writerEnv = (deps.buildWriterEnv ?? buildWriterEnvironment)(resources.home, config.review.codex.model || config.codex.default_model || undefined);
+                const { model: writerModel, effort: writerEffort } = resolveCodexTier(config, "implement");
+                const writerEnv = (deps.buildWriterEnv ?? buildWriterEnvironment)(resources.home, writerModel, writerEffort);
                 if (!writerEnv.attestation.excludeSlashTmp || !writerEnv.attestation.excludeTmpdirEnvVar) {
                     return finishFailed({
                         ok: false,
@@ -308,7 +309,8 @@ export async function runImplementFlow(deps, input) {
                         prompt,
                         env: writerEnv.env,
                         cliConfigOverrides: writerEnv.cliConfigOverrides,
-                        model: config.review.codex.model || config.codex.default_model || undefined,
+                        model: writerModel,
+                        effort: writerEffort,
                         signal: input.signal,
                     });
                     state.codex_failure_streak = 0;

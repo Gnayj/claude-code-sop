@@ -15,8 +15,8 @@ import { readFileSync } from "node:fs";
 import { relative } from "node:path";
 import { z } from "zod";
 
-import type { ResolvedConfig } from "./config.js";
-import { resolveProjectPath } from "./config.js";
+import type { CodexEffort, ResolvedConfig } from "./config.js";
+import { resolveCodexTier, resolveProjectPath } from "./config.js";
 import {
   canonicalSetsEqual,
   parseAllowlist,
@@ -60,6 +60,7 @@ export interface WriterTurnRequest {
   /** CLI `--config` overrides (sandbox tmp exclusions — Q19 defense in depth). */
   cliConfigOverrides?: Record<string, unknown>;
   model?: string;
+  effort?: CodexEffort;
   /** Cancellation — MUST be forwarded into the SDK turn (TurnOptions.signal; design §4.4). */
   signal?: AbortSignal;
 }
@@ -381,9 +382,14 @@ export async function runImplementFlow(
 
         // Writer environment + attestation gate (Q11 + Q19): a constructed config missing
         // either tmp exclusion hard-fails BEFORE the writer spawns.
+        const { model: writerModel, effort: writerEffort } = resolveCodexTier(
+          config,
+          "implement",
+        );
         const writerEnv = (deps.buildWriterEnv ?? buildWriterEnvironment)(
           resources.home,
-          config.review.codex.model || config.codex.default_model || undefined,
+          writerModel,
+          writerEffort,
         );
         if (!writerEnv.attestation.excludeSlashTmp || !writerEnv.attestation.excludeTmpdirEnvVar) {
           return finishFailed({
@@ -428,7 +434,8 @@ export async function runImplementFlow(
             prompt,
             env: writerEnv.env,
             cliConfigOverrides: writerEnv.cliConfigOverrides,
-            model: config.review.codex.model || config.codex.default_model || undefined,
+            model: writerModel,
+            effort: writerEffort,
             signal: input.signal,
           });
           state.codex_failure_streak = 0;

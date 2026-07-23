@@ -1,11 +1,14 @@
 import type { CodexClient } from "../codex-client.js";
 import type { ProviderSession, ProviderRunResult, RenderedReviewPrompt, ReviewProvider, PersistedProviderSession } from "../review-provider.js";
 import type { ReviewStage } from "../types.js";
+import type { CodexEffort } from "../config.js";
 export interface CodexProviderOptions {
     /** Repo root the codex agent operates within (read-only). Constant per server. */
     workingDirectory: string;
     /** Optional model id; "" / undefined = SDK default. */
     model?: string;
+    /** Optional reasoning effort; undefined = SDK default. */
+    effort?: CodexEffort;
 }
 export declare class CodexProvider implements ReviewProvider {
     private readonly codex;
