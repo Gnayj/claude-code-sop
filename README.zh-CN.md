@@ -171,6 +171,7 @@ flowchart TD
 
 - `/sop-init` —— 首次脚手架向导。
 - `/sop-flow` —— 查看或切换 claude 主推工作的 standing 协作流程（`claude+claude` ↔ `claude+codex`；写 `[collaboration]` owner 键 + 联动 `[implement].enabled` gate；需 reload）。
+- `/sop-tier` —— 查看或设置 review 与 implement 各自的 codex model/effort 档（写 `[review.codex]`/`[implement]`/`[codex]` 的 model+effort 键；需 reload）。
 - `/sop-update` —— 拉 ccsop-owned 文档更新（冲突安全；绝不碰你的 `records/current.md`）。
 - `/sop-lang <lang>` —— 用另一种语言重新物化文档（翻译一次，机器稳定面保留）。
 - `/handoff` —— session 启动 / 切任务的结构化项目状态。
@@ -181,7 +182,7 @@ flowchart TD
 ```
 ccsop/
 ├─ .claude-plugin/plugin.json        插件 manifest（commands/agents/skills/mcpServers）
-├─ commands/                          /sop-init · /sop-flow · /sop-update · /sop-lang
+├─ commands/                          /sop-init · /sop-flow · /sop-tier · /sop-update · /sop-lang
 ├─ agents/                            verify-runner · doc-sync · deploy-runner（sonnet 档）
 ├─ skills/                            handoff · project-sop
 ├─ mcp/codex-review/                  可插拔 review 桥（ReviewProvider 抽象）

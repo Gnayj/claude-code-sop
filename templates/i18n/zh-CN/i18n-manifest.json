@@ -5,7 +5,7 @@
     {
       "target_rel": "README.zh-CN.md",
       "source_path": "README.md",
-      "source_sha": "f7b6f5fbb88a82303d24cd2aed403eb089b4131e024f278e79fa2ca3f9d58321"
+      "source_sha": "37f27137f11ce0ce718113462b28c3dc962604dadd265d01b1881985737e1a39"
     },
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/project-sop/SKILL.md",

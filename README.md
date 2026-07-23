@@ -184,6 +184,7 @@ self-verify boundary) and `workflow-overview.md` for the full flow.
 
 - `/sop-init` — first-time scaffold wizard.
 - `/sop-flow` — show or switch the standing collaboration flow for Claude-driven work (`claude+claude` ↔ `claude+codex`; writes the `[collaboration]` owner keys + coupled `[implement].enabled` gate; reload needed).
+- `/sop-tier` — show or set the codex model/effort tiers for review vs implement (writes `[review.codex]`/`[implement]`/`[codex]` model+effort keys; reload needed).
 - `/sop-update` — pull ccsop-owned doc updates (conflict-safe; never touches your `records/current.md`).
 - `/sop-lang <lang>` — re-materialize docs in another language (translate-once, machine-stable surfaces preserved).
 - `/handoff` — structured project state for session start / task switch.
@@ -194,7 +195,7 @@ self-verify boundary) and `workflow-overview.md` for the full flow.
 ```
 ccsop/
 ├─ .claude-plugin/plugin.json        plugin manifest (commands/agents/skills/mcpServers)
-├─ commands/                          /sop-init · /sop-flow · /sop-update · /sop-lang
+├─ commands/                          /sop-init · /sop-flow · /sop-tier · /sop-update · /sop-lang
 ├─ agents/                            verify-runner · doc-sync · deploy-runner (sonnet tier)
 ├─ skills/                            handoff · project-sop
 ├─ mcp/codex-review/                  the pluggable review bridge (ReviewProvider abstraction)
