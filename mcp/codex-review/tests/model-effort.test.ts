@@ -30,4 +30,24 @@ describe("codex model/effort config", () => {
     expect(tpl).toMatch(/\[implement\][\s\S]*\nmodel = ""[\s\S]*\neffort = ""/);
     expect(tpl).toContain("no longer inherits review.codex.model");
   });
+
+  it("defaults [codex].path to empty and accepts an explicit binary path", () => {
+    const parsed = ConfigSchema.parse(defaultConfig() as any);
+    expect(parsed.codex.path).toBe(""); // "" => fall through to the package → PATH → error chain
+
+    const withPath = defaultConfig() as any;
+    withPath.codex.path = "/usr/local/bin/codex";
+    const p2 = ConfigSchema.safeParse(withPath);
+    expect(p2.success).toBe(true);
+    if (p2.success) expect(p2.data.codex.path).toBe("/usr/local/bin/codex");
+  });
+
+  it("documents the codex-binary resolution chain in the template", () => {
+    const tpl = readFileSync("../../templates/config.toml.tpl", "utf8");
+    expect(tpl).toMatch(/\[codex\][\s\S]*\npath = ""/); // key present under [codex]
+    // The 4-link order must be documented so operators understand precedence, not just the key.
+    expect(tpl).toContain("path  (this key)");
+    expect(tpl).toContain("@openai/codex package");
+    expect(tpl).toContain("codex on PATH");
+  });
 });

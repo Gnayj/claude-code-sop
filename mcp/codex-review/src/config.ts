@@ -71,7 +71,10 @@ export type CodexEffort = Exclude<z.infer<typeof EffortSchema>, "">;
 const CodexConfig = z.object({
   default_model: z.string().default(""),
   default_effort: EffortSchema.default(""),
-}).default({ default_model: "", default_effort: "" });
+  // codex CLI binary path override (design ccsop-bridge-deps-lifecycle §4.1, chain link 1). "" =
+  // fall through to the package → PATH → legible-error chain. When set, highest precedence.
+  path: z.string().default(""),
+}).default({ default_model: "", default_effort: "", path: "" });
 
 // ---------- Provider abstraction config (design §4.7, slice 2) ----------
 // `[review] provider` selects the ReviewProvider; per-provider subtables tune each backend.

@@ -1,4 +1,7 @@
-# Install artifacts. node_modules is reinstalled by the install wizard (design §4.9).
-# dist/ is intentionally committed in the published repo so installs need no build step.
+# Install artifacts. dist/server.js is a committed single-file bundle so installs need no build
+# and no runtime node_modules for the JS deps (design §4.1). node_modules is only needed to
+# (re)build/bundle or to install the @openai/codex CLI package (chain link 2).
 node_modules/
 *.tsbuildinfo
+# Build-time only: esbuild metafile consumed by the dynamic-require audit gate, not shipped.
+dist/server.meta.json

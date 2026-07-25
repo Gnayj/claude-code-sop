@@ -9,6 +9,7 @@
 // (parsed from the codex envelope), so this provider leaves usage.context_usage_pct unset.
 
 import type { CodexClient, ThreadHandle } from "../codex-client.js";
+import { formatProvenance } from "../codex-resolve.js";
 import type {
   ProviderSession,
   ProviderRunResult,
@@ -90,5 +91,15 @@ export class CodexProvider implements ReviewProvider {
 
   closeSession(_session: ProviderSession): void {
     // @openai/codex-sdk has no explicit close; thread is reclaimed by the SDK/runtime.
+  }
+
+  /** Surface the resolved codex binary into the review result, but only when noteworthy: an
+   * implicit PATH resolution (silent-substitution risk) or a config binary that failed its
+   * liveness probe. A deterministic package/default resolution returns null (design Q1.b). */
+  reviewerProvenance(): string | null {
+    const r = this.codex.getProvenance?.();
+    if (!r) return null;
+    if (r.source === "path" || r.smokeFailed) return formatProvenance(r);
+    return null;
   }
 }

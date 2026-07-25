@@ -120,4 +120,10 @@ export interface ReviewProvider {
 
   /** Release any provider-held resources for the session. Persisted state is the orchestrator's. */
   closeSession(session: ProviderSession): void;
+
+  /** One-line note about which reviewer binary/backend was used, for the user-visible review
+   * result — but ONLY when it warrants attention (an implicitly PATH-resolved codex binary, or a
+   * config binary that failed its liveness probe). Returns null when there is nothing noteworthy
+   * (deterministic package/default backend). Optional: only codex resolves a binary. (design Q1.b) */
+  reviewerProvenance?(): string | null;
 }

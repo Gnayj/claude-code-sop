@@ -257,6 +257,10 @@ export async function runReviewFlow(
       };
     }
     session = await provider.openSession(input.stage, input.designId, prior);
+    // Reviewer-binary provenance (design Q1.b): once the session is open the codex client has
+    // resolved its binary. Surface a noteworthy resolution (implicit PATH / config skew) into the
+    // user-visible result warnings so a silent PATH substitution can't go unseen.
+    const reviewerProvenanceNote = provider.reviewerProvenance?.() ?? null;
 
     // Round this review will record (matches the post-parse `round` below); manual uses it
     // for prompt/verdict file naming.
@@ -450,6 +454,7 @@ export async function runReviewFlow(
 
     // ---------- 10) Context-exhausted check (post rebuild) ----------
     const warnings = [...parseResult.warnings];
+    if (reviewerProvenanceNote) warnings.push(reviewerProvenanceNote);
     let contextExhaustedTrip: BreakerTriggered | null = null;
     if (didRebuildThisCall && state.context_usage_pct >= cb.context_warn_pct) {
       contextExhaustedTrip = breakers.triggerContextExhausted(breakerState);

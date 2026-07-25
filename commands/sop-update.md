@@ -129,6 +129,61 @@ outside-block edit conflict, block preservation, in-block-only edits, malformed 
 blocks-only delta (updatable) vs outside-block edit (preserved), language switch (field deleted),
 per-entry vs all-or-nothing resolution aborts, orphaned-root hard abort.
 
+## Step 2.B — permission-baseline merge + backfill (`.claude/settings.json`)
+
+`.claude/settings.json` is `owner=ccsop` but consumers legitimately EXTEND it (project Bash allows,
+etc.), so it must **never** go through the generic whole-file re-render (that would destroy consumer
+rules). It gets a dedicated **merge** path, and — because the census found most adopted repos have a
+`.claude/settings.json` with **no** `permission-baseline:*` manifest entry at all — a **backfill**
+path (design `bridge-deps-lifecycle-design.md` §4.2).
+
+**Managed subset = `permissions.allow` only.** Every other JSON key, and every `permissions.allow`
+entry the template does not own, is out of scope and passes through byte-identical.
+
+**Canonical set** (from `${CLAUDE_PLUGIN_ROOT}/templates/permission-baseline.json`):
+`mcp__plugin_ccsop_ccsop-review__codex_design_review`, `…__codex_code_review`, `…__codex_fix_review`.
+
+**Superseded names to migrate** (ccsop-owned, replaced by the canonical set — remove on sight):
+- bare `mcp__ccsop-review__codex_{design,code,fix}_review` (0.1.0-era, pre-plugin-prefix);
+- any wildcard `mcp__plugin_ccsop_ccsop-review__*` or `mcp__ccsop-review__*` (over-broad — it grants
+  `codex_implement`; replace with the enumerated three).
+
+**Merge algorithm** (entry present OR backfill):
+1. Read `.claude/settings.json`. **Invalid JSON ⇒ fail closed**: leave the file + manifest entry
+   untouched, emit a blocking warning naming the file, continue with other entries (never partial-write).
+2. Compute the new `permissions.allow`: drop every superseded name; ensure the canonical three are
+   present; **preserve all other entries in their original order**; **de-dupe** keeping first
+   occurrence (stable). Append any missing canonical names after the last preserved entry.
+3. If the resulting `permissions.allow` (and thus the file) is byte-identical to the current one AND
+   the manifest entry already exists ⇒ status `up-to-date` (idempotent no-op — no sha churn).
+4. Otherwise write the merged file (single atomic write) and set the manifest entry:
+   `source_sha` = the template's LF-normalized sha, `rendered_sha` = the **merged file's**
+   LF-normalized sha (NOT the template's — the preserved consumer rules mean the two differ, and
+   using the template sha would flag the file as a permanent local edit).
+
+**Backfill** (`.claude/settings.json` exists but manifest lacks `permission-baseline:<provider>`):
+run the same merge, then **append** the manifest entry (`template_id: "permission-baseline:<provider>"`
+using the repo's `review.provider`, `owner=ccsop`, `path: ".claude/settings.json"`, the two sha
+fields as above). This adopts a previously-unmanaged file through the merge path — never a blind write.
+
+**Never** overwrite the whole file; **never** honor `--force` as accept-new here (merge is the only
+mode — there is nothing to whole-file-replace). Status values: `updated (permissions merged)` /
+`up-to-date` / `backfilled (manifest entry added)` / `error (invalid settings.json)`.
+
+**Normative behavioral matrix** (spec fixtures — expected `permissions.allow` bytes + manifest +
+status per case), which binds this command:
+
+| # | input state | expected outcome |
+|---|---|---|
+| B1 | orphan entry + stale bare names + consumer allows | bare `mcp__ccsop-review__*` → canonical three; consumer allows preserved in order; status `updated` |
+| B2 | settings.json present, NO manifest entry, canonical three already present + consumer allows | file unchanged; manifest entry appended; status `backfilled` |
+| B3 | settings.json present, NO manifest entry, stale bare names | migrate → canonical + append manifest entry; status `backfilled` |
+| B4 | already-canonical + entry present | `up-to-date`; no sha churn (idempotent) |
+| B5 | second `/sop-update` after B1/B2/B3 | `up-to-date` (idempotent; no duplicate entries) |
+| B6 | wildcard `…ccsop-review__*` present | replaced by the enumerated three (no `codex_implement` grant) |
+| B7 | invalid JSON | file + entry untouched; status `error`; blocking warning; other entries continue |
+| B8 | unrelated top-level keys + non-ccsop `permissions.allow` entries | all survive byte-identical |
+
 ## Step 3 — `--force`
 
 `--force` takes `accept-new` for all **`owner=ccsop`** conflicts (still backing up each `<file>.ccsop-bak`
@@ -143,10 +198,38 @@ consumer-owned; only a pristine seed entry may be re-rendered).
 - If any methodology rule changed, remind the user the change came from the plugin (single source);
   project-specific overrides should live in runbooks / overlay, not by editing owner=ccsop files.
 
+## Step 5 — bridge codex-binary readiness (post-bump lifecycle)
+
+This is the step `/sop-init` Step 6 has, restated here so the check is **reachable after a version
+bump** — the original defect was that the only place it lived (`/sop-init`) aborts on an
+already-adopted repo, so a bump silently left the bridge unable to resolve a codex binary
+(design ccsop-bridge-deps-lifecycle §4.1 Part 3).
+
+- The bundled `dist/server.js` is part of the plugin files and survives the bump, so the server
+  itself still **starts** with no action. What a fresh plugin cache dir loses is any previously
+  installed `@openai/codex` package (resolution link 2).
+- Re-check that a codex binary is resolvable — `[codex] path` set, OR `@openai/codex` installed in
+  the bridge dir, OR `codex` on `PATH`. If **none** resolve, apply the **same narrow plugin-root
+  exception** as `/sop-init` Step 6: with the user's go-ahead, run
+  `cd "${CLAUDE_PLUGIN_ROOT}/mcp/codex-review" && npm install` to provide the `@openai/codex`
+  package; else print the three remedies and continue. Never fail `/sop-update` over it.
+- If a codex binary is already resolvable (the common `provider=codex`-with-PATH case), this step is
+  a no-op — report it and move on.
+
 ## Boundaries
 - `owner=ccsop` files + **pristine** `owner=seed` entries (re-render only on **effective**
   LF-normalized sha match — stripped-of-valid-consumer-blocks for eligible Markdown, raw otherwise;
   see Step 2 preamble). A **modified/untracked** `owner=seed` entry, `records/current.md`
   (owner=overlay), and any user-converted overlay file are off-limits (not overwritten, even with `--force`).
+- **`.claude/settings.json` is `owner=ccsop` but merge-only (Step 2.B)** — never whole-file
+  re-rendered or `--force`-replaced; only `permissions.allow` is touched (migrate superseded ccsop
+  review-tool names → the canonical three, preserve consumer additions). It is the one owner=ccsop
+  entry that is consumer-extended by design.
+- Work in the **target repo**, with ONE narrow exception, **stated identically in `/sop-init` Step 6**:
+  the Step 5 codex-binary readiness step may run `npm install` inside
+  `${CLAUDE_PLUGIN_ROOT}/mcp/codex-review` **solely to provide the `@openai/codex` package**
+  (resolution link 2) when no codex binary is otherwise resolvable. The bundled `dist/` is never
+  rebuilt here; the plugin's templates/source are never edited. This single optional `npm install` is
+  the only permitted action outside the target repo.
 - Never overwrite a locally-edited file without an explicit per-file choice or `--force` (+ backup).
 - Resetting the breakpoint is a separate explicit action (`--reset-breakpoint`), not part of update.

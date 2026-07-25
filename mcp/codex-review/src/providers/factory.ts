@@ -75,7 +75,9 @@ export function createReviewProvider(deps: ProviderFactoryDeps): ReviewProvider 
       // CodexProviderOptions is the single model/effort channel: the provider passes both on
       // start AND resume, so injected (test) and SDK clients observe identical opts.
       const { model, effort } = resolveCodexTier(deps.config, "review");
-      const codexClient = deps.codexClient ?? new OpenAICodexClient();
+      const codexClient =
+        deps.codexClient ??
+        new OpenAICodexClient({ codexPath: deps.config.codex.path });
       return new CodexProvider(codexClient, {
         workingDirectory: deps.workingDirectory,
         model,

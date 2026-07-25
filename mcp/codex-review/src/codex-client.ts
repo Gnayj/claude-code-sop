@@ -21,6 +21,12 @@
 import { Codex, type Thread, type ThreadOptions } from "@openai/codex-sdk";
 import { IMPLEMENT_MIN_POLICY, MIN_SAFETY_POLICY } from "./safety.js";
 import type { CodexEffort } from "./config.js";
+import {
+  resolveCodexBinary,
+  formatProvenance,
+  NoCodexBinaryError,
+  type CodexResolution,
+} from "./codex-resolve.js";
 
 export interface ThreadHandle {
   threadId: string;
@@ -60,6 +66,10 @@ export interface CodexClient {
   resumeThread(threadId: string, opts?: StartThreadOptions): Promise<ThreadHandle>;
   /** Health check — used by the `codex_unavailable` breaker. */
   ping(): Promise<void>;
+  /** Resolved codex-binary provenance once a thread has been opened; null before, or for clients
+   * that don't resolve a binary (mocks). Surfaced into the review result so a PATH-resolved
+   * substitution is user-visible, not just in server logs (design Q1.b). */
+  getProvenance?(): CodexResolution | null;
 }
 
 export class CodexCapabilityMissingError extends Error {
@@ -110,8 +120,45 @@ export function forcedThreadOptions(tier: "review" | "implement" = "review"): Pi
  * The Codex constructor is lazily invoked on first use so tests can avoid
  * touching the real SDK by providing their own CodexClient implementation.
  */
+// Codex-binary resolution is deterministic per process (config path + PATH are static), so resolve
+// and probe ONCE and share across every client. This matters for the implement path, which builds a
+// fresh OpenAICodexClient per dispatch (design Q16) — without this cache each dispatch would re-run
+// the blocking `--version` smoke probe. Keyed by config path (the only per-client input to the chain).
+const resolutionCache = new Map<string, CodexResolution>();
+
+function resolveCodexOnce(configPath: string | undefined): CodexResolution {
+  const key = configPath ?? "";
+  const cached = resolutionCache.get(key);
+  if (cached) return cached;
+  const resolution = resolveCodexBinary({ configPath });
+  resolutionCache.set(key, resolution);
+  // Provenance is observable (design Q1.b): log which binary won — once per distinct config path.
+  process.stderr.write(`[codex-review-mcp] ${formatProvenance(resolution)}\n`);
+  return resolution;
+}
+
+/**
+ * Map a `new Codex()` construction failure to the right error class (design bridge-deps §4.1 Q3).
+ * When the PACKAGE link won but its native binary is missing/unusable, the SDK throws "Unable to
+ * locate Codex CLI binaries" — that is the same user problem as link-4 exhaustion, so surface the
+ * legible three-remedy NoCodexBinaryError rather than the bare SDK message. Any other construction
+ * failure (genuine capability gap) stays a CodexCapabilityMissingError.
+ */
+export function classifyCodexConstructionError(
+  source: CodexResolution["source"],
+  err: Error,
+): Error {
+  if (source === "package" && /locate Codex CLI binaries|optional dependencies/i.test(err.message)) {
+    return new NoCodexBinaryError();
+  }
+  return new CodexCapabilityMissingError([
+    `cannot construct Codex from @openai/codex-sdk: ${err.message}`,
+  ]);
+}
+
 export class OpenAICodexClient implements CodexClient {
   private agent: Codex | null = null;
+  private resolution: CodexResolution | null = null;
 
   constructor(
     private readonly options: {
@@ -123,20 +170,36 @@ export class OpenAICodexClient implements CodexClient {
       /** CLI `--config key=value` overrides (design Q19: sandbox tmp exclusions — defense in
        * depth on top of the server-authored CODEX_HOME config.toml). */
       config?: Record<string, unknown>;
+      /** Explicit codex binary path (config `[codex] path`, chain link 1). "" / undefined =
+       * fall through to the package → PATH → legible-error chain. (design bridge-deps-lifecycle §4.1) */
+      codexPath?: string;
     } = {},
   ) {}
 
+  /** Resolved codex-binary provenance, available after the first getAgent(); null before.
+   * Surfaced into the review result (design Q1.b) so a PATH-resolved binary is user-visible. */
+  getProvenance(): CodexResolution | null {
+    return this.resolution;
+  }
+
   private getAgent(): Codex {
     if (this.agent !== null) return this.agent;
+    // Resolve the codex binary first (config → package → PATH → NoCodexBinaryError), memoized per
+    // process. Only the package link (undefined override) defers resolution to the SDK; links 1/3
+    // pin the path.
+    const resolution = resolveCodexOnce(this.options.codexPath);
+    this.resolution = resolution;
     try {
       this.agent = new Codex({
+        ...(resolution.codexPathOverride
+          ? { codexPathOverride: resolution.codexPathOverride }
+          : {}),
         ...(this.options.env ? { env: this.options.env } : {}),
         ...(this.options.config ? { config: this.options.config as never } : {}),
       });
     } catch (err) {
-      throw new CodexCapabilityMissingError([
-        `cannot construct Codex from @openai/codex-sdk: ${(err as Error).message}`,
-      ]);
+      // Package-link native-binary failure → legible three-remedy error (design Q3); else capability.
+      throw classifyCodexConstructionError(resolution.source, err as Error);
     }
     return this.agent;
   }

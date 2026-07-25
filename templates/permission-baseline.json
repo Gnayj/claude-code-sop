@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_ccsop_ccsop-review__codex_design_review",
+      "mcp__plugin_ccsop_ccsop-review__codex_code_review",
+      "mcp__plugin_ccsop_ccsop-review__codex_fix_review"
+    ]
+  }
+}

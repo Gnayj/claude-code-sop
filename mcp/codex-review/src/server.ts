@@ -161,6 +161,9 @@ async function main(): Promise<void> {
             ...(req.effort ? { defaultEffort: req.effort } : {}),
             env: req.env,
             ...(req.cliConfigOverrides ? { config: req.cliConfigOverrides } : {}),
+            // Same codex-binary resolution chain as the review path (design §4.1); resolution is
+            // memoized per process, so this per-dispatch client does not re-probe. "" = unset.
+            codexPath: config.codex.path,
           });
           const thread = await client.startThread({
             workingDirectory: req.scratchRoot,

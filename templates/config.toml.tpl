@@ -70,6 +70,19 @@ verdict_enum = ["All-fixed", "Partial", "New-issues", "Rereview-after-fixes", "N
 default_model = ""
 default_effort = ""
 
+# codex CLI binary resolution (bridge is a single self-contained bundle; the codex CLI is the one
+# runtime input it still needs). Resolution order — first hit wins:
+#   1. path  (this key)      — explicit operator override; highest precedence.
+#   2. @openai/codex package — if installed in the bridge's node_modules; deterministic, version-pinned.
+#   3. codex on PATH         — usually already present: /sop-init requires a Codex login for provider=codex.
+#   4. none of the above     — the bridge returns a legible "no codex binary" error naming all three
+#                              remedies (it does NOT crash).
+# Compatibility: an explicit `path` that fails the liveness smoke-check warns and proceeds (you chose it).
+# An implicit PATH hit that fails does NOT silently proceed — since PATH is only reached after the
+# package link already missed, it uses a package candidate only if one is actually present, otherwise
+# returns the legible "no codex binary" error. Leave "" to use the chain from link 2; set to pin a binary.
+path = ""
+
 # Per-provider tuning.
 [review.codex]
 model = ""                       # "" = SDK default

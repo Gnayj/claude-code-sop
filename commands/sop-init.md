@@ -159,8 +159,22 @@ For every materialized file, append an entry:
   seed policy** (these are `owner=seed`: copy only if absent or a pristine prior render; preserve+warn if the
   consumer has customized them).
 - Create `.codex-review/{sessions,archive,backlog}/` (with `.gitkeep`).
-- Write/merge a `.claude/settings.json` permission baseline appropriate to the chosen provider
-  (allow the bridge's read-only review commands; do not grant destructive prefixes).
+- **Write/merge the `.claude/settings.json` permission baseline from
+  `${CLAUDE_PLUGIN_ROOT}/templates/permission-baseline.json`** (do NOT hand-author it — that ad-hoc
+  path is what produced the orphan/stale manifest entries this scaffold now fixes):
+  - The template is **provider-independent** — the bridge exposes the same three read-only review
+    tools (`mcp__plugin_ccsop_ccsop-review__codex_{design,code,fix}_review`) for every provider, so
+    one template serves `codex`/`claude`/`manual`. It is enumerated, **not** a `…__*` wildcard (a
+    wildcard would also grant `codex_implement`, a repo-writing dispatch tool that stays a separate
+    opt-in). Never add destructive prefixes.
+  - **Fresh repo (no `.claude/settings.json`)**: copy the template verbatim.
+  - **Existing `.claude/settings.json`**: MERGE into `permissions.allow` only — add the three
+    review-tool entries if absent, **preserve every other entry** (consumer additions); de-dupe.
+    Leave all other JSON keys untouched. Fail closed on invalid JSON (report, don't rewrite).
+  - Record the manifest entry `template_id: "permission-baseline:<provider>"` (provider suffix for
+    provenance; all resolve to the single template), `owner=ccsop`, `path: ".claude/settings.json"`,
+    `source_sha` = the template's LF-normalized sha, `rendered_sha` = the written/merged file's
+    LF-normalized sha.
 - **Write/merge `.gitattributes` (F3 — line-ending stability)**: append an idempotent ccsop-managed block
   pinning `eol=lf` for the managed surface — `docs/** text=auto eol=lf`, `.codex-review/templates/** text=auto eol=lf`,
   `.ccsop/** text=auto eol=lf`. If the repo already has a `.gitattributes`, append the block once (don't
@@ -169,28 +183,35 @@ For every materialized file, append an entry:
 - `config.toml`, the `settings.json` permission baseline, and the `.gitattributes` ccsop block are `owner=ccsop`;
   the `.codex-review/templates/*.tpl` review prompts are `owner=seed` (Step 4).
 
-## Step 6 — MCP dependency install + finish
+## Step 6 — codex-binary readiness + finish
 
-- The review bridge ships **prebuilt** under the plugin (`${CLAUDE_PLUGIN_ROOT}/mcp/codex-review`):
-  its compiled `dist/` is committed in released installs, so a fresh install already has the server
-  and needs only its runtime dependencies installed (no build) for the `ccsop-review` MCP to start:
-  - With the user's go-ahead (it runs `npm`), run:
-    `cd "${CLAUDE_PLUGIN_ROOT}/mcp/codex-review" && npm install`.
-  - If node/npm is missing, offline, or the user declines, **print the command for them to run
-    later** and continue — do not fail `/sop-init` over it.
-  - The bridge is **degraded-safe**: until its deps are installed AND `.codex-review/config.toml`
-    exists, the `ccsop-review` MCP server either won't load or returns a clear "run /sop-init /
-    install the bridge deps" error rather than crashing. After this scaffold + `npm install`, run
-    **`/reload-plugins`** (or restart) so the server loads with the new config.
-  - For `provider=manual`, deps aren't strictly required to scaffold, but the bridge is still what
-    runs the manual two-phase flow, so installing them is recommended.
-- Print a per-file created/skipped summary + the manifest path + whether the bridge dependencies were installed.
+- The review bridge ships as a **prebuilt single-file bundle** (`${CLAUDE_PLUGIN_ROOT}/mcp/codex-review/dist/server.js`):
+  it is self-contained (no runtime `node_modules` for its JS deps), so the `ccsop-review` MCP server
+  **starts on a fresh install with no `npm install` and no build** — this is the fix for the old
+  "deps missing after a version bump → bare `-32000`" outage (design ccsop-bridge-deps-lifecycle §4.1).
+- The one runtime input the bridge still needs is a **codex CLI binary**, resolved on first review
+  in this order (first hit wins): **`[codex] path` in `.codex-review/config.toml` → the
+  `@openai/codex` package in the bridge dir → a `codex` executable on `PATH`**. If none resolve, the
+  bridge returns a **legible tool error naming all three remedies** — it does not crash.
+  - For `provider=codex`, Step 1 already probed for a Codex login, so a `codex` binary is usually
+    already present on `PATH` → **zero extra install**. Nothing to do here in the common case.
+  - **Narrow plugin-root exception (only if no codex binary is resolvable)**: with the user's
+    go-ahead (it runs `npm`), you MAY run `cd "${CLAUDE_PLUGIN_ROOT}/mcp/codex-review" && npm install`
+    to provide the `@openai/codex` package (resolution link 2). If node/npm is missing, offline, or
+    the user declines, **print the remedy for them** (install the package, or put `codex` on `PATH`,
+    or set `[codex] path`) and continue — do not fail `/sop-init` over it.
+  - After scaffolding (+ any codex-binary step), run **`/reload-plugins`** (or restart) so the server
+    loads with the new config.
+- Print a per-file created/skipped summary + the manifest path + whether a codex binary was resolvable
+  (and, if the package was installed, that it was).
 - Final line: **"Next: `/reload-plugins` (to load the review bridge), then invoke `/handoff` or read `docs/records/current.md` and write your first design."**
 
 ## Boundaries
-- Work in the **target repo**, with ONE exception: the Step 6 bridge **dependency install** may run
-  `npm install` inside `${CLAUDE_PLUGIN_ROOT}/mcp/codex-review` (deps only — `dist/` already ships
-  prebuilt). Never **edit** the plugin's own templates/source; this `npm install` is the only
-  permitted action outside the target repo.
+- Work in the **target repo**, with ONE narrow exception, **stated identically in `/sop-update`**:
+  the Step 6 codex-binary readiness step may run `npm install` inside
+  `${CLAUDE_PLUGIN_ROOT}/mcp/codex-review` **solely to provide the `@openai/codex` package**
+  (resolution link 2) when no codex binary is otherwise resolvable. The bundled `dist/` already ships
+  prebuilt and is never rebuilt here. Never **edit** the plugin's own templates/source; this single
+  optional `npm install` is the only permitted action outside the target repo.
 - Never overwrite an existing file without `--force` (and a backup).
 - Never write secrets into tracked files.

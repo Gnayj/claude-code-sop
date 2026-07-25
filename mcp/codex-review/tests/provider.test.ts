@@ -120,6 +120,42 @@ describe("createReviewProvider (factory, §4.7) — config-only provider selecti
 
 // ---------- CodexProvider open/resume/run ----------
 
+describe("CodexProvider.reviewerProvenance (design Q1.b — user-visible codex binary)", () => {
+  // A PATH-resolved binary is a silent-substitution risk, so the review RESULT must expose it.
+  it("surfaces source=path and the resolved binary path for an implicit PATH resolution", () => {
+    const mock = new TrackingMockCodex();
+    (mock as unknown as { getProvenance: () => unknown }).getProvenance = () => ({
+      codexPathOverride: "/usr/bin/codex",
+      source: "path",
+      version: "0.145.0",
+    });
+    const provider = new CodexProvider(mock, { workingDirectory: "/tmp/wd" });
+    const note = provider.reviewerProvenance();
+    expect(note).toContain("source=path");
+    expect(note).toContain("/usr/bin/codex");
+  });
+
+  it("returns null for a deterministic package resolution (nothing noteworthy)", () => {
+    const mock = new TrackingMockCodex();
+    (mock as unknown as { getProvenance: () => unknown }).getProvenance = () => ({
+      source: "package",
+    });
+    const provider = new CodexProvider(mock, { workingDirectory: "/tmp/wd" });
+    expect(provider.reviewerProvenance()).toBeNull();
+  });
+
+  it("surfaces a config-path binary that failed its liveness probe (skew warn)", () => {
+    const mock = new TrackingMockCodex();
+    (mock as unknown as { getProvenance: () => unknown }).getProvenance = () => ({
+      codexPathOverride: "/opt/codex",
+      source: "config",
+      smokeFailed: true,
+    });
+    const provider = new CodexProvider(mock, { workingDirectory: "/tmp/wd" });
+    expect(provider.reviewerProvenance()).toContain("WARN");
+  });
+});
+
 describe("CodexProvider (raw-turn boundary, §4.7)", () => {
   it("openSession with no prior → startThread (fresh)", async () => {
     const mock = new TrackingMockCodex();
