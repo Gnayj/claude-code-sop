@@ -461,6 +461,15 @@ card lists findings by level; fix **Critical before Important**, never out of or
    cap (default ~5) — at the cap with Criticals open, escalate to the user, don't auto-restart.
 5. **Single-source first:** repeated drift of a truth table / contract is a common stall root cause;
    check the single source before fixing symptoms round after round.
+6. **Multi-phase implement — bucket the counter, don't launder it:** `max_review_rounds` counts per
+   `design_id`, and rounds deliberately persist across threads and restarts (a fresh thread must not
+   reset the budget). So a task split into phases under **one** `design_id` accumulates every phase's
+   rounds and can trip on an accounting artifact rather than a stalled review. When phases are
+   weakly coupled, give each its own `design_id` (`<task>-p1`, `-p2`): each phase gets the full cap,
+   and the cap is still enforced **within** a phase — this buckets the budget, it does not launder it.
+   **Cost:** `design_id` is also the reviewer's thread key, so a new id starts a new thread and the
+   later phase inherits neither the earlier phase's review conversation nor the design rounds'. Keep
+   one `design_id` when phases are tightly coupled and let the breaker trip into 9.E.3 instead.
 
 ### Exemptions
 - 9.B/9.C are forced only at implement/fix when the task affects code behavior.

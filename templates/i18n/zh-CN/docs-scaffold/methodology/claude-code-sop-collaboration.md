@@ -394,6 +394,13 @@ Important** 修，绝不乱序。
 4. **轮次上限 + 升级：** auto 模式有 `max_review_rounds` 断路器；manual 模式有软上限（默认 ~5）——
    到上限仍有 Critical open 时升级给用户，别自动重启。
 5. **单源优先：** 真值表 / 契约反复漂移是常见 stall 根因；逐轮修症状前先查单一真源。
+6. **多 phase implement —— 分桶，不是洗预算：** `max_review_rounds` 按 `design_id` 计数，且轮次刻意
+   跨 thread / 跨重启保留（开新线程不得重置预算）。故一个任务拆成多 phase 却共用**同一个**
+   `design_id` 时，各 phase 轮次累加，可能因记账假象而非评审停滞而 trip。phase 间弱耦合时给每个
+   phase 各自的 `design_id`（`<task>-p1`、`-p2`）：每个 phase 拿到完整上限，且上限在 phase **内部**
+   照常生效 —— 这是给预算分桶，不是洗预算。**代价：** `design_id` 同时是 reviewer 的 thread key，
+   换新 id 即开新线程，后一 phase 既继承不到前一 phase 的评审对话，也继承不到 design 轮的上下文。
+   phase 间紧耦合时保持同一 `design_id`，宁可让断路器 trip 并走 9.E.3。
 
 ### 豁免
 - 9.B/9.C 仅在 implement/fix 且任务影响代码行为时强制。
