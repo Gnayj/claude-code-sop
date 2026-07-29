@@ -4,13 +4,25 @@
 // override; ManualProvider two-phase (prepare->awaiting, submit->turn via the same parser),
 // one-shot, and submit idempotency — all without a real API key (claude client mocked).
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+// The ClaudeProvider-through-flow fixture is a tool-less code review in a non-git temp
+// root; the fail-closed diff guard (p3 d2) requires a diffSpec, so stub provisioning.
+vi.mock("../src/diff-provision.js", () => ({
+  provideDiff: () => ({ block: "## [bridge-provided] Git diff (stub)", warnings: [] }),
+  errorDetail: (e: unknown) => (e instanceof Error ? e.message : String(e)),
+}));
+
 import { ClaudeProvider, CLAUDE_ADVERSARIAL_SYSTEM } from "../src/providers/claude.js";
 import { ManualProvider } from "../src/providers/manual.js";
-import type { ClaudeClient, ClaudeRunInput, ClaudeRunResult } from "../src/claude-client.js";
+import {
+  AnthropicClaudeClient,
+  type ClaudeClient,
+  type ClaudeRunInput,
+  type ClaudeRunResult,
+} from "../src/claude-client.js";
 import { runReviewFlow } from "../src/run-review-flow.js";
 import { BreakerEngine, initialBreakerState } from "../src/circuit-breakers.js";
 import { PromptRenderer } from "../src/prompt-renderer.js";
@@ -76,6 +88,36 @@ function setupTempProject() {
 }
 
 // ---------- ClaudeProvider unit ----------
+
+describe("AnthropicClaudeClient effort", () => {
+  it("includes output_config only for non-empty effort", async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const client = new AnthropicClaudeClient({ keyEnv: "UNUSED_TEST_KEY" });
+    (client as unknown as { client: unknown }).client = {
+      messages: {
+        create: async (params: Record<string, unknown>) => {
+          seen.push(params);
+          return {
+            content: [{ type: "text", text: "ok" }],
+            usage: { input_tokens: 1, output_tokens: 1 },
+          };
+        },
+      },
+    };
+    const base = {
+      system: "system",
+      model: "claude-opus-4-8",
+      maxTokens: 1000,
+      userPrompt: "review",
+    };
+
+    await client.runTurn({ ...base, effort: "max" });
+    await client.runTurn(base);
+
+    expect(seen[0]).toMatchObject({ output_config: { effort: "max" } });
+    expect("output_config" in seen[1]!).toBe(false);
+  });
+});
 
 describe("ClaudeProvider (§4.7)", () => {
   it("openSession is fresh per turn (ignores prior — claude is stateless)", async () => {
@@ -147,6 +189,8 @@ describe("ClaudeProvider through the flow — context_usage_pct is overridden by
           designDocPaths: ["docs/d.md"],
           fileBlocks: [],
           promptVars: { design_id: "claude-d" },
+          diffSpec: "HEAD~1",
+          changedFiles: [],
           hasPreviousRoundResolved: false,
           forceNewThread: false,
         },

@@ -70,7 +70,10 @@ function defaultIsPackageResolvable(): boolean {
   }
 }
 
-function defaultFindOnPath(binaryName: string): string | undefined {
+/** Provider-agnostic PATH lookup ("which"), shared by the codex chain below and the claude CLI
+ * chain in claude-cli-client.ts. Kept in one place so the two resolution chains cannot drift on
+ * platform handling (separator, .exe suffix, executable bit). */
+export function findExecutableOnPath(binaryName: string): string | undefined {
   const raw = process.env.PATH;
   if (!raw) return undefined;
   const sep = process.platform === "win32" ? ";" : ":";
@@ -107,7 +110,7 @@ function defaultSmokeProbe(binaryPath: string): { ok: boolean; version?: string 
 
 const defaultDeps: ResolveDeps = {
   isPackageResolvable: defaultIsPackageResolvable,
-  findOnPath: defaultFindOnPath,
+  findOnPath: findExecutableOnPath,
   smokeProbe: defaultSmokeProbe,
 };
 

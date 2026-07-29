@@ -36,6 +36,16 @@ export interface PromptVars {
 export interface RenderInput {
   stage: ReviewStage;
   vars: PromptVars;
+  /**
+   * Bridge-generated prompt content inserted after the template body. `allowed_doc_roots`
+   * gates caller-provided file paths via assertWithinAllowedRoots; these blocks have no file
+   * path, so that gate does not apply. Do not expose this field for arbitrary caller content.
+   */
+  textBlocks?: Array<{
+    /** Stable description retained for logging/audit; the prompt renders content only. */
+    label: string;
+    content: string;
+  }>;
   /** Files to inject as code blocks. Each path is validated against allowed_doc_roots. */
   fileBlocks: Array<{ label: string; path: string }>;
   /** Drift preface produced by drift-detector (already validated). */
@@ -84,6 +94,11 @@ export class PromptRenderer {
       return String(v);
     });
     sections.push(body);
+
+    // Bridge-generated text belongs after the body and before the path-gated file appendix.
+    for (const block of input.textBlocks ?? []) {
+      sections.push(block.content);
+    }
 
     // File-block appendix.
     if (input.fileBlocks.length > 0) {

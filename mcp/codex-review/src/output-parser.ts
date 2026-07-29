@@ -343,7 +343,8 @@ function rankOf(stage: ReviewStage, v: AnyVerdict): number {
 
 // ---------- Helpers ----------
 
-function stageVerdictEnum(stage: ReviewStage) {
+/** Single source for the stage→verdict-schema dispatch (contract-block renders from it too). */
+export function stageVerdictEnum(stage: ReviewStage) {
   if (stage === "design") return DesignVerdict;
   if (stage === "code") return CodeVerdict;
   return FixVerdict;

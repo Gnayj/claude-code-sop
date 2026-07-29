@@ -5,12 +5,14 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { ResolvedConfig } from "./config.js";
 import { resolveProjectPath } from "./config.js";
+import { renderContractBlock } from "./contract-block.js";
 import {
   BreakerEngine,
   type BreakerState,
   type BreakerTriggered,
 } from "./circuit-breakers.js";
 import { estimateTokensFromChars } from "./context-monitor.js";
+import { errorDetail, provideDiff } from "./diff-provision.js";
 import { planDrift, renderDriftPreface } from "./drift-detector.js";
 import { parseCodexOutput, type ParseResult } from "./output-parser.js";
 import { PromptRenderer, type PromptVars } from "./prompt-renderer.js";
@@ -71,6 +73,10 @@ export interface FlowInput {
   fileBlocks: Array<{ label: string; path: string }>;
   /** Variables substituted into the template body. */
   promptVars: PromptVars;
+  /** Committed Git revision range to inject for a reviewer without repository access. */
+  diffSpec?: string;
+  /** Caller-declared changed files, cross-checked against the committed diff range. */
+  changedFiles?: string[];
   /** Whether the caller already supplied previous_round_resolved (only relevant for stage='fix'). */
   hasPreviousRoundResolved: boolean;
   /** Caller may force opening a fresh thread (e.g. design_id reset). */
@@ -111,6 +117,14 @@ export async function runReviewFlow(
   const { config, configBaseDir, providerFor, threadManager, promptRenderer, breakers, breakerState } =
     deps;
   const cb = config.circuit_breakers;
+  // Shared shape for failures that stop the flow BEFORE a provider turn ran (scope-drift
+  // trip, diff-provision refusal): the house "schema_violation + empty raw_excerpt" form.
+  const preTurnFailure = (detail: string, tripped?: BreakerTriggered): FlowResult => ({
+    ok: false,
+    parseResult: { ok: false, reason: "schema_violation", detail, raw_excerpt: "" },
+    ...(tripped ? { breakerTripped: tripped } : {}),
+    warnings: [detail],
+  });
 
   const release = threadManager.acquireLock(input.designId);
   // Opened below; released in the outer finally so closeSession runs on EVERY exit path
@@ -146,6 +160,49 @@ export async function runReviewFlow(
     const provider = providerFor(stageKind);
     activeProvider = provider;
 
+    // ---------- 1.B) Bridge-provided prompt blocks (before ANY breaker/state mutation) ----------
+    // The contract block is injected for every stage and provider (single schema source with
+    // output-parser). The diff block only exists for a reviewer that cannot read the repo.
+    // provideDiff failures are CALLER-input/repo-state problems: they return before the
+    // breaker hydration below, so nothing has to be rolled back — no round is burned, no
+    // breaker state mutates, no provider session opens (fail-closed, design §4.3).
+    const projectRoot = resolveProjectPath(config, configBaseDir, ".");
+    const bridgeWarnings: string[] = [];
+    const textBlocks = [
+      {
+        label: "Authoritative envelope contract",
+        content: renderContractBlock(input.stage),
+      },
+    ];
+    if (
+      (input.stage === "code" || input.stage === "fix") &&
+      !provider.can_read_repo
+    ) {
+      if (input.diffSpec === undefined || input.diffSpec.trim().length === 0) {
+        return preTurnFailure(
+          "Tool-less code/fix review requires a machine-readable diff_spec; " +
+            "the bridge cannot review without a committed diff.",
+        );
+      }
+      try {
+        const provided = provideDiff(
+          input.diffSpec,
+          input.changedFiles ?? [],
+          projectRoot,
+          config.review.max_injected_diff_bytes,
+        );
+        textBlocks.push({
+          label: "Bridge-provided committed changes",
+          content: provided.block,
+        });
+        bridgeWarnings.push(...provided.warnings);
+      } catch (error) {
+        return preTurnFailure(
+          `Unable to provision committed diff for ${input.stage} review: ${errorDetail(error)}`,
+        );
+      }
+    }
+
     // ---------- 2) Hydrate breakerState from persisted ThreadState ----------
     // Per task §6.3 + code_review round 4 c_round_breaker_not_hydrated_from_state:
     // `breakerState.rounds` and `scope_drift_lines` MUST be hydrated from per-design_id
@@ -170,19 +227,7 @@ export async function runReviewFlow(
     if (input.stage === "fix" && input.fixDiffLines !== undefined && input.fixDiffLines > 0) {
       const tripped = breakers.recordScopeDrift(breakerState, input.fixDiffLines);
       preservedScopeDriftLines = breakerState.scope_drift_lines;
-      if (tripped) {
-        return {
-          ok: false,
-          parseResult: {
-            ok: false,
-            reason: "schema_violation",
-            detail: tripped.message,
-            raw_excerpt: "",
-          },
-          breakerTripped: tripped,
-          warnings: [tripped.message],
-        };
-      }
+      if (tripped) return preTurnFailure(tripped.message, tripped);
     }
 
     // ---------- 3) Pre-decide rebuild + drift + prompt (no SDK yet) ----------
@@ -234,6 +279,7 @@ export async function runReviewFlow(
     const body = promptRenderer.render({
       stage: input.stage,
       vars: input.promptVars,
+      textBlocks,
       fileBlocks: input.fileBlocks,
       driftPreface,
     });
@@ -243,7 +289,6 @@ export async function runReviewFlow(
     // The orchestrator owns the resume-vs-fresh DECISION; it passes `prior` only when the
     // session should be resumed. Rebuild (provider_switch / force_new_thread / context) or a
     // missing/archived state → prior=undefined → provider opens a fresh session.
-    const projectRoot = resolveProjectPath(config, configBaseDir, ".");
     const shouldResume =
       !didRebuildThisCall && existingState !== null && !existingState.archived;
     let prior: PersistedProviderSession | undefined = undefined;
@@ -283,6 +328,7 @@ export async function runReviewFlow(
     } catch (err) {
       const tripped = breakers.recordCodexFailure(breakerState);
       const warnings = [
+        ...bridgeWarnings,
         `review provider '${provider.kind}' turn failed: ${(err as Error).message}`,
       ];
       if (tripped) {
@@ -309,6 +355,7 @@ export async function runReviewFlow(
       return {
         ok: true,
         warnings: [
+          ...bridgeWarnings,
           `review provider '${provider.kind}' is awaiting a manual verdict; ` +
             `prompt written to ${providerResult.prompt_path}`,
         ],
@@ -321,6 +368,8 @@ export async function runReviewFlow(
     }
 
     // From here providerResult.kind === "turn": a real review turn to parse + account for.
+    const providerWarnings = providerResult.warnings ?? [];
+    const sessionRotation = providerResult.session_rotation;
     const runResult = {
       text: providerResult.text,
       usage: providerResult.usage,
@@ -343,6 +392,7 @@ export async function runReviewFlow(
         ok: true,
         envelope: existingState.last_manual_submit.envelope,
         warnings: [
+          ...bridgeWarnings,
           "idempotent manual resubmit: identical verdict already ingested; " +
             "returning the recorded envelope (no new round).",
         ],
@@ -366,6 +416,8 @@ export async function runReviewFlow(
         parseResult,
         ...(tripped ? { breakerTripped: tripped } : {}),
         warnings: [
+          ...bridgeWarnings,
+          ...providerWarnings,
           `output-parser rejected Codex output (${parseResult.reason}): ${parseResult.detail}`,
         ],
         didRebuildThread: didRebuildThisCall,
@@ -393,21 +445,24 @@ export async function runReviewFlow(
       if (didRebuildThisCall && rebuildReason) {
         state.thread_history = [
           ...(state.thread_history ?? []),
-          {
-            thread_id: state.thread_id,
-            abandoned_at_round: {
-              design_review: state.rounds.design_review,
-              code_review: state.rounds.code_review,
-              fix_review: state.rounds.fix_review,
-            },
-            abandoned_at: new Date().toISOString(),
-            reason: rebuildReason,
-          },
+          threadHistoryEntry(state, state.thread_id, rebuildReason),
         ];
-        state.thread_id = runResult.providerSessionId;
-        state.thread_created_at = new Date().toISOString();
         // On provider_switch the kind changes; on force/context rebuild it is unchanged.
         state.provider_kind = provider.kind;
+      }
+      if (sessionRotation) {
+        state.thread_history = [
+          ...(state.thread_history ?? []),
+          threadHistoryEntry(
+            state,
+            sessionRotation.previous_session_id,
+            sessionRotation.reason,
+          ),
+        ];
+      }
+      if (didRebuildThisCall || sessionRotation) {
+        state.thread_id = runResult.providerSessionId;
+        state.thread_created_at = new Date().toISOString();
       }
     } else {
       state = threadManager.newState(
@@ -416,6 +471,13 @@ export async function runReviewFlow(
         provider.kind,
       );
       state.scope_drift_lines_total = preservedScopeDriftLines;
+      if (sessionRotation) {
+        state.thread_history.push(threadHistoryEntry(
+          state,
+          sessionRotation.previous_session_id,
+          sessionRotation.reason,
+        ));
+      }
     }
     const round = currentRoundFor(state, input.stage) + 1;
     const finalEnvelope: ReviewEnvelope = {
@@ -453,7 +515,7 @@ export async function runReviewFlow(
     }
 
     // ---------- 10) Context-exhausted check (post rebuild) ----------
-    const warnings = [...parseResult.warnings];
+    const warnings = [...bridgeWarnings, ...parseResult.warnings, ...providerWarnings];
     if (reviewerProvenanceNote) warnings.push(reviewerProvenanceNote);
     let contextExhaustedTrip: BreakerTriggered | null = null;
     if (didRebuildThisCall && state.context_usage_pct >= cb.context_warn_pct) {
@@ -499,6 +561,23 @@ function currentRoundFor(state: ThreadState | null, stage: ReviewStage): number 
   if (stage === "design") return state.rounds.design_review;
   if (stage === "code") return state.rounds.code_review;
   return state.rounds.fix_review;
+}
+
+function threadHistoryEntry(
+  state: ThreadState,
+  threadId: string,
+  reason: ThreadHistoryEntry["reason"],
+): ThreadHistoryEntry {
+  return {
+    thread_id: threadId,
+    abandoned_at_round: {
+      design_review: state.rounds.design_review,
+      code_review: state.rounds.code_review,
+      fix_review: state.rounds.fix_review,
+    },
+    abandoned_at: new Date().toISOString(),
+    reason,
+  };
 }
 
 function renderColdStartPreface(

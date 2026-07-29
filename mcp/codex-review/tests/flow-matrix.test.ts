@@ -6,9 +6,16 @@
 // values, fix-stage inheritance of the session's provider_kind, and the per-stage
 // provider_switch rebuild within one design_id (counters preserved).
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+// These fixtures run tool-less (claude) code/fix flows in non-git temp roots; the
+// fail-closed diff guard (p3 d2) requires a diffSpec, so stub the provisioning module.
+vi.mock("../src/diff-provision.js", () => ({
+  provideDiff: () => ({ block: "## [bridge-provided] Git diff (stub)", warnings: [] }),
+  errorDetail: (e: unknown) => (e instanceof Error ? e.message : String(e)),
+}));
 
 import { ConfigSchema } from "../src/config.js";
 import { counterpartOf, providerKindForStage } from "../src/providers/factory.js";
@@ -29,6 +36,7 @@ import { defaultConfig, makeEnvelope, makeTempDir, rmDir } from "./test-helpers.
 function fakeProvider(kind: ProviderKind, replyText: string): ReviewProvider {
   return {
     kind,
+    can_read_repo: kind !== "claude",
     async openSession(stage: ReviewStage, designId: string, prior?): Promise<ProviderSession> {
       return {
         kind,
@@ -114,6 +122,9 @@ function flowInput(stage: ReviewStage, designId: string) {
     designDocPaths: ["docs/d.md"],
     fileBlocks: [],
     promptVars: { design_id: designId },
+    // Satisfies the tool-less fail-closed diff guard; provideDiff is stubbed above.
+    diffSpec: "HEAD~1",
+    changedFiles: [],
     hasPreviousRoundResolved: stage === "fix",
     forceNewThread: false,
   };

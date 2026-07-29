@@ -35,31 +35,8 @@ Critical rules:
 3. Every `conclusion.target` is `file_line` or `missing_artifact`.
 4. Grade every finding per `claude-code-sop-collaboration.md §9.D`.
 
-### Envelope schema (emit exactly this shape; `thread_id`/`review_id` are server-overridden)
-```json
-{
-  "thread_id": "x", "review_id": "x", "design_id": "<from input>", "stage": "fix",
-  "review_round": 1, "verdict": "All-fixed",
-  "verdict_factors": {
-    "critical_count": 0, "important_count": 0, "affected_major_sections_count": 0,
-    "has_open_design_decision": false, "has_new_arch_concept": false,
-    "has_interdependent_rc": false, "estimated_fix_lines": 0, "touched_module_count": 0,
-    "has_design_gap": false
-  },
-  "conclusions": [
-    { "conclusion_id": "c_slug", "level": "Critical|Important|Suggestion", "rule": "9.A.1",
-      "target": { "kind": "file_line", "file": "path", "line": 42,
-                  "missing_artifact_kind": null, "missing_artifact_path": null },
-      "evidence": "...", "fix": "...",
-      "auto_fix_class": "auto|manual-only|deferred-to-next-round|rejected-by-parser" }
-  ],
-  "open_questions": [], "tokens_used_estimate": 0, "context_usage_pct": 0.1,
-  "compact_summary_for_round": "<= 2000 chars",
-  "next_action": "fix-required|ready-to-implement|ready-to-test|blocked",
-  "rejected_by_parser": []
-}
-```
-Alternate target shape (missing artifact): `{ "kind":"missing_artifact", "file":null, "line":null, "missing_artifact_kind":"test|config|doc|module", "missing_artifact_path":"path" }`.
+The review bridge automatically appends a `[bridge-authoritative] Envelope contract` block at the end of this prompt.
+That block shares its source with the parser and is authoritative if anything above conflicts; the schema is not duplicated here.
 
 ## Review focus (verify the fixes against the previous round's Critical/Important)
 
@@ -77,4 +54,4 @@ Track carried-over Criticals per §9.E (a finding marked resolved but recurring 
 
 ## Your task
 
-Compare the fix diff against the previous conclusions, populate verdict_factors honestly, produce the envelope JSON now.
+The fix diff is delivered per your session's capability: if a `[bridge-provided] Git diff` block appears below, review it byte-for-byte against the previous conclusions; only when it is absent, read the exact fix diff range identified by `fix_diff_spec` yourself. Populate verdict_factors honestly and produce the envelope JSON now.

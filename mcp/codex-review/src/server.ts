@@ -12,7 +12,12 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-import { loadConfig, resolveProjectPath, type ResolvedConfig } from "./config.js";
+import {
+  claudeApiOnlyKeyWarnings,
+  loadConfig,
+  resolveProjectPath,
+  type ResolvedConfig,
+} from "./config.js";
 import { enforceMinSafetyPolicy } from "./safety.js";
 import { createReviewProvider } from "./providers/factory.js";
 import type { ProviderKind } from "./types.js";
@@ -98,6 +103,9 @@ async function main(): Promise<void> {
         `Run /sop-init to scaffold .codex-review/config.toml, then /reload-plugins.`;
     } else {
       const loaded = loadConfig({ configPath });
+      for (const warning of claudeApiOnlyKeyWarnings(loaded.config, loaded.raw)) {
+        process.stderr.write(`[codex-review-mcp] ${warning}\n`);
+      }
       // Defense in depth: reject any project config that tries to relax MIN_SAFETY_POLICY.
       enforceMinSafetyPolicy(loaded.config, loaded.raw);
       const baseDir = dirname(configPath);

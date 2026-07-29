@@ -68,6 +68,10 @@ export const EffortSchema = z.enum(["", "minimal", "low", "medium", "high", "xhi
 /** Non-empty effort union — exactly the SDK's ThreadOptions.modelReasoningEffort domain. */
 export type CodexEffort = Exclude<z.infer<typeof EffortSchema>, "">;
 
+// Claude CLI --effort and SDK output_config.effort share this domain: no "minimal", plus "max".
+export const ClaudeEffortSchema = z.enum(["", "low", "medium", "high", "xhigh", "max"]);
+export type ClaudeEffort = Exclude<z.infer<typeof ClaudeEffortSchema>, "">;
+
 const CodexConfig = z.object({
   default_model: z.string().default(""),
   default_effort: EffortSchema.default(""),
@@ -88,14 +92,28 @@ const CodexProviderConfig = z.object({
 }).default({ model: "", effort: "" });
 
 const ClaudeProviderConfig = z.object({
+  backend: z.enum(["api", "cli"]).default("api"),
   model: z.string().default(""),
+  effort: ClaudeEffortSchema.default(""),
+  cli_path: z.string().default(""),
+  // API-only: the Claude CLI has no equivalent per-turn output limit.
   max_tokens: z.number().int().positive().default(16000),
+  // API-only: the CLI backend does not use an Anthropic API key.
   key_env: z.string().default("ANTHROPIC_API_KEY"),
+  // API-only: the CLI backend uses its reported model context window.
   // Basis for the estimated context_usage_pct (input_tokens / context_window). Claude is
   // per-turn fresh so this is a single-turn estimate; the orchestrator's force_new_thread
   // threshold therefore rarely fires for claude (it is stateless — see design §4.7 / §12).
   context_window: z.number().int().positive().default(200000),
-}).default({ model: "", max_tokens: 16000, key_env: "ANTHROPIC_API_KEY", context_window: 200000 });
+}).default({
+  backend: "api",
+  model: "",
+  effort: "",
+  cli_path: "",
+  max_tokens: 16000,
+  key_env: "ANTHROPIC_API_KEY",
+  context_window: 200000,
+});
 
 const ManualProviderConfig = z.object({
   // "" = reuse paths.sessions_dir; otherwise an explicit dir for manual prompt/verdict files.
@@ -140,6 +158,7 @@ export const ConfigSchema = z.object({
   implement: ImplementConfig,
   review: z.object({
     provider: ProviderKindSchema.default("codex"),
+    max_injected_diff_bytes: z.number().int().positive().default(262144),
     design: ReviewStageConfig,
     code: ReviewStageConfig,
     fix: ReviewStageConfig,
@@ -176,6 +195,34 @@ export interface LoadedConfig {
   raw: unknown;
   config: ResolvedConfig;
   configPath: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Warn only for API-only keys explicitly authored under [review.claude]. */
+export function claudeApiOnlyKeyWarnings(
+  config: ResolvedConfig,
+  raw: unknown,
+): string[] {
+  if (config.review.claude.backend !== "cli" || !isRecord(raw)) return [];
+  const review = raw.review;
+  if (!isRecord(review)) return [];
+  const claude = review.claude;
+  if (!isRecord(claude)) return [];
+
+  const reasons = {
+    max_tokens: "Claude CLI has no per-turn output-limit argument",
+    key_env: "Claude CLI uses the logged-in subscription and does not need an API key",
+    context_window: "Claude CLI uses its reported context window",
+  } as const;
+
+  return (Object.keys(reasons) as Array<keyof typeof reasons>)
+    .filter((key) => Object.prototype.hasOwnProperty.call(claude, key))
+    .map((key) =>
+      `warning: [review.claude].${key} is ignored when backend="cli": ${reasons[key]}.`
+    );
 }
 
 export function loadConfig(opts: LoadConfigOptions): LoadedConfig {

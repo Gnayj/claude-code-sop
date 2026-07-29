@@ -1,9 +1,7 @@
 // Provider factory — selects a ReviewProvider from config.review.provider (design §4.7).
 //
-// slice 2 implements CodexProvider only. claude / manual throw an explicit
-// "implemented in slice 3" error so a misconfigured provider fails loud + actionable
-// rather than silently. The factory is the single place run-review-flow / server choose
-// a backend; switching providers is a one-line config change (§8.3).
+// The factory is the single place run-review-flow / server choose a backend; switching
+// providers is a one-line config change (§8.3).
 
 import { resolve as resolvePath } from "node:path";
 import type { ProviderKind, ReviewStage } from "../types.js";
@@ -13,9 +11,10 @@ import type { CodexClient } from "../codex-client.js";
 import { OpenAICodexClient } from "../codex-client.js";
 import type { ClaudeClient } from "../claude-client.js";
 import { AnthropicClaudeClient } from "../claude-client.js";
+import { ClaudeCliClient } from "../claude-cli-client.js";
 import type { ReviewProvider } from "../review-provider.js";
 import { CodexProvider } from "./codex.js";
-import { ClaudeProvider } from "./claude.js";
+import { ClaudeProvider, type ClaudeCliRunner } from "./claude.js";
 import { ManualProvider } from "./manual.js";
 
 // Strong default claude model when review.claude.model is unset (Q5 "fresh high-effort
@@ -31,6 +30,7 @@ export interface ProviderFactoryDeps {
   /** Injectable clients (tests pass mocks; server passes the real SDK-backed clients). */
   codexClient?: CodexClient;
   claudeClient?: ClaudeClient;
+  claudeCliClient?: ClaudeCliRunner;
   /** Construct a specific backend instead of config.review.provider — used by the per-stage
    * flow-matrix derivation (collaboration.md §1.D); the config's provider tuning subtables
    * ([review.codex] / [review.claude] / [review.manual]) still apply. */
@@ -88,10 +88,18 @@ export function createReviewProvider(deps: ProviderFactoryDeps): ReviewProvider 
       const c = deps.config.review.claude;
       const claudeClient =
         deps.claudeClient ?? new AnthropicClaudeClient({ keyEnv: c.key_env });
+      const cliClient =
+        c.backend === "cli"
+          ? deps.claudeCliClient ?? new ClaudeCliClient({ cliPath: c.cli_path })
+          : undefined;
       return new ClaudeProvider(claudeClient, {
+        backend: c.backend,
         model: c.model || DEFAULT_CLAUDE_MODEL,
         maxTokens: c.max_tokens,
         contextWindow: c.context_window,
+        effort: c.effort,
+        keyEnv: c.key_env,
+        ...(cliClient ? { cliClient } : {}),
       });
     }
     case "manual": {

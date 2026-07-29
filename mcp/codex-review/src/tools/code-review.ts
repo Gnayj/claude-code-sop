@@ -1,6 +1,7 @@
 // MCP tool handler: codex_code_review
 // Spec: docs/methodology/codex-review-bridge-design.md §3.2
 
+import { DIFF_SPEC_DESCRIPTION } from "../diff-provision.js";
 import { CodeReviewInput, type CodeReviewInput as CodeReviewInputT } from "../types.js";
 import type { FlowDependencies, FlowResult } from "../run-review-flow.js";
 import { runReviewFlow } from "../run-review-flow.js";
@@ -19,7 +20,7 @@ export const codeReviewToolSchema = {
       design_doc_paths: { type: "array", items: { type: "string" } },
       module_doc_paths: { type: "array", items: { type: "string" } },
       handoff_path: { type: "string" },
-      diff_spec: { type: "string" },
+      diff_spec: { type: "string", description: DIFF_SPEC_DESCRIPTION },
       changed_files: { type: "array", items: { type: "string" } },
       claude_output: { type: "object" },
       tests_run: { type: "array", items: { type: "string" } },
@@ -62,6 +63,8 @@ export async function handleCodeReview(
     designId: input.design_id,
     designDocPaths: input.design_doc_paths,
     fileBlocks,
+    diffSpec: input.diff_spec,
+    changedFiles: input.changed_files,
     promptVars: {
       design_id: input.design_id,
       task_card_path: input.task_card_path,

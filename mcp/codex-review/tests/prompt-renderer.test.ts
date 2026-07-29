@@ -95,6 +95,31 @@ describe("prompt-renderer threshold injection (IM-2)", () => {
     }
   });
 
+  it("renders drift preface, body, text blocks, then file blocks in order", () => {
+    const { root, config, cleanup } = setupTplAndDoc();
+    try {
+      const renderer = new PromptRenderer(config, root);
+      const out = renderer.render({
+        stage: "code",
+        vars: { code_mechanical_max_fix_lines: 100 },
+        driftPreface: "DRIFT PREFACE",
+        textBlocks: [{ label: "Bridge contract", content: "BRIDGE TEXT" }],
+        fileBlocks: [{ label: "Design", path: "docs/d.md" }],
+      });
+
+      expect(out).toContain("DRIFT PREFACE");
+      expect(out).toContain("code tpl 100");
+      expect(out).toContain("BRIDGE TEXT");
+      expect(out).not.toContain("Bridge contract");
+      expect(out).toContain("design content");
+      expect(out.indexOf("DRIFT PREFACE")).toBeLessThan(out.indexOf("code tpl 100"));
+      expect(out.indexOf("code tpl 100")).toBeLessThan(out.indexOf("BRIDGE TEXT"));
+      expect(out.indexOf("BRIDGE TEXT")).toBeLessThan(out.indexOf("design content"));
+    } finally {
+      cleanup();
+    }
+  });
+
   it("rejects file block paths outside allowed_doc_roots with AllowedDocRootViolation", () => {
     const { root, config, cleanup } = setupTplAndDoc();
     try {

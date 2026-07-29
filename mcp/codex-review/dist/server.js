@@ -31914,10 +31914,14 @@ var ThreadHistoryEntry = external_exports.object({
   abandoned_at: external_exports.string(),
   // provider_switch added in slice 2 (Q7): config.review.provider != session provider_kind
   // invalidates the old session (no cross-provider thread/history reuse).
+  // provider_resume_invalidated records a fresh retry after a Claude CLI resume failure;
+  // provider_backend_fallback records a CLI-to-API rotation after quota exhaustion.
   reason: external_exports.enum([
     "force_new_thread",
     "context_force_new_thread_pct",
-    "provider_switch"
+    "provider_switch",
+    "provider_resume_invalidated",
+    "provider_backend_fallback"
   ])
 });
 var ThreadState = external_exports.object({
@@ -32002,6 +32006,7 @@ var ReviewStageConfig = external_exports.object({
   rule_sections: external_exports.array(external_exports.string()).optional()
 });
 var EffortSchema = external_exports.enum(["", "minimal", "low", "medium", "high", "xhigh"]);
+var ClaudeEffortSchema = external_exports.enum(["", "low", "medium", "high", "xhigh", "max"]);
 var CodexConfig = external_exports.object({
   default_model: external_exports.string().default(""),
   default_effort: EffortSchema.default(""),
@@ -32015,14 +32020,28 @@ var CodexProviderConfig = external_exports.object({
   effort: EffortSchema.default("")
 }).default({ model: "", effort: "" });
 var ClaudeProviderConfig = external_exports.object({
+  backend: external_exports.enum(["api", "cli"]).default("api"),
   model: external_exports.string().default(""),
+  effort: ClaudeEffortSchema.default(""),
+  cli_path: external_exports.string().default(""),
+  // API-only: the Claude CLI has no equivalent per-turn output limit.
   max_tokens: external_exports.number().int().positive().default(16e3),
+  // API-only: the CLI backend does not use an Anthropic API key.
   key_env: external_exports.string().default("ANTHROPIC_API_KEY"),
+  // API-only: the CLI backend uses its reported model context window.
   // Basis for the estimated context_usage_pct (input_tokens / context_window). Claude is
   // per-turn fresh so this is a single-turn estimate; the orchestrator's force_new_thread
   // threshold therefore rarely fires for claude (it is stateless — see design §4.7 / §12).
   context_window: external_exports.number().int().positive().default(2e5)
-}).default({ model: "", max_tokens: 16e3, key_env: "ANTHROPIC_API_KEY", context_window: 2e5 });
+}).default({
+  backend: "api",
+  model: "",
+  effort: "",
+  cli_path: "",
+  max_tokens: 16e3,
+  key_env: "ANTHROPIC_API_KEY",
+  context_window: 2e5
+});
 var ManualProviderConfig = external_exports.object({
   // "" = reuse paths.sessions_dir; otherwise an explicit dir for manual prompt/verdict files.
   sessions_dir: external_exports.string().default("")
@@ -32053,6 +32072,7 @@ var ConfigSchema = external_exports.object({
   implement: ImplementConfig,
   review: external_exports.object({
     provider: ProviderKindSchema.default("codex"),
+    max_injected_diff_bytes: external_exports.number().int().positive().default(262144),
     design: ReviewStageConfig,
     code: ReviewStageConfig,
     fix: ReviewStageConfig,
@@ -32068,6 +32088,24 @@ function resolveCodexTier(config2, scope) {
     model: tier.model || config2.codex.default_model || void 0,
     effort: tier.effort || config2.codex.default_effort || void 0
   };
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function claudeApiOnlyKeyWarnings(config2, raw) {
+  if (config2.review.claude.backend !== "cli" || !isRecord(raw)) return [];
+  const review = raw.review;
+  if (!isRecord(review)) return [];
+  const claude = review.claude;
+  if (!isRecord(claude)) return [];
+  const reasons = {
+    max_tokens: "Claude CLI has no per-turn output-limit argument",
+    key_env: "Claude CLI uses the logged-in subscription and does not need an API key",
+    context_window: "Claude CLI uses its reported context window"
+  };
+  return Object.keys(reasons).filter((key) => Object.prototype.hasOwnProperty.call(claude, key)).map(
+    (key) => `warning: [review.claude].${key} is ignored when backend="cli": ${reasons[key]}.`
+  );
 }
 function loadConfig(opts) {
   const text = readFileSync(opts.configPath, "utf8");
@@ -32748,7 +32786,7 @@ function defaultIsPackageResolvable() {
     return false;
   }
 }
-function defaultFindOnPath(binaryName) {
+function findExecutableOnPath(binaryName) {
   const raw = process.env.PATH;
   if (!raw) return void 0;
   const sep4 = process.platform === "win32" ? ";" : ":";
@@ -32781,7 +32819,7 @@ function defaultSmokeProbe(binaryPath) {
 }
 var defaultDeps = {
   isPackageResolvable: defaultIsPackageResolvable,
-  findOnPath: defaultFindOnPath,
+  findOnPath: findExecutableOnPath,
   smokeProbe: defaultSmokeProbe
 };
 function resolveCodexBinary(opts, deps = defaultDeps) {
@@ -32978,7 +33016,8 @@ var AnthropicClaudeClient = class {
       model: input.model,
       max_tokens: input.maxTokens,
       system: input.system,
-      messages: [{ role: "user", content: input.userPrompt }]
+      messages: [{ role: "user", content: input.userPrompt }],
+      ...input.effort ? { output_config: { effort: input.effort } } : {}
     });
     const text = message.content.filter((b) => b.type === "text").map((b) => b.text).join("");
     if (!text) {
@@ -32994,6 +33033,258 @@ var AnthropicClaudeClient = class {
   }
 };
 
+// src/claude-cli-client.ts
+import { spawn as spawn3, spawnSync as spawnSync2 } from "node:child_process";
+var NoClaudeCliBinaryError = class extends Error {
+  constructor(configAttempt, pathAttempt) {
+    super(
+      `ccsop review bridge: no usable Claude CLI binary found. Resolution attempts:
+  1. [review.claude] cli_path: ${configAttempt}
+  2. PATH claude: ${pathAttempt}
+Set \`[review.claude] cli_path\` to a working Claude CLI binary, or put \`claude\` on PATH and log in.`
+    );
+    this.name = "NoClaudeCliBinaryError";
+  }
+};
+var ClaudeCliInvocationError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ClaudeCliInvocationError";
+  }
+};
+var ClaudeCliResumeInvalidError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ClaudeCliResumeInvalidError";
+  }
+};
+var ClaudeCliQuotaError = class extends Error {
+  constructor(message, apiErrorStatus) {
+    super(message);
+    this.apiErrorStatus = apiErrorStatus;
+    this.name = "ClaudeCliQuotaError";
+  }
+};
+function defaultSmokeProbe2(binaryPath) {
+  try {
+    const result = spawnSync2(binaryPath, ["--version"], {
+      timeout: 5e3,
+      encoding: "utf8",
+      windowsHide: true
+    });
+    if (result.error || result.status !== 0) return { ok: false };
+    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+    return { ok: true, ...output ? { output: truncate(output) } : {} };
+  } catch {
+    return { ok: false };
+  }
+}
+var defaultDeps2 = {
+  findOnPath: findExecutableOnPath,
+  smokeProbe: defaultSmokeProbe2,
+  spawn: (binaryPath, args, options) => spawn3(binaryPath, args, options)
+};
+var resolutionCache2 = /* @__PURE__ */ new Map();
+function resolveClaudeCliBinary(opts, deps = defaultDeps2) {
+  const configured = (opts.cliPath ?? "").trim();
+  if (configured) {
+    const probe2 = deps.smokeProbe(configured);
+    if (!probe2.ok) {
+      throw new NoClaudeCliBinaryError(
+        `${configured} failed the liveness probe`,
+        "not attempted because cli_path has precedence"
+      );
+    }
+    return {
+      binaryPath: configured,
+      source: "config",
+      ...probe2.output ? { probeOutput: probe2.output } : {}
+    };
+  }
+  const binaryName = process.platform === "win32" ? "claude.exe" : "claude";
+  const onPath = deps.findOnPath(binaryName);
+  if (!onPath) {
+    throw new NoClaudeCliBinaryError("not set", `${binaryName} was not found`);
+  }
+  const probe = deps.smokeProbe(onPath);
+  if (!probe.ok) {
+    throw new NoClaudeCliBinaryError("not set", `${onPath} failed the liveness probe`);
+  }
+  return {
+    binaryPath: onPath,
+    source: "path",
+    ...probe.output ? { probeOutput: probe.output } : {}
+  };
+}
+function resolveClaudeCliOnce(opts, deps) {
+  if (deps !== defaultDeps2) return resolveClaudeCliBinary(opts, deps);
+  const key = (opts.cliPath ?? "").trim();
+  const cached2 = resolutionCache2.get(key);
+  if (cached2) return cached2;
+  const resolution = resolveClaudeCliBinary(opts, deps);
+  resolutionCache2.set(key, resolution);
+  return resolution;
+}
+function buildClaudeCliArgs(input) {
+  const args = ["-p", "--output-format", "json", "--model", input.model];
+  if (input.effort) args.push("--effort", input.effort);
+  args.push("--system-prompt", input.system, "--safe-mode", "--tools", "");
+  if (input.resumeSessionId) args.push("--resume", input.resumeSessionId);
+  return args;
+}
+function truncate(value, limit2 = 500) {
+  const compact = value.trim().replace(/\s+/g, " ");
+  return compact.length <= limit2 ? compact : `${compact.slice(0, limit2)}\u2026`;
+}
+function describe(value) {
+  if (value === void 0 || value === null || value === "") return void 0;
+  return typeof value === "string" ? truncate(value) : truncate(JSON.stringify(value) ?? String(value));
+}
+var invalidResume = /no (?:session|conversation).*(?:found|exists)|(?:session|conversation|resume).*(?:invalid|expired|not found|does not exist|unknown)|(?:invalid|expired|not found|does not exist|unknown).*(?:session|conversation|resume)/is;
+function errorForResult(parsed, stderr, resumeSessionId) {
+  const status = describe(parsed.api_error_status);
+  const terminal = describe(parsed.terminal_reason);
+  const result = describe(parsed.result);
+  const stderrText = truncate(stderr);
+  const message = [
+    "Claude CLI returned an error",
+    status ? `api_error_status=${status}` : "",
+    terminal ? `terminal_reason=${terminal}` : "",
+    result ? `result=${result}` : "",
+    stderrText ? `stderr=${stderrText}` : ""
+  ].filter(Boolean).join("; ");
+  const quotaDiagnostic = `${status ?? ""} ${terminal ?? ""} ${result ?? ""} ${stderrText}`;
+  const quotaMessages = [
+    /\b(?:rate|usage)[_-]limit(?:ed|_error)?\b/i,
+    /\b(?:rate|usage)[ -]limit(?:ed| (?:error|reached|exceeded|exhausted))\b/i,
+    /\bquota[\s_-]*(?:exhausted|exceeded)\b/i,
+    /\b(?:daily|weekly|monthly)[\s_-]*(?:usage[\s_-]*)?limit\b/i,
+    /\bhit\s+(?:your\s+|the\s+)?(?:(?:daily|weekly|monthly)\s+)?(?:usage\s+)?limit\b/i
+  ];
+  if (String(parsed.api_error_status) === "429" || quotaMessages.some((pattern) => pattern.test(quotaDiagnostic))) {
+    return new ClaudeCliQuotaError(message, parsed.api_error_status);
+  }
+  const resumeDiagnostic = `${terminal ?? ""} ${result ?? ""} ${stderrText}`;
+  if (resumeSessionId && invalidResume.test(resumeDiagnostic)) {
+    return new ClaudeCliResumeInvalidError(message);
+  }
+  return new ClaudeCliInvocationError(message);
+}
+function finiteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function parseClaudeCliResult(stdout, input, stderr = "", exitCode = 0) {
+  let parsed;
+  try {
+    const value = JSON.parse(stdout);
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
+    parsed = value;
+  } catch {
+    const raw = truncate(stdout);
+    const stderrText = truncate(stderr);
+    const message = `Claude CLI returned invalid JSON${exitCode ? ` after exit code ${exitCode}` : ""}${raw ? `: ${raw}` : " (empty stdout)"}${stderrText ? `; stderr=${stderrText}` : ""}`;
+    if (input.resumeSessionId && invalidResume.test(stderr)) {
+      throw new ClaudeCliResumeInvalidError(message);
+    }
+    throw new ClaudeCliInvocationError(message);
+  }
+  if (parsed.type !== "result" || parsed.is_error !== false) {
+    throw errorForResult(parsed, stderr, input.resumeSessionId);
+  }
+  if (exitCode !== 0) {
+    throw new ClaudeCliInvocationError(
+      `Claude CLI exited with code ${exitCode}${stderr.trim() ? `; stderr=${truncate(stderr)}` : ""}`
+    );
+  }
+  if (typeof parsed.result !== "string" || typeof parsed.session_id !== "string") {
+    throw new ClaudeCliInvocationError(
+      "Claude CLI result JSON is missing string result/session_id fields"
+    );
+  }
+  const modelUsage = parsed.modelUsage && typeof parsed.modelUsage === "object" ? parsed.modelUsage : {};
+  let inputTokens = 0;
+  let outputTokens = 0;
+  for (const value of Object.values(modelUsage)) {
+    if (!value || typeof value !== "object") continue;
+    const usage = value;
+    inputTokens += finiteNumber(usage.inputTokens) ?? 0;
+    inputTokens += finiteNumber(usage.cacheReadInputTokens) ?? 0;
+    inputTokens += finiteNumber(usage.cacheCreationInputTokens) ?? 0;
+    outputTokens += finiteNumber(usage.outputTokens) ?? 0;
+  }
+  const mainUsage = modelUsage[input.model];
+  const contextWindow = mainUsage && typeof mainUsage === "object" ? finiteNumber(mainUsage.contextWindow) : void 0;
+  const warnings = contextWindow === void 0 ? [`Claude CLI did not report contextWindow for ${input.model}; using configured fallback`] : [];
+  const totalCostUsd = finiteNumber(parsed.total_cost_usd);
+  return {
+    text: parsed.result,
+    sessionId: parsed.session_id,
+    usage: { inputTokens, outputTokens },
+    ...contextWindow === void 0 ? {} : { contextWindow },
+    warnings,
+    ...totalCostUsd === void 0 ? {} : { totalCostUsd }
+  };
+}
+var ClaudeCliClient = class {
+  constructor(opts = {}, deps = defaultDeps2) {
+    this.deps = deps;
+    this.resolution = resolveClaudeCliOnce(opts, deps);
+  }
+  resolution;
+  runTurn(input) {
+    return new Promise((resolve4, reject) => {
+      const args = buildClaudeCliArgs(input);
+      let child;
+      try {
+        child = this.deps.spawn(this.resolution.binaryPath, args, {
+          stdio: ["pipe", "pipe", "pipe"],
+          windowsHide: true,
+          cwd: input.workingDirectory
+        });
+      } catch (error2) {
+        reject(new ClaudeCliInvocationError(`Failed to start Claude CLI: ${String(error2)}`));
+        return;
+      }
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      const fail = (error2) => {
+        if (settled) return;
+        settled = true;
+        reject(error2);
+      };
+      child.stdout.on("data", (chunk) => {
+        stdout += String(chunk);
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+      child.once("error", (error2) => {
+        fail(new ClaudeCliInvocationError(
+          `Failed to start Claude CLI: ${error2.message}${stderr.trim() ? `; stderr=${truncate(stderr)}` : ""}`
+        ));
+      });
+      child.stdin.once("error", (error2) => {
+        fail(new ClaudeCliInvocationError(`Failed to write Claude CLI stdin: ${error2.message}`));
+      });
+      child.once("close", (code) => {
+        if (settled) return;
+        settled = true;
+        try {
+          resolve4(parseClaudeCliResult(stdout, input, stderr, code ?? -1));
+        } catch (error2) {
+          reject(error2);
+        }
+      });
+      try {
+        child.stdin.end(input.userPrompt);
+      } catch (error2) {
+        fail(new ClaudeCliInvocationError(`Failed to write Claude CLI stdin: ${String(error2)}`));
+      }
+    });
+  }
+};
+
 // src/providers/codex.ts
 var CodexProvider = class {
   constructor(codex, opts) {
@@ -33001,6 +33292,7 @@ var CodexProvider = class {
     this.opts = opts;
   }
   kind = "codex";
+  can_read_repo = true;
   async openSession(stage, designId, prior) {
     const canResume = prior !== void 0 && prior.provider_kind === "codex" && prior.external_session_id.length > 0;
     if (canResume) {
@@ -33069,9 +33361,24 @@ var ClaudeProvider = class {
     this.opts = opts;
   }
   kind = "claude";
-  // claude is per-turn fresh: no resumable conversation. The session is a stable synthetic
-  // handle so the orchestrator can persist a provider_kind without cross-provider reuse (Q7).
-  async openSession(stage, designId, _prior) {
+  can_read_repo = false;
+  async openSession(stage, designId, prior) {
+    if (this.opts.backend === "cli") {
+      const candidate = prior?.provider_kind === "claude" ? prior.external_session_id : "";
+      const synthetic = candidate.startsWith("claude:");
+      return {
+        kind: "claude",
+        designId,
+        stage,
+        externalSessionId: synthetic ? "" : candidate,
+        ...synthetic ? {
+          handle: {
+            invalidatedSessionId: candidate,
+            invalidatedReason: "the session was created by the API backend"
+          }
+        } : {}
+      };
+    }
     return {
       kind: "claude",
       designId,
@@ -33080,14 +33387,95 @@ var ClaudeProvider = class {
     };
   }
   async runTurn(input, session) {
+    if (this.opts.backend !== "cli") {
+      return this.apiTurn(input, session.externalSessionId);
+    }
+    const cli = this.opts.cliClient;
+    if (!cli) throw new Error("Claude CLI backend was constructed without a CLI client");
+    const handle = session.handle ?? {};
+    const warnings = [];
+    let sessionRotation;
+    if (handle.invalidatedSessionId) {
+      warnings.push(this.resumeWarning(
+        handle.invalidatedSessionId,
+        handle.invalidatedReason ?? "the session cannot be resumed"
+      ));
+      sessionRotation = {
+        previous_session_id: handle.invalidatedSessionId,
+        reason: "provider_resume_invalidated"
+      };
+    }
+    let result;
+    try {
+      result = await cli.runTurn(this.cliInput(input, session.externalSessionId));
+    } catch (error2) {
+      if (error2 instanceof ClaudeCliResumeInvalidError && session.externalSessionId) {
+        warnings.push(this.resumeWarning(session.externalSessionId, error2.message));
+        sessionRotation = {
+          previous_session_id: session.externalSessionId,
+          reason: "provider_resume_invalidated"
+        };
+        result = await cli.runTurn(this.cliInput(input, ""));
+      } else if (error2 instanceof ClaudeCliQuotaError && this.opts.keyEnv && Boolean(process.env[this.opts.keyEnv])) {
+        const fallback = await this.apiTurn(
+          input,
+          `claude:${session.designId}:${session.stage}`
+        );
+        const quotaWarning = `Claude reviewer backend=cli hit quota (${error2.message}); previous_session_id=${session.externalSessionId || "(none)"}; fell back to backend=api for this turn; next CLI turn starts fresh; model=${this.opts.model}`;
+        return {
+          ...fallback,
+          warnings: [...warnings, quotaWarning],
+          session_rotation: {
+            previous_session_id: session.externalSessionId,
+            reason: "provider_backend_fallback"
+          }
+        };
+      } else {
+        throw error2;
+      }
+    }
+    warnings.push(...result.warnings);
+    return this.cliResult(result, warnings, sessionRotation);
+  }
+  reviewerProvenance() {
+    if (this.opts.backend !== "cli") {
+      return `Claude reviewer backend=api model=${this.opts.model}`;
+    }
+    const resolution = this.opts.cliClient?.resolution;
+    return `Claude reviewer backend=cli binary_source=${resolution?.source ?? "unknown"} binary=${resolution?.binaryPath ?? "unknown"} model=${this.opts.model}`;
+  }
+  async apiTurn(input, providerSessionId) {
     const result = await this.client.runTurn({
       system: CLAUDE_ADVERSARIAL_SYSTEM,
       model: this.opts.model,
       maxTokens: this.opts.maxTokens,
+      ...this.opts.effort ? { effort: this.opts.effort } : {},
       userPrompt: input.text
     });
+    return this.turnResult(result, providerSessionId, this.opts.contextWindow);
+  }
+  cliInput(input, resumeSessionId) {
+    return {
+      system: CLAUDE_ADVERSARIAL_SYSTEM,
+      model: this.opts.model,
+      ...this.opts.effort ? { effort: this.opts.effort } : {},
+      userPrompt: input.text,
+      workingDirectory: input.workingDirectory,
+      ...resumeSessionId ? { resumeSessionId } : {}
+    };
+  }
+  cliResult(result, warnings, sessionRotation) {
+    return this.turnResult(
+      result,
+      result.sessionId,
+      result.contextWindow ?? this.opts.contextWindow,
+      warnings,
+      sessionRotation
+    );
+  }
+  turnResult(result, providerSessionId, contextWindow, warnings, sessionRotation) {
     const inputTokens = result.usage.inputTokens;
-    const contextUsagePct = inputTokens !== null && this.opts.contextWindow > 0 ? Math.min(1, inputTokens / this.opts.contextWindow) : void 0;
+    const contextUsagePct = inputTokens !== null && contextWindow > 0 ? Math.min(1, inputTokens / contextWindow) : void 0;
     return {
       kind: "turn",
       text: result.text,
@@ -33097,8 +33485,13 @@ var ClaudeProvider = class {
         total: (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0) || null,
         context_usage_pct: contextUsagePct
       },
-      provider_session_id: session.externalSessionId
+      provider_session_id: providerSessionId,
+      ...warnings?.length ? { warnings } : {},
+      ...sessionRotation ? { session_rotation: sessionRotation } : {}
     };
+  }
+  resumeWarning(sessionId, reason) {
+    return `Claude CLI resume invalidated: old_session_id=${sessionId}; reason=${reason}; started a fresh CLI session`;
   }
   closeSession(_session) {
   }
@@ -33115,6 +33508,7 @@ var ManualProvider = class {
     this.opts = opts;
   }
   kind = "manual";
+  can_read_repo = true;
   async openSession(stage, designId, _prior) {
     return {
       kind: "manual",
@@ -33178,10 +33572,15 @@ function createReviewProvider(deps) {
     case "claude": {
       const c = deps.config.review.claude;
       const claudeClient = deps.claudeClient ?? new AnthropicClaudeClient({ keyEnv: c.key_env });
+      const cliClient = c.backend === "cli" ? deps.claudeCliClient ?? new ClaudeCliClient({ cliPath: c.cli_path }) : void 0;
       return new ClaudeProvider(claudeClient, {
+        backend: c.backend,
         model: c.model || DEFAULT_CLAUDE_MODEL,
         maxTokens: c.max_tokens,
-        contextWindow: c.context_window
+        contextWindow: c.context_window,
+        effort: c.effort,
+        keyEnv: c.key_env,
+        ...cliClient ? { cliClient } : {}
       });
     }
     case "manual": {
@@ -33404,6 +33803,9 @@ var PromptRenderer = class {
       return String(v);
     });
     sections.push(body);
+    for (const block of input.textBlocks ?? []) {
+      sections.push(block.content);
+    }
     if (input.fileBlocks.length > 0) {
       sections.push("\n---\n## \u6CE8\u5165\u7684\u6587\u4EF6\n");
       for (const fb of input.fileBlocks) {
@@ -33566,115 +33968,6 @@ var BreakerEngine = class {
 
 // src/run-review-flow.ts
 import { createHash as createHash2, randomBytes } from "node:crypto";
-
-// src/context-monitor.ts
-function estimateTokensFromChars(chars) {
-  return Math.ceil(chars / 4);
-}
-
-// src/drift-detector.ts
-import { createHash } from "node:crypto";
-import { existsSync as existsSync4, readFileSync as readFileSync5 } from "node:fs";
-function computeFileSha(content) {
-  return createHash("sha256").update(content).digest("hex").slice(0, 8);
-}
-function planDrift(state, inputPaths, resolvePath8) {
-  const prev = state?.design_doc_files ?? {};
-  const seen = /* @__PURE__ */ new Set();
-  const entries = [];
-  const nextFiles = {};
-  for (const path8 of inputPaths) {
-    seen.add(path8);
-    const absolute = resolvePath8(path8);
-    if (!existsSync4(absolute)) {
-      const oldSha2 = prev[path8]?.sha ?? null;
-      entries.push({
-        path: path8,
-        category: oldSha2 ? "removed" : "added",
-        // never tracked => odd request; classify as added so Codex can correct
-        oldSha: oldSha2,
-        newSha: null,
-        content: null
-      });
-      nextFiles[path8] = {
-        sha: oldSha2 ?? "",
-        exists: false,
-        last_seen_at: prev[path8]?.last_seen_at ?? (/* @__PURE__ */ new Date()).toISOString()
-      };
-      continue;
-    }
-    const content = readFileSync5(absolute, "utf8");
-    const newSha = computeFileSha(content);
-    const oldSha = prev[path8]?.sha;
-    let category;
-    if (oldSha === void 0) category = "added";
-    else if (oldSha === newSha) category = "unchanged";
-    else category = "modified";
-    entries.push({
-      path: path8,
-      category,
-      oldSha: oldSha ?? null,
-      newSha,
-      content: category === "unchanged" ? null : content
-    });
-    nextFiles[path8] = {
-      sha: newSha,
-      exists: true,
-      last_seen_at: (/* @__PURE__ */ new Date()).toISOString()
-    };
-  }
-  for (const oldPath of Object.keys(prev)) {
-    if (seen.has(oldPath)) continue;
-    const oldEntry = prev[oldPath];
-    if (oldEntry === void 0) continue;
-    if (!oldEntry.exists) {
-      nextFiles[oldPath] = oldEntry;
-      continue;
-    }
-    entries.push({
-      path: oldPath,
-      category: "removed",
-      oldSha: oldEntry.sha,
-      newSha: null,
-      content: null
-    });
-    nextFiles[oldPath] = {
-      sha: oldEntry.sha,
-      exists: false,
-      last_seen_at: (/* @__PURE__ */ new Date()).toISOString()
-    };
-  }
-  return { entries, nextDesignDocFiles: nextFiles };
-}
-function renderDriftPreface(plan) {
-  const dirty = plan.entries.filter((e) => e.category !== "unchanged");
-  if (dirty.length === 0) return "";
-  const lines = [
-    "## Design \u6587\u6863\u6F02\u79FB\u901A\u62A5\uFF08per-file sha \u6BD4\u5BF9\uFF0C\xA74.2\uFF09"
-  ];
-  for (const e of dirty) {
-    if (e.category === "modified") {
-      lines.push(
-        `- \u6587\u4EF6 \`${e.path}\` \u5DF2\u66F4\u65B0\uFF08\u65E7 sha=${e.oldSha} \u2192 \u65B0 sha=${e.newSha}\uFF09\uFF0C\u65B0\u7248\u5B8C\u6574\u5185\u5BB9\u5982\u4E0B\uFF1A`
-      );
-      lines.push("```");
-      lines.push(e.content ?? "");
-      lines.push("```");
-    } else if (e.category === "added") {
-      lines.push(
-        `- \u672C\u8F6E\u65B0\u589E design \u6587\u6863 \`${e.path}\`\uFF08sha=${e.newSha}\uFF09\uFF0C\u5B8C\u6574\u5185\u5BB9\u5982\u4E0B\uFF1A`
-      );
-      lines.push("```");
-      lines.push(e.content ?? "");
-      lines.push("```");
-    } else if (e.category === "removed") {
-      lines.push(
-        `- \u6587\u4EF6 \`${e.path}\` \u5DF2\u5220\u9664/\u6539\u540D\uFF08\u65E7 sha=${e.oldSha}\uFF09\uFF1B\u4ECE\u672C\u8F6E\u8D77\u4E0D\u518D review \u8BE5\u6587\u4EF6\u3002`
-      );
-    }
-  }
-  return lines.join("\n") + "\n";
-}
 
 // src/output-parser.ts
 function parseCodexOutput(rawText, ctx) {
@@ -33984,6 +34277,260 @@ function clipRaw(s) {
   return s.slice(0, 800) + "...[clipped]";
 }
 
+// src/contract-block.ts
+function codeList(values) {
+  return values.map((value) => `\`${value}\``).join(", ");
+}
+function unwrapSchema(schema) {
+  let current = schema;
+  while (true) {
+    if (current instanceof ZodEffects) {
+      current = current.innerType();
+    } else if ("unwrap" in current && typeof current.unwrap === "function") {
+      current = current.unwrap();
+    } else {
+      return current;
+    }
+  }
+}
+function renderContractBlock(stage) {
+  const nextAction = unwrapSchema(ReviewEnvelope.shape.next_action);
+  const autoFixClass = unwrapSchema(Conclusion.shape.auto_fix_class);
+  const compactSummary = unwrapSchema(
+    ReviewEnvelope.shape.compact_summary_for_round
+  );
+  const compactSummaryMax = compactSummary instanceof ZodString ? compactSummary._def.checks.find((check2) => check2.kind === "max") : void 0;
+  return [
+    `## [bridge-authoritative] Envelope contract (stage=${stage})`,
+    "",
+    "> **AUTHORITATIVE:** This block is generated by the review bridge from the same Zod",
+    "> schema source used by output-parser. If it conflicts with narrative instructions",
+    "> earlier in the prompt, this block wins.",
+    "",
+    "### Required envelope",
+    `- Top-level keys (complete set): ${codeList(Object.keys(ReviewEnvelope.shape))}.`,
+    `- \`stage\` must be \`${stage}\`; \`verdict\` must be one of: ${codeList(stageVerdictEnum(stage).options)}.`,
+    ...nextAction instanceof ZodEnum ? [`- \`next_action\` must be one of: ${codeList(nextAction.options)}.`] : [],
+    ...compactSummaryMax?.kind === "max" ? [
+      `- \`compact_summary_for_round\` must be at most ${compactSummaryMax.value} characters.`
+    ] : [],
+    `- \`verdict_factors\` keys (all required): ${codeList(Object.keys(VerdictFactors.shape))}.`,
+    `- Each \`conclusions[]\` item has fields: ${codeList(Object.keys(Conclusion.shape))}.`,
+    ...autoFixClass instanceof ZodEnum ? [
+      `- \`conclusions[].auto_fix_class\` must be one of: ${codeList(autoFixClass.options)}.`
+    ] : [],
+    `- \`conclusions[].target\` form \`${TargetFileLine.shape.kind.value}\` has fields: ${codeList(Object.keys(TargetFileLine.shape))}.`,
+    `- \`conclusions[].target\` form \`${TargetMissingArtifact.shape.kind.value}\` has fields: ${codeList(Object.keys(TargetMissingArtifact.shape))};`,
+    `  \`missing_artifact_kind\` must be one of: ${codeList(MissingArtifactKind.options)}.`,
+    "",
+    "### Critical output rules",
+    "- Output exactly one JSON object, with no surrounding prose and no Markdown fence.",
+    "- `thread_id` and `review_id` are server-overridden; emitted values are not authoritative.",
+    `- Grade every finding under \xA79.D and put it in \`conclusions[]\` with \`level\` set to one of: ${codeList(ConclusionLevel.options)}.`
+  ].join("\n");
+}
+
+// src/context-monitor.ts
+function estimateTokensFromChars(chars) {
+  return Math.ceil(chars / 4);
+}
+
+// src/diff-provision.ts
+import { execFileSync } from "node:child_process";
+var DIFF_SPEC_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.\/~^@{}-]*(\.\.\.?[A-Za-z0-9_.\/~^@{}-]+)?$/;
+var DIFF_SPEC_DESCRIPTION = `Committed Git revision range as one token matching ${DIFF_SPEC_PATTERN.source}; examples: main...HEAD, abc123..def456, HEAD~3.`;
+function specError(spec) {
+  return new Error(
+    `Invalid diff spec ${JSON.stringify(spec)}. Expected: ${DIFF_SPEC_DESCRIPTION} No whitespace, no leading '-'; the range must describe committed changes.`
+  );
+}
+function errorDetail(error2) {
+  return error2 instanceof Error ? error2.message : String(error2);
+}
+function oversizeError(spec, maxBytes, bytes) {
+  const middle = bytes === void 0 ? "exceeds" : `is ${bytes} bytes, exceeding`;
+  return new Error(
+    `Diff for ${spec} ${middle} max_injected_diff_bytes=${maxBytes}. Narrow the diff spec or review the changes in batches; the bridge will not truncate it.`
+  );
+}
+function exceededBuffer(error2) {
+  if (!(error2 instanceof Error)) return false;
+  const code = error2.code;
+  return code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" || code === "ENOBUFS" || /maxBuffer/i.test(error2.message);
+}
+function runGit(args, cwd, operation, oversize) {
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      // Headroom over maxBytes so modest overruns can be measured precisely; anything
+      // larger fails at the buffer and is reported as oversize, never truncated.
+      ...oversize ? { maxBuffer: oversize.maxBytes + 64 * 1024 } : {}
+    });
+  } catch (error2) {
+    if (oversize && exceededBuffer(error2)) {
+      throw oversizeError(oversize.spec, oversize.maxBytes);
+    }
+    throw new Error(
+      `Unable to ${operation}: Git failed in ${cwd}. Confirm this is a Git repository, Git is installed, and the diff spec names valid committed revisions. ${errorDetail(error2)}`
+    );
+  }
+}
+function diffFence(diff) {
+  let longest = 0;
+  for (const match of diff.matchAll(/`+/g)) {
+    if (match[0].length > longest) longest = match[0].length;
+  }
+  return "`".repeat(Math.max(3, longest + 1));
+}
+function provideDiff(spec, changedFiles, cwd, maxBytes) {
+  if (!DIFF_SPEC_PATTERN.test(spec)) throw specError(spec);
+  if (!Number.isInteger(maxBytes) || maxBytes <= 0) {
+    throw new Error(`maxBytes must be a positive integer; received ${maxBytes}.`);
+  }
+  const names = runGit(
+    ["diff", "--name-only", "--no-ext-diff", spec],
+    cwd,
+    `collect diff for ${spec}`
+  ).split(/\r?\n/).filter((name) => name.length > 0);
+  const authoritativeNames = new Set(names);
+  const missing = changedFiles.filter((name) => !authoritativeNames.has(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `changed_files not present in committed diff range ${spec}: ${missing.join(", ")}. These files may be untracked or outside the range; commit them first or correct diff_spec.`
+    );
+  }
+  const declaredNames = new Set(changedFiles);
+  const warnings = names.filter((name) => !declaredNames.has(name)).map(
+    (name) => `warning: committed diff range ${spec} includes ${name}, but changed_files does not list it.`
+  );
+  const diff = runGit(
+    ["diff", "--no-ext-diff", "--no-textconv", "--no-color", spec],
+    cwd,
+    `collect diff for ${spec}`,
+    { spec, maxBytes }
+  );
+  const diffBytes = Buffer.byteLength(diff, "utf8");
+  if (diffBytes > maxBytes) throw oversizeError(spec, maxBytes, diffBytes);
+  const fence = diffFence(diff);
+  const body = diff.endsWith("\n") || diff.length === 0 ? diff : `${diff}
+`;
+  return {
+    block: `## [bridge-provided] Git diff
+
+Source spec: \`${spec}\`
+Bytes: ${diffBytes}
+
+${fence}diff
+${body}${fence}`,
+    warnings
+  };
+}
+
+// src/drift-detector.ts
+import { createHash } from "node:crypto";
+import { existsSync as existsSync4, readFileSync as readFileSync5 } from "node:fs";
+function computeFileSha(content) {
+  return createHash("sha256").update(content).digest("hex").slice(0, 8);
+}
+function planDrift(state, inputPaths, resolvePath8) {
+  const prev = state?.design_doc_files ?? {};
+  const seen = /* @__PURE__ */ new Set();
+  const entries = [];
+  const nextFiles = {};
+  for (const path8 of inputPaths) {
+    seen.add(path8);
+    const absolute = resolvePath8(path8);
+    if (!existsSync4(absolute)) {
+      const oldSha2 = prev[path8]?.sha ?? null;
+      entries.push({
+        path: path8,
+        category: oldSha2 ? "removed" : "added",
+        // never tracked => odd request; classify as added so Codex can correct
+        oldSha: oldSha2,
+        newSha: null,
+        content: null
+      });
+      nextFiles[path8] = {
+        sha: oldSha2 ?? "",
+        exists: false,
+        last_seen_at: prev[path8]?.last_seen_at ?? (/* @__PURE__ */ new Date()).toISOString()
+      };
+      continue;
+    }
+    const content = readFileSync5(absolute, "utf8");
+    const newSha = computeFileSha(content);
+    const oldSha = prev[path8]?.sha;
+    let category;
+    if (oldSha === void 0) category = "added";
+    else if (oldSha === newSha) category = "unchanged";
+    else category = "modified";
+    entries.push({
+      path: path8,
+      category,
+      oldSha: oldSha ?? null,
+      newSha,
+      content: category === "unchanged" ? null : content
+    });
+    nextFiles[path8] = {
+      sha: newSha,
+      exists: true,
+      last_seen_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  for (const oldPath of Object.keys(prev)) {
+    if (seen.has(oldPath)) continue;
+    const oldEntry = prev[oldPath];
+    if (oldEntry === void 0) continue;
+    if (!oldEntry.exists) {
+      nextFiles[oldPath] = oldEntry;
+      continue;
+    }
+    entries.push({
+      path: oldPath,
+      category: "removed",
+      oldSha: oldEntry.sha,
+      newSha: null,
+      content: null
+    });
+    nextFiles[oldPath] = {
+      sha: oldEntry.sha,
+      exists: false,
+      last_seen_at: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  return { entries, nextDesignDocFiles: nextFiles };
+}
+function renderDriftPreface(plan) {
+  const dirty = plan.entries.filter((e) => e.category !== "unchanged");
+  if (dirty.length === 0) return "";
+  const lines = [
+    "## Design \u6587\u6863\u6F02\u79FB\u901A\u62A5\uFF08per-file sha \u6BD4\u5BF9\uFF0C\xA74.2\uFF09"
+  ];
+  for (const e of dirty) {
+    if (e.category === "modified") {
+      lines.push(
+        `- \u6587\u4EF6 \`${e.path}\` \u5DF2\u66F4\u65B0\uFF08\u65E7 sha=${e.oldSha} \u2192 \u65B0 sha=${e.newSha}\uFF09\uFF0C\u65B0\u7248\u5B8C\u6574\u5185\u5BB9\u5982\u4E0B\uFF1A`
+      );
+      lines.push("```");
+      lines.push(e.content ?? "");
+      lines.push("```");
+    } else if (e.category === "added") {
+      lines.push(
+        `- \u672C\u8F6E\u65B0\u589E design \u6587\u6863 \`${e.path}\`\uFF08sha=${e.newSha}\uFF09\uFF0C\u5B8C\u6574\u5185\u5BB9\u5982\u4E0B\uFF1A`
+      );
+      lines.push("```");
+      lines.push(e.content ?? "");
+      lines.push("```");
+    } else if (e.category === "removed") {
+      lines.push(
+        `- \u6587\u4EF6 \`${e.path}\` \u5DF2\u5220\u9664/\u6539\u540D\uFF08\u65E7 sha=${e.oldSha}\uFF09\uFF1B\u4ECE\u672C\u8F6E\u8D77\u4E0D\u518D review \u8BE5\u6587\u4EF6\u3002`
+      );
+    }
+  }
+  return lines.join("\n") + "\n";
+}
+
 // src/run-review-flow.ts
 function generateReviewId(designId, stage, round) {
   const sanitized = designId.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -33993,6 +34540,12 @@ function generateReviewId(designId, stage, round) {
 async function runReviewFlow(deps, input) {
   const { config: config2, configBaseDir, providerFor, threadManager, promptRenderer, breakers, breakerState } = deps;
   const cb = config2.circuit_breakers;
+  const preTurnFailure = (detail, tripped) => ({
+    ok: false,
+    parseResult: { ok: false, reason: "schema_violation", detail, raw_excerpt: "" },
+    ...tripped ? { breakerTripped: tripped } : {},
+    warnings: [detail]
+  });
   const release = threadManager.acquireLock(input.designId);
   let session = null;
   let activeProvider = null;
@@ -34001,6 +34554,38 @@ async function runReviewFlow(deps, input) {
     const stageKind = config2.review.provider === "manual" ? "manual" : input.stage === "fix" && existingState && !existingState.archived ? existingState.provider_kind : providerKindForStage(input.stage, config2);
     const provider = providerFor(stageKind);
     activeProvider = provider;
+    const projectRoot = resolveProjectPath(config2, configBaseDir, ".");
+    const bridgeWarnings = [];
+    const textBlocks = [
+      {
+        label: "Authoritative envelope contract",
+        content: renderContractBlock(input.stage)
+      }
+    ];
+    if ((input.stage === "code" || input.stage === "fix") && !provider.can_read_repo) {
+      if (input.diffSpec === void 0 || input.diffSpec.trim().length === 0) {
+        return preTurnFailure(
+          "Tool-less code/fix review requires a machine-readable diff_spec; the bridge cannot review without a committed diff."
+        );
+      }
+      try {
+        const provided = provideDiff(
+          input.diffSpec,
+          input.changedFiles ?? [],
+          projectRoot,
+          config2.review.max_injected_diff_bytes
+        );
+        textBlocks.push({
+          label: "Bridge-provided committed changes",
+          content: provided.block
+        });
+        bridgeWarnings.push(...provided.warnings);
+      } catch (error2) {
+        return preTurnFailure(
+          `Unable to provision committed diff for ${input.stage} review: ${errorDetail(error2)}`
+        );
+      }
+    }
     if (existingState) {
       breakerState.rounds.design_review = existingState.rounds.design_review;
       breakerState.rounds.code_review = existingState.rounds.code_review;
@@ -34016,19 +34601,7 @@ async function runReviewFlow(deps, input) {
     if (input.stage === "fix" && input.fixDiffLines !== void 0 && input.fixDiffLines > 0) {
       const tripped = breakers.recordScopeDrift(breakerState, input.fixDiffLines);
       preservedScopeDriftLines = breakerState.scope_drift_lines;
-      if (tripped) {
-        return {
-          ok: false,
-          parseResult: {
-            ok: false,
-            reason: "schema_violation",
-            detail: tripped.message,
-            raw_excerpt: ""
-          },
-          breakerTripped: tripped,
-          warnings: [tripped.message]
-        };
-      }
+      if (tripped) return preTurnFailure(tripped.message, tripped);
     }
     let didRebuildThisCall = false;
     let rebuildReason = null;
@@ -34062,13 +34635,13 @@ async function runReviewFlow(deps, input) {
     const body = promptRenderer.render({
       stage: input.stage,
       vars: input.promptVars,
+      textBlocks,
       fileBlocks: input.fileBlocks,
       driftPreface
     });
     const prompt = coldStartPreface ? `${coldStartPreface}
 
 ${body}` : body;
-    const projectRoot = resolveProjectPath(config2, configBaseDir, ".");
     const shouldResume = !didRebuildThisCall && existingState !== null && !existingState.archived;
     let prior = void 0;
     if (shouldResume && existingState) {
@@ -34098,6 +34671,7 @@ ${body}` : body;
     } catch (err) {
       const tripped = breakers.recordCodexFailure(breakerState);
       const warnings2 = [
+        ...bridgeWarnings,
         `review provider '${provider.kind}' turn failed: ${err.message}`
       ];
       if (tripped) {
@@ -34120,6 +34694,7 @@ ${body}` : body;
       return {
         ok: true,
         warnings: [
+          ...bridgeWarnings,
           `review provider '${provider.kind}' is awaiting a manual verdict; prompt written to ${providerResult.prompt_path}`
         ],
         awaitingManual: {
@@ -34129,6 +34704,8 @@ ${body}` : body;
         didRebuildThread: didRebuildThisCall
       };
     }
+    const providerWarnings = providerResult.warnings ?? [];
+    const sessionRotation = providerResult.session_rotation;
     const runResult = {
       text: providerResult.text,
       usage: providerResult.usage,
@@ -34140,6 +34717,7 @@ ${body}` : body;
         ok: true,
         envelope: existingState.last_manual_submit.envelope,
         warnings: [
+          ...bridgeWarnings,
           "idempotent manual resubmit: identical verdict already ingested; returning the recorded envelope (no new round)."
         ],
         didRebuildThread: didRebuildThisCall
@@ -34158,6 +34736,8 @@ ${body}` : body;
         parseResult,
         ...tripped ? { breakerTripped: tripped } : {},
         warnings: [
+          ...bridgeWarnings,
+          ...providerWarnings,
           `output-parser rejected Codex output (${parseResult.reason}): ${parseResult.detail}`
         ],
         didRebuildThread: didRebuildThisCall
@@ -34171,20 +34751,23 @@ ${body}` : body;
       if (didRebuildThisCall && rebuildReason) {
         state.thread_history = [
           ...state.thread_history ?? [],
-          {
-            thread_id: state.thread_id,
-            abandoned_at_round: {
-              design_review: state.rounds.design_review,
-              code_review: state.rounds.code_review,
-              fix_review: state.rounds.fix_review
-            },
-            abandoned_at: (/* @__PURE__ */ new Date()).toISOString(),
-            reason: rebuildReason
-          }
+          threadHistoryEntry(state, state.thread_id, rebuildReason)
         ];
+        state.provider_kind = provider.kind;
+      }
+      if (sessionRotation) {
+        state.thread_history = [
+          ...state.thread_history ?? [],
+          threadHistoryEntry(
+            state,
+            sessionRotation.previous_session_id,
+            sessionRotation.reason
+          )
+        ];
+      }
+      if (didRebuildThisCall || sessionRotation) {
         state.thread_id = runResult.providerSessionId;
         state.thread_created_at = (/* @__PURE__ */ new Date()).toISOString();
-        state.provider_kind = provider.kind;
       }
     } else {
       state = threadManager.newState(
@@ -34193,6 +34776,13 @@ ${body}` : body;
         provider.kind
       );
       state.scope_drift_lines_total = preservedScopeDriftLines;
+      if (sessionRotation) {
+        state.thread_history.push(threadHistoryEntry(
+          state,
+          sessionRotation.previous_session_id,
+          sessionRotation.reason
+        ));
+      }
     }
     const round = currentRoundFor(state, input.stage) + 1;
     const finalEnvelope = {
@@ -34220,7 +34810,7 @@ ${body}` : body;
     if (manualVerdictSha !== null) {
       state.last_manual_submit = { verdict_sha: manualVerdictSha, envelope: finalEnvelope };
     }
-    const warnings = [...parseResult.warnings];
+    const warnings = [...bridgeWarnings, ...parseResult.warnings, ...providerWarnings];
     if (reviewerProvenanceNote) warnings.push(reviewerProvenanceNote);
     let contextExhaustedTrip = null;
     if (didRebuildThisCall && state.context_usage_pct >= cb.context_warn_pct) {
@@ -34255,6 +34845,18 @@ function currentRoundFor(state, stage) {
   if (stage === "design") return state.rounds.design_review;
   if (stage === "code") return state.rounds.code_review;
   return state.rounds.fix_review;
+}
+function threadHistoryEntry(state, threadId, reason) {
+  return {
+    thread_id: threadId,
+    abandoned_at_round: {
+      design_review: state.rounds.design_review,
+      code_review: state.rounds.code_review,
+      fix_review: state.rounds.fix_review
+    },
+    abandoned_at: (/* @__PURE__ */ new Date()).toISOString(),
+    reason
+  };
 }
 function renderColdStartPreface(recent, oldUsagePct, reason) {
   const reasonLine = reason === "force_new_thread" ? `caller \u4E3B\u52A8\u8BBE\u7F6E force_new_thread=true\uFF08context_exhausted \u6062\u590D\u8DEF\u5F84\uFF09\uFF1B\u65E7 thread context_usage_pct=${oldUsagePct.toFixed(2)} \u65F6\u88AB\u66FF\u6362\u3002` : reason === "provider_switch" ? `\u672C\u9636\u6BB5\u7684 reviewer \u4E0E\u65E7 session \u7684 provider \u4E0D\u540C\uFF08Q7 review.provider \u5207\u6362\uFF0C\u6216 \xA71.D flow-matrix \u6309\u9636\u6BB5\u6D3E\u751F\uFF09\uFF1A\u65E7 provider \u7684 session \u4F5C\u5E9F\uFF0C\u672C\u8F6E\u8D77\u7528\u65B0 provider \u7684\u5168\u65B0 session\uFF08\u4E0D\u8DE8 provider \u590D\u7528 thread/history\uFF09\u3002` : `\u65E7 thread context_usage_pct=${oldUsagePct.toFixed(2)} \u5DF2\u8D85\u8FC7 force-rebuild \u9608\u503C\uFF0C\u81EA\u52A8\u66FF\u6362\u3002`;
@@ -34345,7 +34947,7 @@ var codeReviewToolSchema = {
       design_doc_paths: { type: "array", items: { type: "string" } },
       module_doc_paths: { type: "array", items: { type: "string" } },
       handoff_path: { type: "string" },
-      diff_spec: { type: "string" },
+      diff_spec: { type: "string", description: DIFF_SPEC_DESCRIPTION },
       changed_files: { type: "array", items: { type: "string" } },
       claude_output: { type: "object" },
       tests_run: { type: "array", items: { type: "string" } },
@@ -34384,6 +34986,8 @@ async function handleCodeReview(deps, rawInput) {
     designId: input.design_id,
     designDocPaths: input.design_doc_paths,
     fileBlocks,
+    diffSpec: input.diff_spec,
+    changedFiles: input.changed_files,
     promptVars: {
       design_id: input.design_id,
       task_card_path: input.task_card_path,
@@ -34420,7 +35024,7 @@ var fixReviewToolSchema = {
       design_doc_paths: { type: "array", items: { type: "string" } },
       module_doc_paths: { type: "array", items: { type: "string" } },
       handoff_path: { type: "string" },
-      fix_diff_spec: { type: "string" },
+      fix_diff_spec: { type: "string", description: DIFF_SPEC_DESCRIPTION },
       changed_files: { type: "array", items: { type: "string" } },
       fix_diff_lines: { type: "number" },
       docs_updated: { type: "array", items: { type: "string" } },
@@ -34465,6 +35069,8 @@ async function handleFixReview(deps, rawInput) {
     designId: input.design_id,
     designDocPaths: input.design_doc_paths,
     fileBlocks,
+    diffSpec: input.fix_diff_spec,
+    changedFiles: input.changed_files,
     promptVars: {
       design_id: input.design_id,
       task_card_path: input.task_card_path,
@@ -34624,10 +35230,10 @@ import {
 } from "node:fs";
 import { dirname as dirname5, join as join7, resolve as resolvePath6 } from "node:path";
 import { createHash as createHash4, randomBytes as randomBytes3 } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync as execFileSync2 } from "node:child_process";
 
 // src/locks.ts
-import { spawn as spawn3, spawnSync as spawnSync2 } from "node:child_process";
+import { spawn as spawn4, spawnSync as spawnSync3 } from "node:child_process";
 import { closeSync as closeSync2, openSync as openSync2, rmSync } from "node:fs";
 import { join as join6 } from "node:path";
 import { randomBytes as randomBytes2 } from "node:crypto";
@@ -34666,7 +35272,7 @@ function probeFlockSupport(dir) {
     throw new FlockUnavailableError(`cannot open probe file ${probePath}: ${err.message}`);
   }
   try {
-    const r = spawnSync2("flock", ["-n", String(CHILD_FD)], {
+    const r = spawnSync3("flock", ["-n", String(CHILD_FD)], {
       stdio: ["ignore", "ignore", "ignore", fd]
     });
     if (r.error) throw new FlockUnavailableError(`spawn failed: ${r.error.message}`);
@@ -34689,7 +35295,7 @@ async function acquireFlock(lockPath, deadline, signal) {
     if (remainingMs <= 0) throw new LockTimeoutError(lockPath);
     const waitSecs = Math.max(0.05, remainingMs / 1e3).toFixed(2);
     const acquired = await new Promise((resolvePromise, rejectPromise) => {
-      const child = spawn3("flock", ["-w", waitSecs, String(CHILD_FD)], {
+      const child = spawn4("flock", ["-w", waitSecs, String(CHILD_FD)], {
         stdio: ["ignore", "ignore", "ignore", fd]
       });
       const onAbort = () => {
@@ -35100,7 +35706,7 @@ var GIT_NEUTRAL_FLAGS = [
   "core.fsmonitor=false"
 ];
 function git(cwd, args) {
-  return execFileSync("git", [...GIT_NEUTRAL_FLAGS, ...args], {
+  return execFileSync2("git", [...GIT_NEUTRAL_FLAGS, ...args], {
     cwd,
     env: isolatedGitEnv(),
     maxBuffer: 256 * 1024 * 1024
@@ -35373,7 +35979,7 @@ function materializeScratch(snapshot, scratchRoot) {
     GIT_COMMITTER_NAME: "ccsop-writer",
     GIT_COMMITTER_EMAIL: "writer@ccsop.invalid"
   };
-  const sgit = (args) => execFileSync("git", args, { cwd: root, env: scratchEnv, maxBuffer: 64 * 1024 * 1024 });
+  const sgit = (args) => execFileSync2("git", args, { cwd: root, env: scratchEnv, maxBuffer: 64 * 1024 * 1024 });
   sgit(["init", "-q"]);
   sgit(["config", "core.autocrlf", "false"]);
   sgit(["config", "core.hooksPath", "/dev/null"]);
@@ -36380,6 +36986,10 @@ async function main() {
       configError = `ccsop review bridge: config not found at ${configPath}. Run /sop-init to scaffold .codex-review/config.toml, then /reload-plugins.`;
     } else {
       const loaded = loadConfig({ configPath });
+      for (const warning of claudeApiOnlyKeyWarnings(loaded.config, loaded.raw)) {
+        process.stderr.write(`[codex-review-mcp] ${warning}
+`);
+      }
       enforceMinSafetyPolicy(loaded.config, loaded.raw);
       const baseDir = dirname6(configPath);
       const config2 = loaded.config;

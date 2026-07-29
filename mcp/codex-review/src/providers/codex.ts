@@ -31,6 +31,7 @@ export interface CodexProviderOptions {
 
 export class CodexProvider implements ReviewProvider {
   readonly kind = "codex" as const;
+  readonly can_read_repo = true;
 
   constructor(
     private readonly codex: CodexClient,

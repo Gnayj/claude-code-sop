@@ -31,6 +31,14 @@ describe("codex model/effort config", () => {
     expect(tpl).toContain("no longer inherits review.codex.model");
   });
 
+  it("ships the Claude backend, effort, and CLI path defaults", () => {
+    const tpl = readFileSync("../../templates/config.toml.tpl", "utf8");
+    const claude = tpl.split("[review.claude]")[1]?.split("\n[")[0] ?? "";
+    expect(claude).toMatch(/\nbackend = "api"/);
+    expect(claude).toMatch(/\neffort = ""/);
+    expect(claude).toMatch(/\ncli_path = ""/);
+  });
+
   it("defaults [codex].path to empty and accepts an explicit binary path", () => {
     const parsed = ConfigSchema.parse(defaultConfig() as any);
     expect(parsed.codex.path).toBe(""); // "" => fall through to the package → PATH → error chain

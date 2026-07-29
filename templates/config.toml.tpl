@@ -47,6 +47,8 @@ archive_dir = ".codex-review/archive"
 # Which review backend to use (design §4.7). Default codex (cross-model heterogeneity).
 [review]
 provider = "<REVIEW_PROVIDER>"   # codex | claude | manual
+# Tool-less reviewer diff injection byte limit; exceeding it fails closed and requires a split review.
+max_injected_diff_bytes = 262144
 
 [review.design]
 prompt_template = ".codex-review/templates/design-review.md.tpl"
@@ -88,11 +90,16 @@ path = ""
 model = ""                       # "" = SDK default
 effort = ""                      # "" | minimal | low | medium | high | xhigh
 
+# "cli" runs `claude -p` against the logged-in subscription; "api" uses ANTHROPIC_API_KEY credits.
+# Claude effort differs from codex effort: "" | low | medium | high | xhigh | max (no minimal).
 [review.claude]
+backend = "api"                  # api | cli
 model = ""                       # "" = a strong default (claude-opus-4-8)
-max_tokens = 16000
-key_env = "ANTHROPIC_API_KEY"
-context_window = 200000          # basis for the estimated context_usage_pct
+effort = ""                      # "" | low | medium | high | xhigh | max
+cli_path = ""                    # CLI binary override; "" = find claude on PATH
+max_tokens = 16000               # API-only; CLI has no per-turn output-limit argument
+key_env = "ANTHROPIC_API_KEY"    # API-only; CLI subscription does not need an API key
+context_window = 200000          # API-only; CLI uses its reported context window
 
 [review.manual]
 sessions_dir = ""                # "" = reuse paths.sessions_dir

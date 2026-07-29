@@ -10,7 +10,7 @@
 // (codex r2 C2): a `runTurn` may return `awaiting_manual` instead of a turn — that branch
 // is a CONTROL result the orchestrator returns as-is, never fed to the parser/breaker/usage.
 
-import type { ReviewStage, ProviderKind } from "./types.js";
+import type { ReviewStage, ProviderKind, ThreadHistoryEntry } from "./types.js";
 
 /** Which backend produces the review turn (single source: types.ts ProviderKindSchema). */
 export type { ProviderKind };
@@ -74,6 +74,12 @@ export interface ProviderUsage {
   context_usage_pct?: number;
 }
 
+/** Structured audit signal for a provider-side session/backend rotation during one turn. */
+export interface ProviderSessionRotation {
+  previous_session_id: string;
+  reason: ThreadHistoryEntry["reason"];
+}
+
 /**
  * Discriminated union (codex r2 C2): only `kind:"turn"` flows into output-parser / envelope /
  * breaker / usage accounting. `kind:"awaiting_manual"` is a control branch the orchestrator
@@ -88,6 +94,11 @@ export type ProviderRunResult =
       usage: ProviderUsage;
       /** Authoritative resumable session id after this turn (codex=thread_id / claude=history handle). */
       provider_session_id: string;
+      /** Runtime-only events (resume reopen, backend fallback, quota backoff, or context-window
+       * fallback) that the orchestrator merges into the tool result warnings after the turn. */
+      warnings?: string[];
+      /** Provider-side rotation that the orchestrator persists independently of warning prose. */
+      session_rotation?: ProviderSessionRotation;
     }
   | {
       kind: "awaiting_manual";
@@ -99,6 +110,8 @@ export type ProviderRunResult =
 
 export interface ReviewProvider {
   readonly kind: ProviderKind;
+  /** Whether this reviewer can read repository files and perform in-repo searches itself. */
+  readonly can_read_repo: boolean;
 
   /**
    * Open (or resume) a session for design_id × stage. If `prior` is supplied AND its

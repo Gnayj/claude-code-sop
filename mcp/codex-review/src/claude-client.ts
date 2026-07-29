@@ -10,11 +10,13 @@
 // never touch the network / require a key.
 
 import Anthropic from "@anthropic-ai/sdk";
+import type { ClaudeEffort } from "./config.js";
 
 export interface ClaudeRunInput {
   system: string;
   model: string;
   maxTokens: number;
+  effort?: ClaudeEffort;
   /** Single review prompt sent as one user message (the claude provider is per-turn fresh). */
   userPrompt: string;
 }
@@ -59,6 +61,7 @@ export class AnthropicClaudeClient implements ClaudeClient {
       max_tokens: input.maxTokens,
       system: input.system,
       messages: [{ role: "user", content: input.userPrompt }],
+      ...(input.effort ? { output_config: { effort: input.effort } } : {}),
     });
     // Concatenate all text blocks (tool_use / thinking blocks are ignored for review text).
     const text = message.content

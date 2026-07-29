@@ -26,31 +26,8 @@
 3. 每个 `conclusion.target` 是 `file_line` 或 `missing_artifact`。
 4. 每个 finding 按 `claude-code-sop-collaboration.md §9.D` 分级。
 
-### Envelope schema（精确产出此形状；`thread_id`/`review_id` 由 server 覆盖）
-```json
-{
-  "thread_id": "x", "review_id": "x", "design_id": "<from input>", "stage": "design",
-  "review_round": 1, "verdict": "Go",
-  "verdict_factors": {
-    "critical_count": 0, "important_count": 0, "affected_major_sections_count": 0,
-    "has_open_design_decision": false, "has_new_arch_concept": false,
-    "has_interdependent_rc": false, "estimated_fix_lines": 0, "touched_module_count": 0,
-    "has_design_gap": false
-  },
-  "conclusions": [
-    { "conclusion_id": "c_slug", "level": "Critical|Important|Suggestion", "rule": "4.5",
-      "target": { "kind": "file_line", "file": "path", "line": 42,
-                  "missing_artifact_kind": null, "missing_artifact_path": null },
-      "evidence": "...", "fix": "...",
-      "auto_fix_class": "auto|manual-only|deferred-to-next-round|rejected-by-parser" }
-  ],
-  "open_questions": [], "tokens_used_estimate": 0, "context_usage_pct": 0.1,
-  "compact_summary_for_round": "<= 2000 chars",
-  "next_action": "fix-required|ready-to-implement|ready-to-test|blocked",
-  "rejected_by_parser": []
-}
-```
-Alternate target shape (missing artifact): `{ "kind":"missing_artifact", "file":null, "line":null, "missing_artifact_kind":"test|config|doc|module", "missing_artifact_path":"path" }`.
+review 桥会在本 prompt 尾部自动追加 `[bridge-authoritative] Envelope contract` 块。
+该块与 parser 同源；若与上文冲突，以该块为准，此处不再复制 schema。
 
 ## 评审聚焦（design pre-review —— `claude-code-sop-collaboration.md §4.5`）
 

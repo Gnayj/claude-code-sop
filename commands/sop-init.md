@@ -23,7 +23,9 @@ user to restart the session / reload plugins, then re-run. Never auto-resolve to
   not first-time — tell the user to use `/sop-update` instead, and stop unless `--force`.
 - Provider dependency probe (report, don't auto-install):
   - `codex`: node present + `@openai/codex-sdk` installable + a Codex credential/login.
-  - `claude`: `ANTHROPIC_API_KEY` set.
+  - `claude`: either a `claude` executable on `PATH` with an active login, or
+    `ANTHROPIC_API_KEY` set. The CLI backend uses the login subscription and needs no API key;
+    the API backend uses API credits and requires the key.
   - `manual`: none.
 
 ## Step 2 — Ask (skip any already given as a flag)
@@ -31,7 +33,9 @@ user to restart the session / reload plugins, then re-run. Never auto-resolve to
 Ask, one decision at a time (chunked confirmation, SOP §4):
 1. **project name** (for `[meta]` + the handoff title).
 2. **language** for materialized docs (`en` canonical, or `zh`/other → translated once via the §4.3 pipeline; see `/sop-lang`).
-3. **review.provider** (`codex` default | `claude` | `manual`) — note the codex heterogeneity advantage + the claude caveat.
+3. **review.provider** (`codex` default | `claude` | `manual`) — note the codex heterogeneity
+   advantage. For Claude, `backend="cli"` uses the logged-in subscription without an API key;
+   `backend="api"` uses API credits and requires `ANTHROPIC_API_KEY`.
 4. **translation.provider** (only if language ≠ en): `claude` | `none` (BYO translated docs). If review.provider=manual, translation defaults to `none` (do NOT borrow the review model).
 5. **collaboration flow** (`claude+claude` default | `claude+codex` | `codex+codex` | `codex+claude`) —
    who designs × who implements (collaboration.md §1.D); each stage's reviewer is the counterpart

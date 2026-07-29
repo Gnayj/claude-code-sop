@@ -75,6 +75,7 @@ describe("createReviewProvider (factory, §4.7) — config-only provider selecti
       codexClient: new TrackingMockCodex(),
     });
     expect(provider.kind).toBe("codex");
+    expect(provider.can_read_repo).toBe(true);
     expect(provider).toBeInstanceOf(CodexProvider);
   });
 
@@ -106,7 +107,56 @@ describe("createReviewProvider (factory, §4.7) — config-only provider selecti
     // construction), so selection succeeds without ANTHROPIC_API_KEY.
     const provider = createReviewProvider({ config, ...baseDeps });
     expect(provider.kind).toBe("claude");
+    expect(provider.can_read_repo).toBe(false);
     expect(provider).toBeInstanceOf(ClaudeProvider);
+  });
+
+  it("constructs the configured Claude CLI backend through an injected runner", () => {
+    const config = defaultConfig();
+    config.review.provider = "claude";
+    config.review.claude.backend = "cli";
+    const provider = createReviewProvider({
+      config,
+      ...baseDeps,
+      claudeCliClient: {
+        resolution: { binaryPath: "/opt/claude", source: "config" },
+        runTurn: async () => ({
+          text: "unused", sessionId: "s", usage: { inputTokens: 1, outputTokens: 1 },
+          contextWindow: 1000, warnings: [],
+        }),
+      },
+    });
+    expect(provider).toBeInstanceOf(ClaudeProvider);
+    expect(provider.can_read_repo).toBe(false);
+    expect(provider.reviewerProvenance?.()).toContain("backend=cli");
+    expect(provider.reviewerProvenance?.()).toContain("binary=/opt/claude");
+  });
+
+  it("constructs the real API fallback lazily for CLI mode without ANTHROPIC_API_KEY", () => {
+    const previous = process.env.ANTHROPIC_API_KEY;
+    try {
+      delete process.env.ANTHROPIC_API_KEY;
+      const config = defaultConfig();
+      config.review.provider = "claude";
+      config.review.claude.backend = "cli";
+
+      expect(() => createReviewProvider({
+        config,
+        ...baseDeps,
+        // Isolate CLI binary resolution while leaving claudeClient uninjected: the factory must
+        // construct the real AnthropicClaudeClient without eagerly reading its key.
+        claudeCliClient: {
+          resolution: { binaryPath: "/test/claude", source: "config" },
+          runTurn: async () => ({
+            text: "unused", sessionId: "unused",
+            usage: { inputTokens: 0, outputTokens: 0 }, warnings: [],
+          }),
+        },
+      })).not.toThrow();
+    } finally {
+      if (previous === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = previous;
+    }
   });
 
   it("returns a ManualProvider when review.provider=manual (zero code change)", () => {
@@ -114,6 +164,7 @@ describe("createReviewProvider (factory, §4.7) — config-only provider selecti
     config.review.provider = "manual";
     const provider = createReviewProvider({ config, ...baseDeps });
     expect(provider.kind).toBe("manual");
+    expect(provider.can_read_repo).toBe(true);
     expect(provider).toBeInstanceOf(ManualProvider);
   });
 });

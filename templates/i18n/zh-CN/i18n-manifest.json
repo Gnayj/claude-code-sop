@@ -75,17 +75,17 @@
     {
       "target_rel": "templates/i18n/zh-CN/review-prompts/code-review.md.tpl",
       "source_path": "templates/review-prompts/code-review.md.tpl",
-      "source_sha": "dfd48b3faab6f71dbd4e41a876fb3d7b64dad940625bff80e187e2a4043d183e"
+      "source_sha": "d91dbe215a502f76c3776d0b582ebc82e62b1957c5ca290f76d0713d56bc5389"
     },
     {
       "target_rel": "templates/i18n/zh-CN/review-prompts/design-review.md.tpl",
       "source_path": "templates/review-prompts/design-review.md.tpl",
-      "source_sha": "5b4e0ad46de24f2c7d2888cb846f1253db193d445f3938551249c4d938ab88dc"
+      "source_sha": "dac378e0475a4f21e1d97638545308ed6b4d29253208b58542827ad3610d54e1"
     },
     {
       "target_rel": "templates/i18n/zh-CN/review-prompts/fix-review.md.tpl",
       "source_path": "templates/review-prompts/fix-review.md.tpl",
-      "source_sha": "22397d0a7e25676eea262a61894da2df5752da8619ad6a58a124d4fee51f0211"
+      "source_sha": "71aedaf4a51e87b84d74a5350ec79ca221d6c037460e1d7799ade86277a20d70"
     }
   ]
 }

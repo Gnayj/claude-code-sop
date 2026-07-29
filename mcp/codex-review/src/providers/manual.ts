@@ -37,6 +37,7 @@ export interface ManualProviderOptions {
 
 export class ManualProvider implements ReviewProvider {
   readonly kind = "manual" as const;
+  readonly can_read_repo = true;
 
   constructor(private readonly opts: ManualProviderOptions) {}
 

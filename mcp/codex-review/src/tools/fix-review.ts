@@ -1,6 +1,7 @@
 // MCP tool handler: codex_fix_review
 // Spec: docs/methodology/codex-review-bridge-design.md §3.3
 
+import { DIFF_SPEC_DESCRIPTION } from "../diff-provision.js";
 import { FixReviewInput, type FixReviewInput as FixReviewInputT } from "../types.js";
 import type { FlowDependencies, FlowResult } from "../run-review-flow.js";
 import { runReviewFlow } from "../run-review-flow.js";
@@ -20,7 +21,7 @@ export const fixReviewToolSchema = {
       design_doc_paths: { type: "array", items: { type: "string" } },
       module_doc_paths: { type: "array", items: { type: "string" } },
       handoff_path: { type: "string" },
-      fix_diff_spec: { type: "string" },
+      fix_diff_spec: { type: "string", description: DIFF_SPEC_DESCRIPTION },
       changed_files: { type: "array", items: { type: "string" } },
       fix_diff_lines: { type: "number" },
       docs_updated: { type: "array", items: { type: "string" } },
@@ -69,6 +70,8 @@ export async function handleFixReview(
     designId: input.design_id,
     designDocPaths: input.design_doc_paths,
     fileBlocks,
+    diffSpec: input.fix_diff_spec,
+    changedFiles: input.changed_files,
     promptVars: {
       design_id: input.design_id,
       task_card_path: input.task_card_path,

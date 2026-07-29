@@ -35,31 +35,8 @@
 3. 每个 `conclusion.target` 是 `file_line` 或 `missing_artifact`。
 4. 每个 finding 按 `claude-code-sop-collaboration.md §9.D` 分级。
 
-### Envelope schema（精确产出此形状；`thread_id`/`review_id` 由 server 覆盖）
-```json
-{
-  "thread_id": "x", "review_id": "x", "design_id": "<from input>", "stage": "fix",
-  "review_round": 1, "verdict": "All-fixed",
-  "verdict_factors": {
-    "critical_count": 0, "important_count": 0, "affected_major_sections_count": 0,
-    "has_open_design_decision": false, "has_new_arch_concept": false,
-    "has_interdependent_rc": false, "estimated_fix_lines": 0, "touched_module_count": 0,
-    "has_design_gap": false
-  },
-  "conclusions": [
-    { "conclusion_id": "c_slug", "level": "Critical|Important|Suggestion", "rule": "9.A.1",
-      "target": { "kind": "file_line", "file": "path", "line": 42,
-                  "missing_artifact_kind": null, "missing_artifact_path": null },
-      "evidence": "...", "fix": "...",
-      "auto_fix_class": "auto|manual-only|deferred-to-next-round|rejected-by-parser" }
-  ],
-  "open_questions": [], "tokens_used_estimate": 0, "context_usage_pct": 0.1,
-  "compact_summary_for_round": "<= 2000 chars",
-  "next_action": "fix-required|ready-to-implement|ready-to-test|blocked",
-  "rejected_by_parser": []
-}
-```
-Alternate target shape (missing artifact): `{ "kind":"missing_artifact", "file":null, "line":null, "missing_artifact_kind":"test|config|doc|module", "missing_artifact_path":"path" }`.
+review 桥会在本 prompt 尾部自动追加 `[bridge-authoritative] Envelope contract` 块。
+该块与 parser 同源；若与上文冲突，以该块为准，此处不再复制 schema。
 
 ## 评审聚焦（对照上一轮的 Critical/Important 验证修复）
 
@@ -77,4 +54,4 @@ fix 是否引入回归或新的 Critical/Important（`New-issues`）？按 §9.E
 
 ## 你的任务
 
-把 fix diff 与上一轮 conclusions 对比，如实填充 verdict_factors，现在产出 envelope JSON。
+fix diff 按当前 session 的能力交付：若下方出现 `[bridge-provided] Git diff` 块，逐字节评审该块并与上一轮 conclusions 对比；仅当该块不存在时，才自行读取 `fix_diff_spec` 所指的精确 fix diff 范围。如实填充 verdict_factors，现在产出 envelope JSON。

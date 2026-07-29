@@ -349,7 +349,8 @@ export const RoundHistoryEntry = z.object({
 });
 export type RoundHistoryEntry = z.infer<typeof RoundHistoryEntry>;
 
-/** Audit entry for an abandoned SDK thread within the same design_id. */
+/** Audit entry for an abandoned/replaced provider session within the same design_id.
+ * thread_id may be empty when a backend fallback happens before the CLI issues a session id. */
 export const ThreadHistoryEntry = z.object({
   thread_id: z.string(),
   abandoned_at_round: z.object({
@@ -360,10 +361,14 @@ export const ThreadHistoryEntry = z.object({
   abandoned_at: z.string(),
   // provider_switch added in slice 2 (Q7): config.review.provider != session provider_kind
   // invalidates the old session (no cross-provider thread/history reuse).
+  // provider_resume_invalidated records a fresh retry after a Claude CLI resume failure;
+  // provider_backend_fallback records a CLI-to-API rotation after quota exhaustion.
   reason: z.enum([
     "force_new_thread",
     "context_force_new_thread_pct",
     "provider_switch",
+    "provider_resume_invalidated",
+    "provider_backend_fallback",
   ]),
 });
 export type ThreadHistoryEntry = z.infer<typeof ThreadHistoryEntry>;
