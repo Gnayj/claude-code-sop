@@ -34540,9 +34540,9 @@ function generateReviewId(designId, stage, round) {
 async function runReviewFlow(deps, input) {
   const { config: config2, configBaseDir, providerFor, threadManager, promptRenderer, breakers, breakerState } = deps;
   const cb = config2.circuit_breakers;
-  const preTurnFailure = (detail, tripped) => ({
+  const preTurnFailure = (reason, detail, tripped) => ({
     ok: false,
-    parseResult: { ok: false, reason: "schema_violation", detail, raw_excerpt: "" },
+    bridgePrecondition: { reason, detail },
     ...tripped ? { breakerTripped: tripped } : {},
     warnings: [detail]
   });
@@ -34565,6 +34565,7 @@ async function runReviewFlow(deps, input) {
     if ((input.stage === "code" || input.stage === "fix") && !provider.can_read_repo) {
       if (input.diffSpec === void 0 || input.diffSpec.trim().length === 0) {
         return preTurnFailure(
+          "diff_spec_required",
           "Tool-less code/fix review requires a machine-readable diff_spec; the bridge cannot review without a committed diff."
         );
       }
@@ -34582,6 +34583,7 @@ async function runReviewFlow(deps, input) {
         bridgeWarnings.push(...provided.warnings);
       } catch (error2) {
         return preTurnFailure(
+          "diff_provision_failed",
           `Unable to provision committed diff for ${input.stage} review: ${errorDetail(error2)}`
         );
       }
@@ -34601,7 +34603,7 @@ async function runReviewFlow(deps, input) {
     if (input.stage === "fix" && input.fixDiffLines !== void 0 && input.fixDiffLines > 0) {
       const tripped = breakers.recordScopeDrift(breakerState, input.fixDiffLines);
       preservedScopeDriftLines = breakerState.scope_drift_lines;
-      if (tripped) return preTurnFailure(tripped.message, tripped);
+      if (tripped) return preTurnFailure("scope_drift", tripped.message, tripped);
     }
     let didRebuildThisCall = false;
     let rebuildReason = null;
@@ -36943,6 +36945,19 @@ async function handleImplement(deps, rawInput, signal) {
   });
 }
 
+// src/review-tool-response.ts
+function toReviewToolResponse(result) {
+  return {
+    ok: result.ok,
+    envelope: result.envelope ?? null,
+    breaker_tripped: result.breakerTripped ?? null,
+    warnings: result.warnings,
+    awaiting_manual: result.awaitingManual ?? null,
+    bridge_precondition: result.bridgePrecondition ?? null,
+    parse_failure: result.parseResult && !result.parseResult.ok ? result.parseResult : null
+  };
+}
+
 // src/server.ts
 function parseArgs(argv) {
   let configPath = "";
@@ -37144,15 +37159,7 @@ async function main() {
           {
             type: "text",
             text: JSON.stringify(
-              {
-                ok: result.ok,
-                envelope: result.envelope ?? null,
-                breaker_tripped: result.breakerTripped ?? null,
-                warnings: result.warnings,
-                // Manual two-phase prepare (design §4.7): no parse ran; surface the awaiting control result.
-                awaiting_manual: result.awaitingManual ?? null,
-                parse_failure: result.parseResult && !result.parseResult.ok ? result.parseResult : null
-              },
+              toReviewToolResponse(result),
               null,
               2
             )

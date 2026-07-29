@@ -306,6 +306,11 @@ describe("runReviewFlow bridge prompt assembly", () => {
     try {
       const result = await fixture.run();
       expect(result.ok).toBe(false);
+      expect(result.bridgePrecondition).toEqual({
+        reason: "diff_spec_required",
+        detail: expect.stringContaining("diff_spec"),
+      });
+      expect(result.parseResult).toBeUndefined();
       expect(result.warnings.join("\n")).toContain("diff_spec");
       expect(fixture.provider.openSessionCount).toBe(0);
       expect(fixture.provider.prompts).toHaveLength(0);
@@ -328,7 +333,11 @@ describe("runReviewFlow bridge prompt assembly", () => {
     try {
       const result = await fixture.run();
       expect(result.ok).toBe(false);
-      expect(result.parseResult?.ok).toBe(false);
+      expect(result.bridgePrecondition).toEqual({
+        reason: "diff_provision_failed",
+        detail: expect.stringContaining("changed file is untracked"),
+      });
+      expect(result.parseResult).toBeUndefined();
       expect(result.breakerTripped).toBeUndefined();
       expect(result.warnings.join("\n")).toContain("changed file is untracked");
       expect(fixture.provider.openSessionCount).toBe(0);

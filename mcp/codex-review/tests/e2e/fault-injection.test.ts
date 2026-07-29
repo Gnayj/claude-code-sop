@@ -404,6 +404,11 @@ describe("fault-injection: scope_drift breaker fires when cumulative fix lines e
       // Second fix round: another 120 lines — total 240, which crosses 200 threshold.
       const r2 = await runReviewFlow(flowDeps, { ...baseInput, fixDiffLines: 120 });
       expect(r2.ok).toBe(false);
+      expect(r2.bridgePrecondition).toEqual({
+        reason: "scope_drift",
+        detail: expect.stringContaining("cumulative fix diff=240 lines"),
+      });
+      expect(r2.parseResult).toBeUndefined();
       expect(r2.breakerTripped?.name).toBe("scope_drift");
 
       // Persisted state should reflect the cumulative drift.

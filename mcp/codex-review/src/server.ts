@@ -45,6 +45,7 @@ import {
   implementToolSchema,
   handleImplement,
 } from "./tools/implement.js";
+import { toReviewToolResponse } from "./review-tool-response.js";
 import type { FlowDependencies } from "./run-review-flow.js";
 import type { ImplementFlowDependencies } from "./run-implement-flow.js";
 import { ImplementStore } from "./implement-workspace.js";
@@ -282,18 +283,7 @@ async function main(): Promise<void> {
           {
             type: "text",
             text: JSON.stringify(
-              {
-                ok: result.ok,
-                envelope: result.envelope ?? null,
-                breaker_tripped: result.breakerTripped ?? null,
-                warnings: result.warnings,
-                // Manual two-phase prepare (design §4.7): no parse ran; surface the awaiting control result.
-                awaiting_manual: result.awaitingManual ?? null,
-                parse_failure:
-                  result.parseResult && !result.parseResult.ok
-                    ? result.parseResult
-                    : null,
-              },
+              toReviewToolResponse(result),
               null,
               2,
             ),

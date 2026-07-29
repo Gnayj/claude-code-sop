@@ -92,12 +92,24 @@ export interface FlowInput {
   manualVerdictPath?: string;
 }
 
+export type BridgePreconditionReason =
+  | "diff_spec_required"
+  | "diff_provision_failed"
+  | "scope_drift";
+
+export interface BridgePreconditionFailure {
+  reason: BridgePreconditionReason;
+  detail: string;
+}
+
 export interface FlowResult {
   ok: boolean;
   envelope?: ReviewEnvelope;
   /** Present for every real review turn. Omitted on the manual `awaitingManual` control branch
    * (no parse ran) — see design §4.7 C2. */
   parseResult?: ParseResult;
+  /** Bridge refusal before a provider turn ran. Mutually exclusive with parseResult. */
+  bridgePrecondition?: BridgePreconditionFailure;
   /** Breaker triggered — caller should stop and report to user. */
   breakerTripped?: BreakerTriggered;
   /** Warnings to surface to the user. */
@@ -118,10 +130,14 @@ export async function runReviewFlow(
     deps;
   const cb = config.circuit_breakers;
   // Shared shape for failures that stop the flow BEFORE a provider turn ran (scope-drift
-  // trip, diff-provision refusal): the house "schema_violation + empty raw_excerpt" form.
-  const preTurnFailure = (detail: string, tripped?: BreakerTriggered): FlowResult => ({
+  // trip, diff-provision refusal). No provider output existed, so parseResult stays absent.
+  const preTurnFailure = (
+    reason: BridgePreconditionReason,
+    detail: string,
+    tripped?: BreakerTriggered,
+  ): FlowResult => ({
     ok: false,
-    parseResult: { ok: false, reason: "schema_violation", detail, raw_excerpt: "" },
+    bridgePrecondition: { reason, detail },
     ...(tripped ? { breakerTripped: tripped } : {}),
     warnings: [detail],
   });
@@ -180,6 +196,7 @@ export async function runReviewFlow(
     ) {
       if (input.diffSpec === undefined || input.diffSpec.trim().length === 0) {
         return preTurnFailure(
+          "diff_spec_required",
           "Tool-less code/fix review requires a machine-readable diff_spec; " +
             "the bridge cannot review without a committed diff.",
         );
@@ -198,6 +215,7 @@ export async function runReviewFlow(
         bridgeWarnings.push(...provided.warnings);
       } catch (error) {
         return preTurnFailure(
+          "diff_provision_failed",
           `Unable to provision committed diff for ${input.stage} review: ${errorDetail(error)}`,
         );
       }
@@ -227,7 +245,7 @@ export async function runReviewFlow(
     if (input.stage === "fix" && input.fixDiffLines !== undefined && input.fixDiffLines > 0) {
       const tripped = breakers.recordScopeDrift(breakerState, input.fixDiffLines);
       preservedScopeDriftLines = breakerState.scope_drift_lines;
-      if (tripped) return preTurnFailure(tripped.message, tripped);
+      if (tripped) return preTurnFailure("scope_drift", tripped.message, tripped);
     }
 
     // ---------- 3) Pre-decide rebuild + drift + prompt (no SDK yet) ----------
