@@ -7,6 +7,10 @@ import { readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import * as TOML from "@iarna/toml";
 import { z } from "zod";
+import {
+  CLAUDE_EFFORT_VALUES,
+  CODEX_EFFORT_VALUES,
+} from "./control-surface-contract.js";
 import { ProviderKindSchema } from "./types.js";
 
 const PathsSchema = z.object({
@@ -26,6 +30,9 @@ const MetaSchema = z.object({
   language: z.string().default("en"),
   repo_root: z.string(),
   allowed_doc_roots: z.array(z.string()).min(1),
+  // Absent is the pre-v0.2.12 legacy state. Lifecycle stamping is performed only by
+  // ccsop_configure; the normal loader observes but never mutates it.
+  control_surface_schema: z.number().int().optional(),
 });
 
 const StateSchema = z.object({
@@ -64,12 +71,12 @@ const ReviewStageConfig = z.object({
   rule_sections: z.array(z.string()).optional(),
 });
 
-export const EffortSchema = z.enum(["", "minimal", "low", "medium", "high", "xhigh"]);
+export const EffortSchema = z.enum(CODEX_EFFORT_VALUES);
 /** Non-empty effort union — exactly the SDK's ThreadOptions.modelReasoningEffort domain. */
 export type CodexEffort = Exclude<z.infer<typeof EffortSchema>, "">;
 
 // Claude CLI --effort and SDK output_config.effort share this domain: no "minimal", plus "max".
-export const ClaudeEffortSchema = z.enum(["", "low", "medium", "high", "xhigh", "max"]);
+export const ClaudeEffortSchema = z.enum(CLAUDE_EFFORT_VALUES);
 export type ClaudeEffort = Exclude<z.infer<typeof ClaudeEffortSchema>, "">;
 
 const CodexConfig = z.object({
@@ -197,6 +204,16 @@ export interface LoadedConfig {
   configPath: string;
 }
 
+export function parseConfigText(text: string, configPath: string): LoadedConfig {
+  const parsed = TOML.parse(text);
+  const validated = ConfigSchema.parse(parsed);
+  return {
+    raw: parsed,
+    config: validated,
+    configPath,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -227,13 +244,7 @@ export function claudeApiOnlyKeyWarnings(
 
 export function loadConfig(opts: LoadConfigOptions): LoadedConfig {
   const text = readFileSync(opts.configPath, "utf8");
-  const parsed = TOML.parse(text);
-  const validated = ConfigSchema.parse(parsed);
-  return {
-    raw: parsed,
-    config: validated,
-    configPath: opts.configPath,
-  };
+  return parseConfigText(text, opts.configPath);
 }
 
 /**

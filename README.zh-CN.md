@@ -101,11 +101,18 @@ cd /your/repo && claude --plugin-dir /path/to/ccsop
   按卡内 ```files 白名单校验结果（任何越界终态改动 ⇒ 整单拒绝、什么都不产出）并返回 **patch
   工件** —— driver 自己 review 后亲手 apply（`git apply --check` → `git apply`）。工具从不写你的
   仓库，也没有任何自动 apply。
-- **切换**：改 `.codex-review/config.toml` `[collaboration] design_owner / implement_owner`
-  （两键都不写 = 默认 —— 此时 `review.provider` 统管，即上表第一行），或按 session 口头指定
-  （"这单 codex+claude"）。`/sop-init` 把它作为初始化问题之一，流程涉及 codex 时会一并铺 Codex 侧
-  执行地图（`.codex/skills/` + `AGENTS.md` 指针）。claude 主推列首选用 `/sop-flow` 切 standing
-  default；codex 主推流仍从 Codex 侧或 config 切换。
+- **切换**走共享控制面：Claude 主推流用 `/sop-flow`，Codex 主推流用 `$sop-flow`。两者都调用
+  schema-valid `ccsop_configure` writer，下一次 bridge 调用即读到新配置，无需 restart。按 session
+  口头指定（"这单 codex+claude"）仍是只读 override。Phase 1 明报 `codex+claude` 为
+  **manual relay**，不会下发一个尚无 runner 消费的配置。
+  每次 mutation 会把 preimage 按内容寻址保存到
+  `<meta.repo_root>/.ccsop/backups/config/<sha256>.toml`。这些是 operator-retained 恢复数据
+  （不会自动过期）；保持 `.ccsop/backups/` 不提交，并只按本仓 retention policy 清理旧条目。
+- `/sop-init` 在 canonical `.agents/skills/` 下铺五个 repo-local Codex skills：
+  `$project-sop`、`$handoff`、`$simplify`、`$sop-flow`、`$sop-tier`。最低要求 Codex CLI
+  `>=0.145.0-alpha.2`。`/sop-update` 只迁移 provenance 证明 pristine 的 legacy
+  `.codex/skills/project-sop`；modified / unknown / divergent 均保留并报 conflict。可验证的精确
+  迁移可用 `/sop-update --rollback-codex-skills` 回滚。
 
 ## 工作流一览
 
@@ -170,12 +177,13 @@ flowchart TD
 ## 命令与 skills
 
 - `/sop-init` —— 首次脚手架向导。
-- `/sop-flow` —— 查看或切换 claude 主推工作的 standing 协作流程（`claude+claude` ↔ `claude+codex`；写 `[collaboration]` owner 键 + 联动 `[implement].enabled` gate；需 reload）。
-- `/sop-tier` —— 查看或设置 review 与 implement 各自的 codex model/effort 档（写 `[review.codex]`/`[implement]`/`[codex]` 的 model+effort 键；需 reload）。
+- `/sop-flow` —— 通过 `ccsop_configure` 查看或切换 Claude 主推 standing flow。
+- `/sop-tier` —— 通过 `ccsop_configure` 查看或设置已被消费的 reviewer/Codex-dispatch 档位。
 - `/sop-update` —— 拉 ccsop-owned 文档更新（冲突安全；绝不碰你的 `records/current.md`）。
 - `/sop-lang <lang>` —— 用另一种语言重新物化文档（翻译一次，机器稳定面保留）。
-- `/handoff` —— session 启动 / 切任务的结构化项目状态。
-- `project-sop` —— 指向方法论文档的执行地图。
+- Claude `/handoff` —— session 启动 / 切任务的结构化项目状态。
+- Codex `$project-sop`、`$handoff`、`$simplify`、`$sop-flow`、`$sop-tier` —— canonical
+  `.agents/skills/` 执行与控制 UX。
 
 ## 布局
 

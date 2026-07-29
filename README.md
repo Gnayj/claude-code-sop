@@ -107,12 +107,21 @@ Beyond picking a reviewer, you can split the **work itself** between the two mod
   the card's ```files allowlist (any out-of-scope end-state change ⇒ rejected, nothing emitted)
   and returns a **patch artifact** — which the driver reviews and applies itself
   (`git apply --check` → `git apply`). The tool never writes your repo and nothing auto-applies.
-- **Switch** via `[collaboration] design_owner / implement_owner` in `.codex-review/config.toml`
-  (leave both absent for the default — then `review.provider` governs, exactly the table above), or
-  per session by telling the driver ("this one codex+claude"). `/sop-init` asks this as a setup
-  question and scaffolds the Codex-side execution map (`.codex/skills/` + an `AGENTS.md` pointer)
-  when a flow involves codex. For the Claude-driven column, `/sop-flow` is the preferred
-  standing-default switch surface; Codex-driven flows are switched from the Codex side or config.
+- **Switch** through the shared control surface: `/sop-flow` for Claude-driven flows and
+  `$sop-flow` for Codex-driven flows. Both use the schema-valid `ccsop_configure` writer; the next
+  bridge call observes the change without restart. A per-session instruction ("this one
+  codex+claude") remains read-only. Phase 1 reports `codex+claude` as **manual relay**; it does not
+  emit a configuration for a writer runtime that does not yet exist.
+  Each mutation keeps a content-addressed preimage under
+  `<meta.repo_root>/.ccsop/backups/config/<sha256>.toml`. These backups are operator-retained
+  recovery data (no automatic expiry); keep `.ccsop/backups/` uncommitted and remove old entries
+  only under your repository's retention policy.
+- `/sop-init` scaffolds five repo-local Codex skills under canonical `.agents/skills/`:
+  `$project-sop`, `$handoff`, `$simplify`, `$sop-flow`, and `$sop-tier`. This requires
+  Codex CLI `>=0.145.0-alpha.2`. `/sop-update` migrates only a provenance-proven pristine legacy
+  `.codex/skills/project-sop`; modified/unknown/divergent copies are preserved as conflicts.
+  Exact verified migrations can be reversed with
+  `/sop-update --rollback-codex-skills`.
 
 ## Workflow at a glance
 
@@ -183,12 +192,13 @@ self-verify boundary) and `workflow-overview.md` for the full flow.
 ## Commands & skills
 
 - `/sop-init` — first-time scaffold wizard.
-- `/sop-flow` — show or switch the standing collaboration flow for Claude-driven work (`claude+claude` ↔ `claude+codex`; writes the `[collaboration]` owner keys + coupled `[implement].enabled` gate; reload needed).
-- `/sop-tier` — show or set the codex model/effort tiers for review vs implement (writes `[review.codex]`/`[implement]`/`[codex]` model+effort keys; reload needed).
+- `/sop-flow` — show or switch Claude-driven standing flow through `ccsop_configure`.
+- `/sop-tier` — show or set consumed reviewer/Codex-dispatch tiers through `ccsop_configure`.
 - `/sop-update` — pull ccsop-owned doc updates (conflict-safe; never touches your `records/current.md`).
 - `/sop-lang <lang>` — re-materialize docs in another language (translate-once, machine-stable surfaces preserved).
-- `/handoff` — structured project state for session start / task switch.
-- `project-sop` — execution map pointing at the methodology docs.
+- Claude `/handoff` — structured project state for session start / task switch.
+- Codex `$project-sop`, `$handoff`, `$simplify`, `$sop-flow`, `$sop-tier` — canonical
+  `.agents/skills/` execution and control UX.
 
 ## Layout
 

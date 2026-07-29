@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "base_ref": "main",
+  "line_threshold": 30,
+  "code_suffixes": [
+    ".go",
+    ".vue",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".py",
+    ".sh"
+  ],
+  "diff_segments": [
+    "committed",
+    "staged",
+    "unstaged",
+    "untracked"
+  ],
+  "corners": [
+    "reuse",
+    "quality",
+    "efficiency",
+    "coverage"
+  ],
+  "implicit_mode": "diagnose-only",
+  "explicit_mode": "diagnose-fix-retest"
+}

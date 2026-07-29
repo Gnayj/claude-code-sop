@@ -31,6 +31,8 @@ ccsop 采纳仓库的 Codex 侧**执行地图**。与其 Claude 侧同胞（`.cl
 
 1. **启动顺序**：读 `docs/records/current.md`（状态 + active 任务 + 锁定决策）；再读本模块专题文档；
    **进 implement / fix 前必须读完整任务卡**（`docs/plans/active/…`）。只在追历史时读 archive。
+   检查 Codex skill host readiness 或 scaffold provenance 时，读 `references/host-contract.md`；
+   不得凭记忆推断最低版本、roots 或 entry set。
 2. **任务卡**：拆分流程是真接力 —— implement 卡就是跨 CLI 契约（§1.D 规则 3 / §4.1）。不得扩 scope；
    遇阻塞暂停回报，不要绕开即兴发挥。
 3. **结构化输出**（§6）：在 implement / fix / 交回时回报 `docsRead / sopChecks / filesInScope /

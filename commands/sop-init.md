@@ -18,6 +18,10 @@ user to restart the session / reload plugins, then re-run. Never auto-resolve to
 
 ## Step 1 — Detect environment
 
+- Read `${CLAUDE_PLUGIN_ROOT}/templates/control-surface/codex-skill-host-contract.md` before any
+  Codex host/materialization decision. Its minimum CLI, canonical/legacy roots, five-entry set,
+  preserve-only gate behavior, and rollback flag are the machine-derived authority; do not
+  reconstruct those facts from this prose.
 - Is this a git repo? If not, tell the user to `git init` first and stop (or proceed if they confirm).
 - Does `docs/` already exist with ccsop scaffolding (`.ccsop/manifest.json` present)? If yes, this is
   not first-time — tell the user to use `/sop-update` instead, and stop unless `--force`.
@@ -27,6 +31,15 @@ user to restart the session / reload plugins, then re-run. Never auto-resolve to
     `ANTHROPIC_API_KEY` set. The CLI backend uses the login subscription and needs no API key;
     the API backend uses API credits and requires the key.
   - `manual`: none.
+- Codex scaffold host gate (only when the selected flow/config actually uses Codex, or when a
+  legacy `.codex/skills/project-sop/SKILL.md` exists): parse `codex --version` with standard semver
+  prerelease ordering. Canonical skill materialization requires the host-contract minimum
+  (`codex-cli >= 0.145.0-alpha.2` in contract v1). `alpha.1`, missing, or unparseable versions
+  preserve any legacy
+  bytes and the current pointer, create no canonical duplicate, and report a scoped conflict. If
+  a prior verified migration already left canonical-only state, preserve that state and point the
+  user to `/sop-update --rollback-codex-skills`; never synthesize legacy bytes. A Claude-only
+  consumer with no legacy skill skips this probe with a note.
 
 ## Step 2 — Ask (skip any already given as a flag)
 
@@ -59,7 +72,10 @@ maintained manifest exists)**: normalize the language alias to its canonical i18
 resolve **every** in-scope target through
 `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json`: each `template_id` must
 match **exactly one** manifest entry (`source_path` equality) AND that entry's `target_rel` artifact
-must exist on disk. Collect ALL failures (missing, ambiguous, artifact-absent); if any → **abort the
+must exist on disk. The sole exception is the language-neutral
+`codex-scaffold/skills/simplify/references/contract.json`: require its EN canonical to exist and
+copy those exact bytes, but do not look for an i18n mapping. Collect ALL failures (missing,
+ambiguous, artifact-absent); if any → **abort the
 whole command with the failure list** — copy nothing, create nothing, back up nothing, update
 nothing. Only a fully-resolved preflight may proceed to materialization.
 
@@ -73,7 +89,8 @@ If language ≠ en, resolve the translation **source** (see `docs/design/ccsop-f
 **First normalize the language alias to its canonical i18n dir** (`zh` / `zh_CN` / `zh-Hans` → **`zh-CN`**);
 use the canonical form for the manifest lookup, the copied artifacts, and the recorded `language` / `translation_source`:
 - **Maintained language** — `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json` exists:
-  **copy the vetted translated artifacts** for every in-scope target (provenance `translation_source=maintained`).
+  **copy the vetted translated artifacts** for every translatable in-scope target (provenance
+  `translation_source=maintained`), plus the exact language-neutral simplify JSON described above.
   **All-or-nothing = the Step 3.0 preflight** (exactly-one mapping + artifact existence for every
   in-scope target, verified **before any write**; never silently mix with on-the-fly).
 - **Unmaintained language** — no such manifest: run each file through the placeholder-protection translation
@@ -96,22 +113,50 @@ Record `created` / `skipped` / `preserved (consumer-owned)` per file.
 **Seed set (path-based — authoritative; overrides any manifest `owner` on these paths). Match on the
 normalized target-repo path:** the nav/index stubs `docs/{methodology,design,runbooks,references}/index.md`
 + the review-prompt templates `.codex-review/templates/*.tpl` (the latter materialized in Step 5 — the same
-seed policy applies there).
+seed policy applies there) + every materialized `.agents/skills/**` file.
 
 ## Step 3.A — Codex-side scaffold (only when the chosen flow involves `codex`, or on request)
 
-Materialize `${CLAUDE_PLUGIN_ROOT}/templates/codex-scaffold/` into the target repo so Codex-side
-sessions (driving or implementer, §1.D) get the same execution map Claude-side ones have:
-- `skills/project-sop/SKILL.md` → `.codex/skills/project-sop/SKILL.md` — **`owner=seed`** (same
-  class + write policy as the nav stubs: create if absent; preserve+warn once consumer-owned;
-  pristine-only re-render by `/sop-update` / `/sop-lang`).
+After the Step 1 version gate passes, materialize
+`${CLAUDE_PLUGIN_ROOT}/templates/codex-scaffold/skills/**` to canonical
+`.agents/skills/**`. The five discoverable entries are `project-sop`, `handoff`, `simplify`,
+`sop-flow`, and `sop-tier`; include their reference files. Every materialized skill/reference is
+**`owner=seed`**: create if absent, re-render only when manifest provenance proves it pristine,
+otherwise preserve+warn. The simplify machine contract is copied once from the EN canonical
+`simplify/references/contract.json` for every language; it is never translated.
+
+If legacy `.codex/skills/project-sop/SKILL.md` exists, make the skill tree, manifest entry, and
+AGENTS pointer one transaction:
+
+1. Trust pristine only when its `owner=seed` manifest entry and `rendered_sha` match, or its bytes
+   exactly match the built-in historical-release hash table. Missing/corrupt manifest, foreign
+   owner, or unknown bytes is `legacy-skill-unknown-provenance`; preserve it and create no duplicate.
+2. If pristine and canonical destination is absent, write a hash-named exact backup under
+   `.ccsop/backups/`, stage the canonical file + manifest update, then atomically rename and remove
+   the legacy source. Record `migrated_from`, source sha, backup path/hash, and the legacy rendered
+   sha as the rollback tombstone.
+3. A modified legacy skill is `legacy-skill-migration-conflict`; require the user to choose
+   `move-preserving-content` or `keep-legacy`. Never copy it silently. An existing canonical path
+   is never overwritten; if both sides are pristine but differ, report
+   `legacy-canonical-divergence` and leave both/pointer unchanged pending a choice.
+4. Preflight the full skill tree, manifest delta, backup, and pointer before publishing. Stage
+   same-parent temp files and record the preimage; publish the canonical files, manifest, and
+   pointer, then remove the verified legacy source last. Any failure restores the exact legacy
+   file, manifest, and pointer and removes staged canonical outputs, so no mixed final state is
+   reported as success.
+5. Only after all five canonical skills are successfully materialized/migrated and pristine may
+   the ccsop AGENTS block point to `.agents/skills/project-sop/SKILL.md`. Gate failure or any
+   unresolved conflict leaves the current pointer byte-identical.
+
+- New installs never create `.codex/skills/**`.
 - `AGENTS-snippet.md` is NOT copied as a file — **append its ccsop-managed block once** to the
   repo-root `AGENTS.md` (create the file if missing; idempotent — don't duplicate, don't touch the
   consumer's other content; same pattern as the Step 5 `.gitattributes` block). Codex CLI auto-reads
   `AGENTS.md`; the block points at the codex skill + `docs/methodology/`. The block is `owner=ccsop`.
 - If language ≠ en, both go through the same Step 3 translation-source resolution
   (maintained mirror: `templates/i18n/<canonical-lang>/codex-scaffold/**`; else the placeholder
-  pipeline).
+  pipeline). The maintained language manifest covers prose files/references; the simplify JSON
+  deliberately has no translated mirror entry.
 - Remind the user: to run **auto review from the Codex side**, register the same review-bridge
   stdio server in Codex CLI's MCP config (`~/.codex/config.toml [mcp_servers]`, same `--config`
   argument); this wiring is user-verified — the bridge itself is CLI-neutral.
@@ -133,12 +178,16 @@ For every materialized file, append an entry:
   (changed zh artifact, unchanged EN source). Omit for `none(en)` / `on-the-fly`.
 - `translation_source`: `none(en)` for an EN materialization; `maintained` if copied from
   `templates/i18n/<canonical-lang>/` (Step 3); `on-the-fly` if produced by the §4.3 pipeline.
+- Language-neutral simplify JSON special case: always record `language="en"` and
+  `translation_source="none(en)"`, with no `translation_source_sha`, even when the surrounding
+  consumer scaffold is another language. Its `source_sha` and `rendered_sha` are the same
+  LF-normalized canonical bytes.
 - `owner=ccsop` (updatable by `/sop-update`, resettable by `--force`): all `methodology/*.md` **except
   `methodology/index.md`**, `plans/_template-*.txt`, `docs/README.md`, the review **config** (`config.toml`),
   the `settings.json` permission baseline.
 - `owner=seed` (ccsop-seeded, consumer-owned — **path-based, overrides any prior `owner`**): the nav/index
   stubs `docs/{methodology,design,runbooks,references}/index.md` + the review-**prompt** templates
-  `.codex-review/templates/*.tpl` + the codex-side skill `.codex/skills/project-sop/SKILL.md` (Step 3.A).
+  `.codex-review/templates/*.tpl` + all canonical `.agents/skills/**` files (Step 3.A).
   Written per the Step 3 seed policy (preserve+warn once consumer-populated);
   `/sop-update` & `/sop-lang` may re-render only a **pristine** entry (on-disk sha == `rendered_sha`), else preserve+warn.
 - `owner=overlay` (bootstrap-once; `/sop-update` and `/sop-lang` NEVER touch): `records/current.md`.
@@ -159,6 +208,8 @@ For every materialized file, append an entry:
   non-default collaboration flow (Step 2.5) also uncomment + fill the `[collaboration]`
   `design_owner` / `implement_owner` keys; for `claude+claude` leave them commented (absent =
   legacy semantics — see the tpl's precedence comment).
+  The template already contains `[meta].control_surface_schema = 1`; do not invent or emit any
+  `[implement.claude]` section.
 - Copy `${CLAUDE_PLUGIN_ROOT}/templates/review-prompts/*.tpl` → `.codex-review/templates/` **per the Step 3
   seed policy** (these are `owner=seed`: copy only if absent or a pristine prior render; preserve+warn if the
   consumer has customized them).
@@ -171,6 +222,8 @@ For every materialized file, append an entry:
     one template serves `codex`/`claude`/`manual`. It is enumerated, **not** a `…__*` wildcard (a
     wildcard would also grant `codex_implement`, a repo-writing dispatch tool that stays a separate
     opt-in). Never add destructive prefixes.
+    `ccsop_configure` is also intentionally absent from this permission baseline: a host approval
+    prompt is visible UX friction, not server-verifiable authorization.
   - **Fresh repo (no `.claude/settings.json`)**: copy the template verbatim.
   - **Existing `.claude/settings.json`**: MERGE into `permissions.allow` only — add the three
     review-tool entries if absent, **preserve every other entry** (consumer additions); de-dupe.

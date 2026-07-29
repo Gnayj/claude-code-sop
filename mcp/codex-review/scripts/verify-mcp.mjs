@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 // Verify the codex-review MCP server end-to-end:
 //   1) starts via stdio transport
-//   2) lists 3 tools (codex_design_review / codex_code_review / codex_fix_review)
-//   3) rejects an out-of-allowed_doc_roots tool call (allowed_doc_roots boundary)
+//   2) lists the review, implement, and Phase 1 configure tools
+//   3) verifies the configure contract and per-invocation config reload
+//   4) rejects an out-of-allowed_doc_roots tool call (allowed_doc_roots boundary)
 //
 // Spec source: codex review IM-1 + design §6.1.3 + implement task card §7.1.4
+// This intentionally uses dependency-free JSON-RPC framing so the bundled/clean-tree smoke remains
+// runnable where node_modules (and therefore the MCP SDK client transport) is unavailable.
 
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { spawn } from "node:child_process";
 
 // Package root = one level up from scripts/ (i.e. mcp/codex-review/).
 const pkgRoot = resolve(new URL("..", import.meta.url).pathname);
@@ -22,6 +24,84 @@ function fail(msg) {
 }
 function info(msg) {
   console.log(`[verify-mcp] ${msg}`);
+}
+
+async function connectServer(configPath) {
+  const child = spawn(process.execPath, [serverEntry, "--config", configPath], {
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+  let nextId = 1;
+  let buffer = "";
+  const pending = new Map();
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    buffer += chunk;
+    for (;;) {
+      const newline = buffer.indexOf("\n");
+      if (newline < 0) break;
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      if (!line.trim()) continue;
+      let message;
+      try {
+        message = JSON.parse(line);
+      } catch (err) {
+        for (const waiter of pending.values()) {
+          waiter.reject(new Error(`invalid server JSON: ${err.message}: ${line.slice(0, 200)}`));
+        }
+        pending.clear();
+        continue;
+      }
+      if (message.id === undefined) continue;
+      const waiter = pending.get(message.id);
+      if (!waiter) continue;
+      pending.delete(message.id);
+      clearTimeout(waiter.timer);
+      if (message.error) {
+        waiter.reject(new Error(`MCP ${message.error.code}: ${message.error.message}`));
+      } else {
+        waiter.resolve(message.result);
+      }
+    }
+  });
+  child.on("exit", (code, signal) => {
+    for (const waiter of pending.values()) {
+      clearTimeout(waiter.timer);
+      waiter.reject(new Error(`server exited code=${code} signal=${signal}`));
+    }
+    pending.clear();
+  });
+
+  const send = (message) => {
+    child.stdin.write(`${JSON.stringify(message)}\n`);
+  };
+  const request = (method, params = {}) =>
+    new Promise((resolveRequest, rejectRequest) => {
+      const id = nextId++;
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        rejectRequest(new Error(`timeout waiting for ${method}`));
+      }, 10_000);
+      pending.set(id, { resolve: resolveRequest, reject: rejectRequest, timer });
+      send({ jsonrpc: "2.0", id, method, params });
+    });
+
+  await request("initialize", {
+    protocolVersion: "2024-11-05",
+    capabilities: {},
+    clientInfo: { name: "verify-mcp-client", version: "0.1.0" },
+  });
+  send({ jsonrpc: "2.0", method: "notifications/initialized" });
+  return {
+    listTools: async () => request("tools/list"),
+    callTool: async ({ name, arguments: args }) =>
+      request("tools/call", { name, arguments: args }),
+    close: async () => {
+      child.stdin.end();
+      child.kill("SIGTERM");
+      await new Promise((resolveClose) => child.once("exit", resolveClose));
+    },
+  };
 }
 
 async function main() {
@@ -47,13 +127,12 @@ async function main() {
     writeFileSync(join(tmp, "docs/handoff.md"), "handoff", "utf8");
 
     const cfgPath = join(tmp, ".codex-review/config.toml");
-    writeFileSync(
-      cfgPath,
-      `
+    const configText = `
 [meta]
 project_id = "verify-mcp"
 project_name = "verify-mcp"
 language = "zh-CN"
+control_surface_schema = 1
 repo_root = ".."
 allowed_doc_roots = ["docs/", ".codex-review/templates/"]
 
@@ -89,33 +168,47 @@ extra_danger_verbs_regex = ""
 
 [codex]
 default_model = ""
-`.trimStart(),
-      "utf8",
-    );
+`.trimStart();
+    writeFileSync(cfgPath, configText, "utf8");
 
     // 2) Spawn server via stdio MCP transport.
     info(`spawning ${serverEntry}`);
-    const transport = new StdioClientTransport({
-      command: "node",
-      args: [serverEntry, "--config", cfgPath],
-    });
-    const client = new Client(
-      { name: "verify-mcp-client", version: "0.1.0" },
-      { capabilities: {} },
-    );
-    await client.connect(transport);
+    const client = await connectServer(cfgPath);
 
     // 3) List tools.
     info("listing tools");
     const listed = await client.listTools();
     const names = (listed.tools ?? []).map((t) => t.name).sort();
-    const expected = ["codex_code_review", "codex_design_review", "codex_fix_review"].sort();
+    const expected = [
+      "ccsop_configure",
+      "codex_code_review",
+      "codex_design_review",
+      "codex_fix_review",
+      "codex_implement",
+    ].sort();
     if (JSON.stringify(names) !== JSON.stringify(expected)) {
       fail(`tool list mismatch. expected=${expected.join(",")} got=${names.join(",")}`);
     }
     info(`tools listed: ${names.join(", ")}`);
 
-    // 4) allowed_doc_roots reject — task_card_path outside docs/.
+    // 4) Phase 1 control contract status.
+    info("calling ccsop_configure status");
+    const statusCall = await client.callTool({
+      name: "ccsop_configure",
+      arguments: { action: "status" },
+    });
+    const statusText = (statusCall.content ?? []).map((c) => c.text ?? "").join("\n");
+    const status = JSON.parse(statusText);
+    if (
+      statusCall.isError === true ||
+      status.contract_version !== 1 ||
+      status.observed_schema !== 1
+    ) {
+      fail(`configure status handshake failed: ${statusText.slice(0, 400)}`);
+    }
+    info("configure schema=1 / contract=1 handshake confirmed");
+
+    // 5) allowed_doc_roots reject — task_card_path outside docs/.
     info("calling codex_design_review with out-of-root path (must be rejected)");
     const callResult = await client.callTool({
       name: "codex_design_review",
@@ -136,22 +229,42 @@ default_model = ""
     }
     info("out-of-root reject confirmed");
 
+    // 6) Every non-config public invocation must rebuild from current disk bytes. Make the config
+    // invalid after startup; the next call must fail at reload before dispatching to a provider.
+    info("runtime reload: injecting invalid effort after startup");
+    writeFileSync(
+      cfgPath,
+      `${configText}\n[review.codex]\neffort = "invalid-live-reload"\n`,
+      "utf8",
+    );
+    const reloadCall = await client.callTool({
+      name: "codex_design_review",
+      arguments: {
+        design_id: "verify-mcp-reload",
+        design_doc_paths: ["docs/d.md"],
+        task_card_path: "docs/task.md",
+        handoff_path: "docs/handoff.md",
+        triggers_hit: ["4.5.10"],
+      },
+    });
+    const reloadText = (reloadCall.content ?? []).map((c) => c.text ?? "").join("\n");
+    if (
+      reloadCall.isError !== true ||
+      !/config load failed|invalid-live-reload/i.test(reloadText)
+    ) {
+      fail(`next invocation did not observe changed config: ${reloadText.slice(0, 400)}`);
+    }
+    writeFileSync(cfgPath, configText, "utf8");
+    info("per-invocation config reload confirmed");
+
     await client.close();
 
-    // 5) Degraded start: a NONEXISTENT config must NOT crash the server (the MCP client reports a
+    // 7) Degraded start: a NONEXISTENT config must NOT crash the server (the MCP client reports a
     //    crash as "Connection closed"). The server should still connect + list tools, and a tool
     //    call should return a clear, actionable "run /sop-init" error.
     info("degraded start: spawning with a nonexistent config (must connect, not crash)");
     const badCfg = join(tmp, ".codex-review/does-not-exist.toml");
-    const dTransport = new StdioClientTransport({
-      command: "node",
-      args: [serverEntry, "--config", badCfg],
-    });
-    const dClient = new Client(
-      { name: "verify-mcp-degraded", version: "0.1.0" },
-      { capabilities: {} },
-    );
-    await dClient.connect(dTransport); // throws if the server crashed → would be "Connection closed"
+    const dClient = await connectServer(badCfg);
     const dNames = ((await dClient.listTools()).tools ?? []).map((t) => t.name).sort();
     if (JSON.stringify(dNames) !== JSON.stringify(expected)) {
       fail(`degraded tool list mismatch. got=${dNames.join(",")}`);
@@ -176,7 +289,7 @@ default_model = ""
       fail(`degraded call expected a 'run /sop-init' error, got: ${dText.slice(0, 300)}`);
     }
     await dClient.close();
-    info("degraded start confirmed: connected + listed 3 tools + actionable error (no crash)");
+    info("degraded start confirmed: connected + listed tools + actionable error (no crash)");
 
     info("RESULT: PASS");
   } finally {

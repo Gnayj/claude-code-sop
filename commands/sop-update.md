@@ -6,7 +6,8 @@ description: Incrementally update the ccsop-owned scaffolded files (methodology 
 
 This is the single-source repair loop: ccsop-owned generic files are re-materialized from the
 plugin; local breakpoint/overlay files are never touched. Plugin root = `${CLAUDE_PLUGIN_ROOT}`;
-target repo = `${CLAUDE_PROJECT_DIR}`. `$ARGUMENTS` may contain `--force` and/or a path filter.
+target repo = `${CLAUDE_PROJECT_DIR}`. `$ARGUMENTS` may contain `--force`, a path filter, or the
+exclusive migration action `--rollback-codex-skills`.
 
 ## Step 0 — Orphaned-root guard
 
@@ -15,6 +16,11 @@ an orphaned cache snapshot (the plugin was updated mid-session and the harness s
 old dir). Comparing against it silently reports everything `up-to-date` against a stale version.
 Tell the user: "plugin root is an orphaned snapshot — restart the session / reload plugins, then
 re-run /sop-update." Do **not** auto-resolve to a sibling live directory.
+
+Before any Codex skill lifecycle decision, read
+`${CLAUDE_PLUGIN_ROOT}/templates/control-surface/codex-skill-host-contract.md`. Its minimum CLI,
+canonical/legacy roots, five-entry set, preserve-only gate behavior, and rollback flag are the
+machine-derived authority; do not reconstruct those facts from this prose.
 
 ## Step 1 — Read the manifest
 
@@ -36,7 +42,7 @@ comparisons below (both `owner=ccsop` and `owner=seed`) use this effective LF-no
 
 **Path-based seed override**: treat any path in the **seed set** (matched on the normalized
 target-repo path) — `docs/{methodology,design,runbooks,references}/index.md` + `.codex-review/templates/*.tpl`
-+ the codex-side skill `.codex/skills/project-sop/SKILL.md` (flow-matrix scaffold, sop-init Step 3.A)
++ every canonical `.agents/skills/**` file (Codex scaffold, sop-init Step 3.A)
 — as **`owner=seed`**, **even if an older manifest entry still says `owner=ccsop`** (back-compat for consumers
 adopted before this fix). (The repo-root `AGENTS.md` ccsop **block** is `owner=ccsop` but block-scoped:
 update only the ccsop-managed block, never the consumer's surrounding content.)
@@ -184,6 +190,91 @@ status per case), which binds this command:
 | B7 | invalid JSON | file + entry untouched; status `error`; blocking warning; other entries continue |
 | B8 | unrelated top-level keys + non-ccsop `permissions.allow` entries | all survive byte-identical |
 
+## Step 2.C — Codex canonical skill lifecycle
+
+Run this scoped lifecycle only when the config/flow uses Codex or legacy
+`.codex/skills/project-sop/SKILL.md` exists. A Claude-only consumer with neither condition records
+`skipped (Codex not in use)` and does not require a Codex CLI.
+
+1. Parse `codex --version` with standard semver prerelease ordering. Require the host-contract
+   minimum (`>=0.145.0-alpha.2` in contract v1); `alpha.1`, missing, or unparseable keeps legacy
+   bytes, manifest, and AGENTS
+   pointer unchanged and records a scoped informational conflict. Do not create a duplicate
+   canonical skill tree. If a prior verified migration already left canonical-only state, preserve
+   its bytes/pointer and offer `--rollback-codex-skills`; never auto-recreate legacy on a downgrade.
+2. The canonical target is `.agents/skills/**`, containing `project-sop`, `handoff`, `simplify`,
+   `sop-flow`, and `sop-tier` plus their references. Every file is `owner=seed`: update only a
+   pristine manifest-backed render; preserve modified/untracked canonical files even with
+   `--force`. Use the maintained language artifacts where mapped; always source the simplify JSON
+   from its single EN machine canonical and never translate it. Its manifest entry always stays
+   `language="en"` / `translation_source="none(en)"` with no `translation_source_sha`.
+3. For legacy `.codex/skills/project-sop/SKILL.md`, pristine means manifest owner/rendered sha
+   match or exact membership in the built-in historical release hash table. Missing/corrupt
+   manifest, foreign owner, missing entry, or unknown bytes is
+   `legacy-skill-unknown-provenance`; preserve and require user adjudication. Modified content is
+   `legacy-skill-migration-conflict` with explicit choices `move-preserving-content` or
+   `keep-legacy`.
+4. A pristine legacy source with absent canonical destination is migrated only after an exact
+   hash-named backup is fsynced under `.ccsop/backups/`. Stage the canonical file, tombstone
+   manifest entry (`migrated_from`, source/rendered sha, backup path/hash), and ccsop AGENTS block.
+   Preflight every target, publish staged same-parent temp files, then remove the verified legacy
+   source last; any failure restores the exact skill/manifest/pointer preimage and removes staged
+   outputs. The successful pointer is
+   `.agents/skills/project-sop/SKILL.md`.
+5. Never overwrite an existing canonical destination. If legacy and canonical are both pristine
+   but their bytes differ, report `legacy-canonical-divergence`; leave both and the pointer
+   unchanged. A gate failure or any unresolved skill conflict similarly preserves the legacy
+   pointer. A second successful run is a no-op.
+
+`--rollback-codex-skills` performs no normal update. It succeeds only when the canonical
+`project-sop` is still pristine, the legacy path is absent, and the manifest tombstone plus exact
+backup sha all verify. In one transaction restore the legacy file, restore the legacy AGENTS
+pointer, restore the pre-migration manifest entry, and remove only the verified migrated canonical
+`project-sop`. Any later edit, missing/tampered backup, ambiguous provenance, or occupied legacy
+path fails loud with zero writes. No ccsop downgrade auto-runs this rollback.
+
+**Normative lifecycle matrix** (fixture IDs `C1`–`C15`; “unchanged” means byte-identical for the
+skill trees, manifest, config, and AGENTS pointer unless the outcome column names a write):
+
+| ID | input state | exact outcome |
+|---|---|---|
+| C1 | Claude-only flow, no legacy tree | `skipped (Codex not in use)`; no Codex probe; every byte unchanged |
+| C2 | missing/unparseable/below-minimum host + legacy pointer | `host-gate-conflict`; legacy/manifest/pointer unchanged; canonical absent |
+| C3 | supported host + pristine legacy + canonical absent | `legacy-backup+canonical-publish`: exact legacy backup; current five-skill canonical render + tombstone manifest; pointer becomes canonical; verified legacy source removed last |
+| C4 | missing/corrupt manifest, missing entry, foreign owner, or unknown legacy bytes | `legacy-skill-unknown-provenance`; both trees and pointer unchanged |
+| C5 | manifest-backed but locally modified legacy | `legacy-skill-migration-conflict`; explicit adjudication required; every byte unchanged |
+| C6 | legacy + canonical both pristine but different | `legacy-canonical-divergence`; both trees, manifest, and pointer unchanged |
+| C7 | canonical-only, manifest-backed pristine file + changed current render | `canonical-pristine-update`: that file and its manifest hashes update together; pointer stays canonical |
+| C8 | canonical-only modified/untracked seed | `preserved (consumer-owned)` even with `--force`; file/entry/pointer unchanged |
+| C9 | verified migration tombstone + pristine canonical + exact backup | `rolled-back`: restores exact legacy bytes/pre-migration entry/pointer and removes only the verified migrated canonical `project-sop`; the other four canonical skills remain |
+| C10 | second run after C3/C7 | `up-to-date`; tree/manifest/pointer/backups byte-identical to first-run postimage |
+| C11 | `ccsop_configure` absent/old during Step 2.D | `unfinished (scoped)`; config byte-identical; `/mcp` remedy; completed lifecycle/i18n work is retained |
+| C12 | `/sop-lang` sees unresolved legacy-only state | `canonical-absent`; legacy/manifest/pointer stay byte-identical and untranslated |
+| C13 | `/sop-lang` sees pristine canonical seeds | `canonical-language-update`: canonical prose re-materializes from maintained language and advances its hash |
+| C14 | `/sop-lang` sees modified canonical seeds | `canonical-language-preserved`: modified seed bytes/entry are preserved with no language write |
+| C15 | second `/sop-lang` after C13, with no modified seeds | `canonical-language-up-to-date`: no file or manifest bytes change |
+
+The four AGENTS-pointer states are therefore pinned explicitly: C2 gate-fail = legacy; C4–C6
+conflict-pending = preimage; C3/C7 success = canonical; C9 rollback = legacy.
+
+## Step 2.D — Phase 1 config schema stamp
+
+This command never constructs or edits TOML for schema migration. Discover `ccsop_configure` and
+call `action=status`.
+
+- Require `contract_version=1`.
+- `observed_schema=null`: call `stamp-schema-v1` with the sha returned by status. Report its
+  before/after sha, exact backup path, and changed key.
+- `observed_schema=1`: record `up-to-date` with no write.
+- any other schema/contract: fail loud for this entry, make zero config writes, and give compatible
+  upgrade/remediation guidance.
+- missing/old/unregistered tool: record a scoped informational conflict, make zero config writes,
+  say to use `/mcp` and reconnect/restart, then continue updating skills, i18n, manifest, and other
+  entries.
+
+There is no direct-edit or shell fallback. `ccsop_configure` remains outside the automatic
+permission baseline.
+
 ## Step 3 — `--force`
 
 `--force` takes `accept-new` for all **`owner=ccsop`** conflicts (still backing up each `<file>.ccsop-bak`
@@ -195,6 +286,9 @@ consumer-owned; only a pristine seed entry may be re-rendered).
 - Print a per-file summary: `updated` / `updated (N blocks preserved)` / `up-to-date` /
   `anchor-migrated` / `conflict (choice)` / `preserved (consumer-owned)` / `overlay-skipped` /
   `error (unresolvable maintained mapping)` / blocking warnings (malformed extension blocks).
+- Include Codex host-gate/migration state and config-schema state. If the schema tool was
+  unavailable, list the schema stamp under `unfinished (scoped)` with the `/mcp` remedy while
+  reporting the rest of the update normally; do not claim the whole update failed.
 - If any methodology rule changed, remind the user the change came from the plugin (single source);
   project-specific overrides should live in runbooks / overlay, not by editing owner=ccsop files.
 

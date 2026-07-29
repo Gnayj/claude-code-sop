@@ -33,7 +33,9 @@ Read `.codex-review/config.toml` `[collaboration]` (rules: `claude-code-sop-coll
 
 1. **Startup order**: read `docs/records/current.md` (state + active task + locked decisions);
    then the topic doc for this module; **before implement / fix, read the full task card**
-   (`docs/plans/active/…`). Read archives only to trace history.
+   (`docs/plans/active/…`). Read archives only to trace history. When checking Codex skill-host
+   readiness or scaffold provenance, read `references/host-contract.md`; do not infer its minimum
+   version, roots, or entry set from memory.
 2. **Task cards**: split flows are a true relay — the implement card is the cross-CLI contract
    (§1.D rule 3 / §4.1). Do not widen its scope; on a blocker, pause and report rather than
    improvising around it.

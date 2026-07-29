@@ -2990,7 +2990,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve4.call(this, root, ref);
+      let _sch = resolve6.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a2 = root.localRefs) === null || _a2 === void 0 ? void 0 : _a2[ref];
         const { schemaId } = this.opts;
@@ -3017,7 +3017,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve4(root, ref) {
+    function resolve6(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3632,24 +3632,24 @@ var require_fast_uri = __commonJS({
     function normalize(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
-        serialize(parse5(uri, options), options);
+        serialize(parse7(uri, options), options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse5(serialize(uri, options), options);
+        parse7(serialize(uri, options), options);
       }
       return uri;
     }
-    function resolve4(baseURI, relativeURI, options) {
+    function resolve6(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
-      const resolved = resolveComponent(parse5(baseURI, schemelessOptions), parse5(relativeURI, schemelessOptions), schemelessOptions, true);
+      const resolved = resolveComponent(parse7(baseURI, schemelessOptions), parse7(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
     function resolveComponent(base, relative4, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse5(serialize(base, options), options);
-        relative4 = parse5(serialize(relative4, options), options);
+        base = parse7(serialize(base, options), options);
+        relative4 = parse7(serialize(relative4, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative4.scheme) {
@@ -3700,12 +3700,12 @@ var require_fast_uri = __commonJS({
     }
     function equal(uriA, uriB, options) {
       if (typeof uriA === "string") {
-        uriA = serialize(parse5(uriA, options), options);
+        uriA = serialize(parse7(uriA, options), options);
       } else if (typeof uriA === "object") {
         uriA = serialize(uriA, options);
       }
       if (typeof uriB === "string") {
-        uriB = serialize(parse5(uriB, options), options);
+        uriB = serialize(parse7(uriB, options), options);
       } else if (typeof uriB === "object") {
         uriB = serialize(uriB, options);
       }
@@ -3774,7 +3774,7 @@ var require_fast_uri = __commonJS({
       return uriTokens.join("");
     }
     var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
-    function parse5(uri, opts) {
+    function parse7(uri, opts) {
       const options = Object.assign({}, opts);
       const parsed = {
         scheme: void 0,
@@ -3864,11 +3864,11 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve4,
+      resolve: resolve6,
       resolveComponent,
       equal,
       serialize,
-      parse: parse5
+      parse: parse7
     };
     module2.exports = fastUri;
     module2.exports.default = fastUri;
@@ -8464,20 +8464,20 @@ var require_parse_async = __commonJS({
       const index = 0;
       const blocksize = opts.blocksize || 40960;
       const parser = new TOMLParser();
-      return new Promise((resolve4, reject) => {
-        setImmediate(parseAsyncNext, index, blocksize, resolve4, reject);
+      return new Promise((resolve6, reject) => {
+        setImmediate(parseAsyncNext, index, blocksize, resolve6, reject);
       });
-      function parseAsyncNext(index2, blocksize2, resolve4, reject) {
+      function parseAsyncNext(index2, blocksize2, resolve6, reject) {
         if (index2 >= str.length) {
           try {
-            return resolve4(parser.finish());
+            return resolve6(parser.finish());
           } catch (err) {
             return reject(prettyError(err, str));
           }
         }
         try {
           parser.parse(str.slice(index2, index2 + blocksize2));
-          setImmediate(parseAsyncNext, index2 + blocksize2, blocksize2, resolve4, reject);
+          setImmediate(parseAsyncNext, index2 + blocksize2, blocksize2, resolve6, reject);
         } catch (err) {
           reject(prettyError(err, str));
         }
@@ -8503,7 +8503,7 @@ var require_parse_stream = __commonJS({
     function parseReadable(stm) {
       const parser = new TOMLParser();
       stm.setEncoding("utf8");
-      return new Promise((resolve4, reject) => {
+      return new Promise((resolve6, reject) => {
         let readable;
         let ended = false;
         let errored = false;
@@ -8511,7 +8511,7 @@ var require_parse_stream = __commonJS({
           ended = true;
           if (readable) return;
           try {
-            resolve4(parser.finish());
+            resolve6(parser.finish());
           } catch (err) {
             reject(err);
           }
@@ -9074,16 +9074,16 @@ var init_values = __esm({
 var sleep;
 var init_sleep = __esm({
   "node_modules/@anthropic-ai/sdk/internal/utils/sleep.mjs"() {
-    sleep = (ms, signal) => new Promise((resolve4) => {
+    sleep = (ms, signal) => new Promise((resolve6) => {
       if (signal?.aborted)
-        return resolve4();
+        return resolve6();
       const onAbort = () => {
         clearTimeout(timer);
-        resolve4();
+        resolve6();
       };
       const timer = setTimeout(() => {
         signal?.removeEventListener("abort", onAbort);
-        resolve4();
+        resolve6();
       }, ms);
       signal?.addEventListener("abort", onAbort, { once: true });
     });
@@ -11184,8 +11184,8 @@ var init_api_promise = __esm({
     init_parse();
     APIPromise = class _APIPromise extends Promise {
       constructor(client, responsePromise, parseResponse = defaultParseResponse) {
-        super((resolve4) => {
-          resolve4(null);
+        super((resolve6) => {
+          resolve6(null);
         });
         this.responsePromise = responsePromise;
         this.parseResponse = parseResponse;
@@ -13497,16 +13497,16 @@ var init_async_queue = __esm({
         if (__classPrivateFieldGet(this, _AsyncQueue_closed, "f") || signal?.aborted) {
           return Promise.resolve({ done: true, value: void 0 });
         }
-        return new Promise((resolve4) => {
+        return new Promise((resolve6) => {
           const waiter = (r) => {
             signal?.removeEventListener("abort", onAbort);
-            resolve4(r);
+            resolve6(r);
           };
           const onAbort = () => {
             const idx = __classPrivateFieldGet(this, _AsyncQueue_waiters, "f").indexOf(waiter);
             if (idx >= 0)
               __classPrivateFieldGet(this, _AsyncQueue_waiters, "f").splice(idx, 1);
-            resolve4({ done: true, value: void 0 });
+            resolve6({ done: true, value: void 0 });
           };
           __classPrivateFieldGet(this, _AsyncQueue_waiters, "f").push(waiter);
           signal?.addEventListener("abort", onAbort, { once: true });
@@ -13936,13 +13936,13 @@ var init_json_schema = __esm({
 
 // node_modules/@anthropic-ai/sdk/internal/utils/promise.mjs
 function promiseWithResolvers() {
-  let resolve4;
+  let resolve6;
   let reject;
   const promise = new Promise((res, rej) => {
-    resolve4 = res;
+    resolve6 = res;
     reject = rej;
   });
-  return { promise, resolve: resolve4, reject };
+  return { promise, resolve: resolve6, reject };
 }
 var init_promise = __esm({
   "node_modules/@anthropic-ai/sdk/internal/utils/promise.mjs"() {
@@ -14081,10 +14081,10 @@ async function setupSkills(ctx) {
     try {
       const versionId = await resolveSkillVersion(client, skill.skill_id, skill.version);
       const version2 = await client.beta.skills.versions.retrieve(versionId, { skill_id: skill.skill_id });
-      let dirname7 = path6.basename(version2.name.trim());
-      if (dirname7 === "" || dirname7 === "." || dirname7 === "..")
-        dirname7 = skill.skill_id;
-      const dest = path6.resolve(skillsRoot, dirname7);
+      let dirname9 = path6.basename(version2.name.trim());
+      if (dirname9 === "" || dirname9 === "." || dirname9 === "..")
+        dirname9 = skill.skill_id;
+      const dest = path6.resolve(skillsRoot, dirname9);
       if (dest !== skillsRoot && !dest.startsWith(skillsRoot + path6.sep)) {
         log.warn("skill name escapes the skills dir; skipping", {
           component: "agent-tool-context",
@@ -14535,7 +14535,7 @@ function betaGrepTool(ctx) {
   });
 }
 function runRipgrep(rg, pattern, searchPath, signal) {
-  return new Promise((resolve4, reject) => {
+  return new Promise((resolve6, reject) => {
     const proc = cp.spawn(rg, ["-n", "--no-heading", "-e", pattern, "--", searchPath], {
       ...signal ? { signal } : {}
     });
@@ -14557,12 +14557,12 @@ function runRipgrep(rg, pattern, searchPath, signal) {
       if (signal?.aborted)
         return reject(new ToolError("grep: aborted"));
       if (truncated)
-        return resolve4(out + `
+        return resolve6(out + `
 [output truncated at ${GREP_OUTPUT_LIMIT} bytes]`);
       if (code === 0)
-        return resolve4(out);
+        return resolve6(out);
       if (code === 1)
-        return resolve4("no matches");
+        return resolve6("no matches");
       reject(new ToolError(`grep: rg failed: ${errOut || `exit ${code}`}`));
     });
     proc.on("error", (e) => {
@@ -14739,8 +14739,8 @@ var init_node = __esm({
 `;
         __classPrivateFieldGet(this, _BashSession_proc, "f").stdin.write(wrapped);
         if (__classPrivateFieldGet(this, _BashSession_buf, "f").indexOf(sentinel2) < 0) {
-          const { promise: sentinelSeen, resolve: resolve4 } = promiseWithResolvers();
-          __classPrivateFieldSet(this, _BashSession_waiting, { sentinel: sentinel2, resolve: resolve4 }, "f");
+          const { promise: sentinelSeen, resolve: resolve6 } = promiseWithResolvers();
+          __classPrivateFieldSet(this, _BashSession_waiting, { sentinel: sentinel2, resolve: resolve6 }, "f");
           let timer;
           let onAbort;
           try {
@@ -16446,12 +16446,12 @@ var init_BetaMessageStream = __esm({
           }
           return this._emit("error", new AnthropicError(String(error2)));
         });
-        __classPrivateFieldSet(this, _BetaMessageStream_connectedPromise, new Promise((resolve4, reject) => {
-          __classPrivateFieldSet(this, _BetaMessageStream_resolveConnectedPromise, resolve4, "f");
+        __classPrivateFieldSet(this, _BetaMessageStream_connectedPromise, new Promise((resolve6, reject) => {
+          __classPrivateFieldSet(this, _BetaMessageStream_resolveConnectedPromise, resolve6, "f");
           __classPrivateFieldSet(this, _BetaMessageStream_rejectConnectedPromise, reject, "f");
         }), "f");
-        __classPrivateFieldSet(this, _BetaMessageStream_endPromise, new Promise((resolve4, reject) => {
-          __classPrivateFieldSet(this, _BetaMessageStream_resolveEndPromise, resolve4, "f");
+        __classPrivateFieldSet(this, _BetaMessageStream_endPromise, new Promise((resolve6, reject) => {
+          __classPrivateFieldSet(this, _BetaMessageStream_resolveEndPromise, resolve6, "f");
           __classPrivateFieldSet(this, _BetaMessageStream_rejectEndPromise, reject, "f");
         }), "f");
         __classPrivateFieldGet(this, _BetaMessageStream_connectedPromise, "f").catch(() => {
@@ -16621,11 +16621,11 @@ var init_BetaMessageStream = __esm({
        *   const message = await stream.emitted('message') // rejects if the stream errors
        */
       emitted(event) {
-        return new Promise((resolve4, reject) => {
+        return new Promise((resolve6, reject) => {
           __classPrivateFieldSet(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
           if (event !== "error")
             this.once("error", reject);
-          this.once(event, resolve4);
+          this.once(event, resolve6);
         });
       }
       async done() {
@@ -16975,7 +16975,7 @@ var init_BetaMessageStream = __esm({
               if (done) {
                 return { value: void 0, done: true };
               }
-              return new Promise((resolve4, reject) => readQueue.push({ resolve: resolve4, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
+              return new Promise((resolve6, reject) => readQueue.push({ resolve: resolve6, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
             }
             const chunk = pushQueue.shift();
             return { value: chunk, done: false };
@@ -18863,12 +18863,12 @@ var init_MessageStream = __esm({
           }
           return this._emit("error", new AnthropicError(String(error2)));
         });
-        __classPrivateFieldSet(this, _MessageStream_connectedPromise, new Promise((resolve4, reject) => {
-          __classPrivateFieldSet(this, _MessageStream_resolveConnectedPromise, resolve4, "f");
+        __classPrivateFieldSet(this, _MessageStream_connectedPromise, new Promise((resolve6, reject) => {
+          __classPrivateFieldSet(this, _MessageStream_resolveConnectedPromise, resolve6, "f");
           __classPrivateFieldSet(this, _MessageStream_rejectConnectedPromise, reject, "f");
         }), "f");
-        __classPrivateFieldSet(this, _MessageStream_endPromise, new Promise((resolve4, reject) => {
-          __classPrivateFieldSet(this, _MessageStream_resolveEndPromise, resolve4, "f");
+        __classPrivateFieldSet(this, _MessageStream_endPromise, new Promise((resolve6, reject) => {
+          __classPrivateFieldSet(this, _MessageStream_resolveEndPromise, resolve6, "f");
           __classPrivateFieldSet(this, _MessageStream_rejectEndPromise, reject, "f");
         }), "f");
         __classPrivateFieldGet(this, _MessageStream_connectedPromise, "f").catch(() => {
@@ -19038,11 +19038,11 @@ var init_MessageStream = __esm({
        *   const message = await stream.emitted('message') // rejects if the stream errors
        */
       emitted(event) {
-        return new Promise((resolve4, reject) => {
+        return new Promise((resolve6, reject) => {
           __classPrivateFieldSet(this, _MessageStream_catchingPromiseCreated, true, "f");
           if (event !== "error")
             this.once("error", reject);
-          this.once(event, resolve4);
+          this.once(event, resolve6);
         });
       }
       async done() {
@@ -19363,7 +19363,7 @@ var init_MessageStream = __esm({
               if (done) {
                 return { value: void 0, done: true };
               }
-              return new Promise((resolve4, reject) => readQueue.push({ resolve: resolve4, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
+              return new Promise((resolve6, reject) => readQueue.push({ resolve: resolve6, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
             }
             const chunk = pushQueue.shift();
             return { value: chunk, done: false };
@@ -20526,8 +20526,8 @@ var init_sdk = __esm({
 });
 
 // src/server.ts
-import { existsSync as existsSync5 } from "node:fs";
-import { dirname as dirname6, resolve as resolvePath7 } from "node:path";
+import { existsSync as existsSync6 } from "node:fs";
+import { dirname as dirname8, resolve as resolvePath7 } from "node:path";
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -30416,7 +30416,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve4) => setTimeout(resolve4, pollInterval));
+        await new Promise((resolve6) => setTimeout(resolve6, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -30433,7 +30433,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve6, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -30511,7 +30511,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve4(parseResult.data);
+            resolve6(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -30772,12 +30772,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve6, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve4, interval);
+      const timeoutId = setTimeout(resolve6, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -31647,12 +31647,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve4) => {
+    return new Promise((resolve6) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve4();
+        resolve6();
       } else {
-        this._stdout.once("drain", resolve4);
+        this._stdout.once("drain", resolve6);
       }
     });
   }
@@ -31660,8 +31660,39 @@ var StdioServerTransport = class {
 
 // src/config.ts
 var TOML = __toESM(require_toml(), 1);
-import { readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
+
+// src/control-surface-contract.ts
+var CONTROL_SURFACE_SCHEMA_V1 = 1;
+var CONTROL_SURFACE_CONTRACT_VERSION_V1 = 1;
+var CODEX_EFFORT_VALUES = [
+  "",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh"
+];
+var CLAUDE_EFFORT_VALUES = [
+  "",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max"
+];
+var FLOW_VALUES = [
+  "claude+claude",
+  "claude+codex",
+  "codex+codex",
+  "codex+claude"
+];
+var PHASE1_TIER_SCOPES = [
+  "claude-review",
+  "codex-review",
+  "codex-dispatch",
+  "codex-default"
+];
 
 // src/types.ts
 var ReviewStage = external_exports.enum(["design", "code", "fix"]);
@@ -31971,7 +32002,10 @@ var MetaSchema = external_exports.object({
   project_name: external_exports.string().min(1),
   language: external_exports.string().default("en"),
   repo_root: external_exports.string(),
-  allowed_doc_roots: external_exports.array(external_exports.string()).min(1)
+  allowed_doc_roots: external_exports.array(external_exports.string()).min(1),
+  // Absent is the pre-v0.2.12 legacy state. Lifecycle stamping is performed only by
+  // ccsop_configure; the normal loader observes but never mutates it.
+  control_surface_schema: external_exports.number().int().optional()
 });
 var StateSchema = external_exports.object({
   lock_timeout_seconds: external_exports.number().int().positive().default(30),
@@ -32005,8 +32039,8 @@ var ReviewStageConfig = external_exports.object({
   trigger_clauses: external_exports.string().optional(),
   rule_sections: external_exports.array(external_exports.string()).optional()
 });
-var EffortSchema = external_exports.enum(["", "minimal", "low", "medium", "high", "xhigh"]);
-var ClaudeEffortSchema = external_exports.enum(["", "low", "medium", "high", "xhigh", "max"]);
+var EffortSchema = external_exports.enum(CODEX_EFFORT_VALUES);
+var ClaudeEffortSchema = external_exports.enum(CLAUDE_EFFORT_VALUES);
 var CodexConfig = external_exports.object({
   default_model: external_exports.string().default(""),
   default_effort: EffortSchema.default(""),
@@ -32089,6 +32123,15 @@ function resolveCodexTier(config2, scope) {
     effort: tier.effort || config2.codex.default_effort || void 0
   };
 }
+function parseConfigText(text, configPath) {
+  const parsed = TOML.parse(text);
+  const validated = ConfigSchema.parse(parsed);
+  return {
+    raw: parsed,
+    config: validated,
+    configPath
+  };
+}
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -32106,16 +32149,6 @@ function claudeApiOnlyKeyWarnings(config2, raw) {
   return Object.keys(reasons).filter((key) => Object.prototype.hasOwnProperty.call(claude, key)).map(
     (key) => `warning: [review.claude].${key} is ignored when backend="cli": ${reasons[key]}.`
   );
-}
-function loadConfig(opts) {
-  const text = readFileSync(opts.configPath, "utf8");
-  const parsed = TOML.parse(text);
-  const validated = ConfigSchema.parse(parsed);
-  return {
-    raw: parsed,
-    config: validated,
-    configPath: opts.configPath
-  };
 }
 function resolveProjectPath(config2, baseDir, relativePath) {
   const projectRoot = resolvePath(baseDir, config2.meta.repo_root);
@@ -32506,9 +32539,9 @@ var CodexExec = class {
       });
     }
     const exitPromise = new Promise(
-      (resolve4) => {
+      (resolve6) => {
         child.once("exit", (code, signal) => {
-          resolve4({ code, signal });
+          resolve6({ code, signal });
         });
       }
     );
@@ -33232,7 +33265,7 @@ var ClaudeCliClient = class {
   }
   resolution;
   runTurn(input) {
-    return new Promise((resolve4, reject) => {
+    return new Promise((resolve6, reject) => {
       const args = buildClaudeCliArgs(input);
       let child;
       try {
@@ -33271,7 +33304,7 @@ var ClaudeCliClient = class {
         if (settled) return;
         settled = true;
         try {
-          resolve4(parseClaudeCliResult(stdout, input, stderr, code ?? -1));
+          resolve6(parseClaudeCliResult(stdout, input, stderr, code ?? -1));
         } catch (error2) {
           reject(error2);
         }
@@ -33498,7 +33531,7 @@ var ClaudeProvider = class {
 };
 
 // src/providers/manual.ts
-import { existsSync, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join as join4 } from "node:path";
 function sanitizeId(id) {
   return id.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -33523,7 +33556,7 @@ var ManualProvider = class {
     const verdictPathExpected = join4(this.opts.sessionsDir, `${base}.verdict.json`);
     const verdictPath = input.manualVerdictPath ?? verdictPathExpected;
     if (existsSync(verdictPath)) {
-      const text = readFileSync2(verdictPath, "utf8");
+      const text = readFileSync(verdictPath, "utf8");
       return {
         kind: "turn",
         text,
@@ -33601,7 +33634,7 @@ import {
   existsSync as existsSync2,
   mkdirSync as mkdirSync2,
   openSync,
-  readFileSync as readFileSync3,
+  readFileSync as readFileSync2,
   renameSync,
   unlinkSync,
   writeSync,
@@ -33634,7 +33667,7 @@ var ThreadManager = class {
   read(designId) {
     const path8 = this.statePath(designId);
     if (!existsSync2(path8)) return null;
-    const raw = readFileSync3(path8, "utf8");
+    const raw = readFileSync2(path8, "utf8");
     return ThreadState.parse(JSON.parse(raw));
   }
   /** Atomic write via tmp + rename. */
@@ -33756,7 +33789,7 @@ function sleepSync(ms) {
 }
 
 // src/prompt-renderer.ts
-import { existsSync as existsSync3, readFileSync as readFileSync4 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
 import { isAbsolute as isAbsolute4, relative as relative2, resolve as resolvePath5 } from "node:path";
 var AllowedDocRootViolation = class extends Error {
   constructor(path8, allowedRoots) {
@@ -33785,7 +33818,7 @@ var PromptRenderer = class {
   loadTemplate(stage) {
     const path8 = this.templatePath(stage);
     try {
-      return readFileSync4(path8, "utf8");
+      return readFileSync3(path8, "utf8");
     } catch (err) {
       throw new TemplateLoadError(path8, err);
     }
@@ -33816,7 +33849,7 @@ var PromptRenderer = class {
 `);
           continue;
         }
-        const content = readFileSync4(abs, "utf8");
+        const content = readFileSync3(abs, "utf8");
         sections.push(`### ${fb.label} (${fb.path})
 \`\`\`
 ${content}
@@ -34429,7 +34462,7 @@ ${body}${fence}`,
 
 // src/drift-detector.ts
 import { createHash } from "node:crypto";
-import { existsSync as existsSync4, readFileSync as readFileSync5 } from "node:fs";
+import { existsSync as existsSync4, readFileSync as readFileSync4 } from "node:fs";
 function computeFileSha(content) {
   return createHash("sha256").update(content).digest("hex").slice(0, 8);
 }
@@ -34458,7 +34491,7 @@ function planDrift(state, inputPaths, resolvePath8) {
       };
       continue;
     }
-    const content = readFileSync5(absolute, "utf8");
+    const content = readFileSync4(absolute, "utf8");
     const newSha = computeFileSha(content);
     const oldSha = prev[path8]?.sha;
     let category;
@@ -35106,7 +35139,7 @@ async function handleFixReview(deps, rawInput) {
 }
 
 // src/run-implement-flow.ts
-import { readFileSync as readFileSync7 } from "node:fs";
+import { readFileSync as readFileSync6 } from "node:fs";
 import { relative as relative3 } from "node:path";
 
 // src/allowlist.ts
@@ -35221,7 +35254,7 @@ import {
   mkdirSync as mkdirSync3,
   openSync as openSync3,
   readdirSync,
-  readFileSync as readFileSync6,
+  readFileSync as readFileSync5,
   readSync,
   readlinkSync,
   renameSync as renameSync2,
@@ -35677,7 +35710,7 @@ function buildGitPatch(entries, budget = {}) {
 // src/implement-workspace.ts
 function readProcStartToken(pid) {
   try {
-    const stat2 = readFileSync6(`/proc/${pid}/stat`, "utf8");
+    const stat2 = readFileSync5(`/proc/${pid}/stat`, "utf8");
     const rparen = stat2.lastIndexOf(")");
     if (rparen < 0) return null;
     const after = stat2.slice(rparen + 2).split(" ");
@@ -35812,7 +35845,7 @@ var BlobStore = class {
     }
   }
   read(sha) {
-    return readFileSync6(this.pathOf(sha));
+    return readFileSync5(this.pathOf(sha));
   }
   /** Read + re-verify content hash (tamper tripwire — design §4.2 step 3). */
   readVerified(sha) {
@@ -36267,7 +36300,7 @@ var ImplementStore = class {
   readStateFile(path8, expectDesignId) {
     let text;
     try {
-      text = readFileSync6(path8, "utf8");
+      text = readFileSync5(path8, "utf8");
     } catch (err) {
       if (err.code === "ENOENT") return null;
       throw err;
@@ -36361,12 +36394,12 @@ var ImplementStore = class {
     const state = this.read(designId);
     if (state) {
       let dirty = false;
-      for (const record2 of state.dispatches) {
-        const terminal = record2.lifecycle === "completed" || record2.lifecycle === "failed";
-        if (!terminal && !isEpochAlive(record2.epoch_pid, record2.epoch_start_token)) {
-          record2.lifecycle = "failed";
-          record2.failure_reason = "interrupted (process epoch dead)";
-          if (record2.round > state.rounds) state.rounds = record2.round;
+      for (const record3 of state.dispatches) {
+        const terminal = record3.lifecycle === "completed" || record3.lifecycle === "failed";
+        if (!terminal && !isEpochAlive(record3.epoch_pid, record3.epoch_start_token)) {
+          record3.lifecycle = "failed";
+          record3.failure_reason = "interrupted (process epoch dead)";
+          if (record3.round > state.rounds) state.rounds = record3.round;
           dirty = true;
         }
       }
@@ -36390,8 +36423,8 @@ var ImplementStore = class {
         if (name.startsWith(".flock-probe.")) rmSync2(join7(root, name), { force: true });
         continue;
       }
-      const record2 = byArtifact.get(name);
-      const reap = record2 === void 0 ? complete : record2.lifecycle === "completed" || record2.lifecycle === "failed" || !isEpochAlive(record2.epoch_pid, record2.epoch_start_token);
+      const record3 = byArtifact.get(name);
+      const reap = record3 === void 0 ? complete : record3.lifecycle === "completed" || record3.lifecycle === "failed" || !isEpochAlive(record3.epoch_pid, record3.epoch_start_token);
       if (reap) rmSync2(join7(root, name), { recursive: true, force: true });
     }
   }
@@ -36414,9 +36447,9 @@ var ImplementStore = class {
       for (const name of readdirSync(dir)) {
         const m = /^([0-9a-f]{32})\.(patch|report\.json)(\.tmp\..*)?$/.exec(name);
         if (!m) continue;
-        const record2 = byArtifact.get(m[1]);
+        const record3 = byArtifact.get(m[1]);
         const isTxnTemp = m[3] !== void 0;
-        const reap = record2 === void 0 ? complete : record2.lifecycle === "failed" || isTxnTemp && !isEpochAlive(record2.epoch_pid, record2.epoch_start_token);
+        const reap = record3 === void 0 ? complete : record3.lifecycle === "failed" || isTxnTemp && !isEpochAlive(record3.epoch_pid, record3.epoch_start_token);
         if (reap) rmSync2(join7(dir, name), { force: true });
       }
     } finally {
@@ -36429,7 +36462,7 @@ function buildWriterEnvironment(homeDir, model, effort) {
   const realHome = process.env.CODEX_HOME || join7(process.env.HOME ?? "", ".codex");
   for (const authFile of ["auth.json"]) {
     try {
-      const bytes = readFileSync6(join7(realHome, authFile));
+      const bytes = readFileSync5(join7(realHome, authFile));
       writeFileSync3(join7(codexHome, authFile), bytes, { mode: 384 });
     } catch {
     }
@@ -36450,7 +36483,7 @@ function buildWriterEnvironment(homeDir, model, effort) {
   );
   const configPath = join7(codexHome, "config.toml");
   writeFileSync3(configPath, configLines.join("\n") + "\n");
-  const written = readFileSync6(configPath, "utf8");
+  const written = readFileSync5(configPath, "utf8");
   const inSandboxSection = /\[sandbox_workspace_write\]([^[]*)/.exec(written)?.[1] ?? "";
   const attestation = {
     mcpServers: (written.match(/^\[mcp_servers/gm) ?? []).length,
@@ -36520,7 +36553,7 @@ Work in the current directory. It is a git checkout; you may read anything, but 
 function renderPrompt(config2, baseDir, vars) {
   let template = BUILTIN_PROMPT;
   try {
-    template = readFileSync7(
+    template = readFileSync6(
       resolveProjectPath(config2, baseDir, ".codex-review/templates/implement.md.tpl"),
       "utf8"
     );
@@ -36578,7 +36611,7 @@ ${inputList.errors.join("\n")}` };
   const repoRoot = resolveProjectPath(config2, configBaseDir, ".");
   let cardText;
   try {
-    cardText = readFileSync7(resolveProjectPath(config2, configBaseDir, input.taskCardPath), "utf8");
+    cardText = readFileSync6(resolveProjectPath(config2, configBaseDir, input.taskCardPath), "utf8");
   } catch (err) {
     return { ok: false, error: `cannot read task card ${input.taskCardPath}: ${err.message}` };
   }
@@ -36669,7 +36702,7 @@ ${cardList.errors.join("\n")}` };
       };
     }
     const round = state.rounds + 1;
-    const record2 = {
+    const record3 = {
       dispatch_key: input.dispatchKey,
       payload_sha: payloadSha,
       artifact_id: newArtifactId(),
@@ -36679,14 +36712,14 @@ ${cardList.errors.join("\n")}` };
       epoch_started_at: PROCESS_EPOCH_STARTED_AT,
       ...PROCESS_EPOCH_START_TOKEN != null ? { epoch_start_token: PROCESS_EPOCH_START_TOKEN } : {}
     };
-    state.dispatches.push(record2);
+    state.dispatches.push(record3);
     state.rounds = round;
     store.write(state);
     const finishFailed = (result) => {
-      record2.lifecycle = "failed";
-      record2.failure_reason = result.error ?? (result.violations ?? []).join("; ");
+      record3.lifecycle = "failed";
+      record3.failure_reason = result.error ?? (result.violations ?? []).join("; ");
       const final = { ...result, round, lifecycle: "failed", session: sessionFacts() };
-      record2.result = final;
+      record3.result = final;
       store.write(state);
       return final;
     };
@@ -36696,7 +36729,7 @@ ${cardList.errors.join("\n")}` };
     });
     try {
       try {
-        const resources = allocateDispatchResources(repoRoot, record2.artifact_id);
+        const resources = allocateDispatchResources(repoRoot, record3.artifact_id);
         const snapshotStore = new BlobStore(resources.snapBlobs);
         const captureStore = new BlobStore(resources.capBlobs);
         const { model: writerModel, effort: writerEffort } = resolveCodexTier(
@@ -36724,7 +36757,7 @@ ${cardList.errors.join("\n")}` };
         }
         const snapshot = snapResult.snapshot;
         const scratch = materializeScratch(snapshot, resources.scratch);
-        record2.lifecycle = "executing";
+        record3.lifecycle = "executing";
         store.write(state);
         const prompt = renderPrompt(config2, configBaseDir, {
           task_card: cardText,
@@ -36757,7 +36790,7 @@ ${cardList.errors.join("\n")}` };
             error: `writer turn failed: ${err.message}` + (streak >= threshold ? ` [codex_unavailable breaker: ${streak} consecutive failures]` : "")
           });
         }
-        record2.thread_id = turn.threadId ?? "";
+        record3.thread_id = turn.threadId ?? "";
         state.tokens_used_estimate_total += turn.tokensTotal ?? 0;
         store.write(state);
         if (input.signal?.aborted) {
@@ -36813,19 +36846,19 @@ ${cardList.errors.join("\n")}` };
         const report = {
           design_id: input.designId,
           round,
-          artifact_id: record2.artifact_id,
+          artifact_id: record3.artifact_id,
           files_changed: generated.filesChanged,
           diffstat: generated.diffstat,
           self_report: selfReport,
           writer_attestation: writerEnv.attestation,
-          writer_thread_id: record2.thread_id,
+          writer_thread_id: record3.thread_id,
           generated_at: (/* @__PURE__ */ new Date()).toISOString()
         };
         let published;
         try {
           published = await publishArtifact(
             repoRoot,
-            record2.artifact_id,
+            record3.artifact_id,
             generated.patch,
             report,
             acquisitionDeadline(lockTimeoutMs),
@@ -36860,12 +36893,12 @@ ${cardList.errors.join("\n")}` };
           lifecycle: "completed",
           session: sessionFacts()
         };
-        record2.lifecycle = "completed";
-        record2.result = result;
-        record2.patch_sha = published.patchSha;
-        record2.patch_size = published.patchSize;
-        record2.report_sha = published.reportSha;
-        record2.report_size = published.reportSize;
+        record3.lifecycle = "completed";
+        record3.result = result;
+        record3.patch_sha = published.patchSha;
+        record3.patch_size = published.patchSize;
+        record3.report_sha = published.reportSha;
+        record3.report_size = published.reportSize;
         store.write(state);
         return result;
       } catch (err) {
@@ -36879,7 +36912,7 @@ ${cardList.errors.join("\n")}` };
       }
     } finally {
       try {
-        discardDispatchResources(repoRoot, record2.artifact_id);
+        discardDispatchResources(repoRoot, record3.artifact_id);
       } catch {
       }
     }
@@ -36887,15 +36920,15 @@ ${cardList.errors.join("\n")}` };
     designLock.release();
   }
 }
-function verifyArtifacts(repoRoot, record2) {
+function verifyArtifacts(repoRoot, record3) {
   try {
-    const result = record2.result;
+    const result = record3.result;
     for (const [rel, sha, size] of [
-      [result.patch_path, record2.patch_sha, record2.patch_size],
-      [result.report_path, record2.report_sha, record2.report_size]
+      [result.patch_path, record3.patch_sha, record3.patch_size],
+      [result.report_path, record3.report_sha, record3.report_size]
     ]) {
       if (!rel || !sha) return { ok: false, error: "completed record missing artifact facts" };
-      const bytes = readFileSync7(`${repoRoot}/${rel}`);
+      const bytes = readFileSync6(`${repoRoot}/${rel}`);
       if (bytes.length !== size || sha256(bytes) !== sha) {
         return { ok: false, error: `artifact ${rel} does not match recorded hash/size` };
       }
@@ -36944,6 +36977,803 @@ async function handleImplement(deps, rawInput, signal) {
     ...signal ? { signal } : {}
   });
 }
+
+// src/tools/ccsop-configure.ts
+import { dirname as dirname7, resolve as resolve5 } from "node:path";
+
+// src/config-writer.ts
+var TOML3 = __toESM(require_toml(), 1);
+import {
+  closeSync as closeSync4,
+  existsSync as existsSync5,
+  fsyncSync as fsyncSync2,
+  lstatSync as lstatSync3,
+  mkdirSync as mkdirSync4,
+  openSync as openSync4,
+  readFileSync as readFileSync8,
+  renameSync as renameSync3,
+  unlinkSync as unlinkSync3,
+  writeFileSync as writeFileSync4
+} from "node:fs";
+import { dirname as dirname6, join as join8, resolve as resolve4 } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+
+// src/runtime-config-store.ts
+var TOML2 = __toESM(require_toml(), 1);
+import { createHash as createHash5 } from "node:crypto";
+import { lstatSync as lstatSync2, readFileSync as readFileSync7, realpathSync } from "node:fs";
+function sha256Text(text) {
+  return createHash5("sha256").update(text, "utf8").digest("hex");
+}
+var RuntimeConfigStore = class {
+  constructor(configPath) {
+    this.configPath = configPath;
+  }
+  inspect() {
+    const stat2 = lstatSync2(this.configPath);
+    if (!stat2.isFile() || stat2.isSymbolicLink()) {
+      throw new Error(`config must be a regular non-symlink file: ${this.configPath}`);
+    }
+    const text = readFileSync7(this.configPath, "utf8");
+    const raw = TOML2.parse(text);
+    const meta = typeof raw === "object" && raw !== null ? raw.meta : void 0;
+    const observed = typeof meta === "object" && meta !== null ? meta.control_surface_schema : void 0;
+    return {
+      configPath: this.configPath,
+      realPath: realpathSync(this.configPath),
+      text,
+      sha256: sha256Text(text),
+      raw,
+      observedSchema: typeof observed === "number" && Number.isInteger(observed) ? observed : void 0
+    };
+  }
+  loadValidated() {
+    const inspection = this.inspect();
+    const loaded = parseConfigText(inspection.text, this.configPath);
+    return {
+      ...inspection,
+      config: loaded.config,
+      loaded
+    };
+  }
+};
+
+// src/config-writer.ts
+function injectFault(options, point) {
+  if (options?.faultAt === point) {
+    throw new Error(`injected config writer fault: ${point}`);
+  }
+}
+function scalar(value) {
+  if (typeof value === "string") return JSON.stringify(value);
+  return String(value);
+}
+function inlineCommentStart(line) {
+  let quote = null;
+  let escaped = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quote === '"') {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        quote = null;
+      }
+      continue;
+    }
+    if (quote === "'") {
+      if (ch === "'") quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === "#") {
+      return i;
+    }
+  }
+  return -1;
+}
+function sectionName(line) {
+  const match = line.match(/^\s*\[([A-Za-z0-9_.-]+)]\s*(?:#.*)?$/);
+  return match?.[1] ?? null;
+}
+function keyName(line) {
+  if (/^\s*#/.test(line)) return null;
+  const match = line.match(/^\s*([A-Za-z0-9_-]+)\s*=/);
+  return match?.[1] ?? null;
+}
+function upsertOne(text, update) {
+  const hadTerminalNewline = text.endsWith("\n");
+  const lines = text.split("\n");
+  if (hadTerminalNewline) lines.pop();
+  const sectionStarts = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (sectionName(lines[i]) === update.section) sectionStarts.push(i);
+  }
+  if (sectionStarts.length > 1) {
+    throw new Error(`duplicate TOML section [${update.section}]`);
+  }
+  if (sectionStarts.length === 0) {
+    if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
+    lines.push(`[${update.section}]`, `${update.key} = ${scalar(update.value)}`);
+    return `${lines.join("\n")}
+`;
+  }
+  const start = sectionStarts[0];
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (sectionName(lines[i]) !== null) {
+      end = i;
+      break;
+    }
+  }
+  const matches = [];
+  for (let i = start + 1; i < end; i++) {
+    if (keyName(lines[i]) === update.key) matches.push(i);
+  }
+  if (matches.length > 1) {
+    throw new Error(`duplicate TOML key ${update.section}.${update.key}`);
+  }
+  if (matches.length === 1) {
+    const index = matches[0];
+    const line = lines[index];
+    const equalsAt = line.indexOf("=");
+    if (equalsAt < 0) {
+      throw new Error(`unable to locate TOML value for ${update.section}.${update.key}`);
+    }
+    let valueStart = equalsAt + 1;
+    while (valueStart < line.length && /[ \t]/.test(line[valueStart])) {
+      valueStart++;
+    }
+    const commentAt = inlineCommentStart(line);
+    let valueEnd = commentAt >= 0 ? commentAt : line.length;
+    while (valueEnd > valueStart && /[ \t]/.test(line[valueEnd - 1])) {
+      valueEnd--;
+    }
+    lines[index] = `${line.slice(0, valueStart)}${scalar(update.value)}${line.slice(valueEnd)}`;
+  } else {
+    let insertion = end;
+    while (insertion > start + 1 && lines[insertion - 1] === "") insertion--;
+    lines.splice(insertion, 0, `${update.key} = ${scalar(update.value)}`);
+  }
+  return `${lines.join("\n")}${hadTerminalNewline ? "\n" : ""}`;
+}
+function parsedRecord(text) {
+  const parsed = TOML3.parse(text);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("config TOML root must be an object");
+  }
+  return parsed;
+}
+function deleteParsedPath(root, section, key) {
+  const parts = section.split(".");
+  let cursor = root;
+  for (const part of parts) {
+    const next = cursor[part];
+    if (typeof next !== "object" || next === null || Array.isArray(next)) {
+      cursor = void 0;
+      break;
+    }
+    cursor = next;
+  }
+  if (cursor) delete cursor[key];
+}
+function applyTomlUpdates(text, updates) {
+  const before = parsedRecord(text);
+  let candidate = text;
+  for (const update of updates) candidate = upsertOne(candidate, update);
+  const after = parsedRecord(candidate);
+  const beforeNonTargets = structuredClone(before);
+  const afterNonTargets = structuredClone(after);
+  for (const update of updates) {
+    deleteParsedPath(beforeNonTargets, update.section, update.key);
+    deleteParsedPath(afterNonTargets, update.section, update.key);
+  }
+  if (!isDeepStrictEqual(beforeNonTargets, afterNonTargets)) {
+    throw new Error("config writer changed non-target parsed values");
+  }
+  return candidate;
+}
+function fsyncDirectory(path8) {
+  const fd = openSync4(path8, "r");
+  try {
+    fsyncSync2(fd);
+  } finally {
+    closeSync4(fd);
+  }
+}
+function writeExclusiveOrVerify(path8, text) {
+  if (existsSync5(path8)) {
+    const stat2 = lstatSync3(path8);
+    if (!stat2.isFile() || stat2.isSymbolicLink()) {
+      throw new Error(`backup path is not a regular file: ${path8}`);
+    }
+    if (readFileSync8(path8, "utf8") !== text) {
+      throw new Error(`backup hash collision/content mismatch: ${path8}`);
+    }
+    return;
+  }
+  writeFileSync4(path8, text, { encoding: "utf8", flag: "wx", mode: 384 });
+}
+function ensureDirectory(path8, mode) {
+  if (!existsSync5(path8)) {
+    mkdirSync4(path8, { mode });
+    return;
+  }
+  const stat2 = lstatSync3(path8);
+  if (!stat2.isDirectory() || stat2.isSymbolicLink()) {
+    throw new Error(`config control directory must not be a symlink: ${path8}`);
+  }
+}
+function restoreConfigAtomically(configPath, expectedCurrentText, restoreText, mode) {
+  const configDir = dirname6(configPath);
+  if (readFileSync8(configPath, "utf8") !== expectedCurrentText) {
+    throw new Error("rollback refused: config changed concurrently after publish");
+  }
+  const restorePath = join8(
+    configDir,
+    `.config.toml.ccsop-rollback-${process.pid}-${Date.now().toString(36)}.tmp`
+  );
+  let restoreExists = false;
+  try {
+    writeFileSync4(restorePath, restoreText, {
+      encoding: "utf8",
+      flag: "wx",
+      mode
+    });
+    restoreExists = true;
+    const fd = openSync4(restorePath, "r");
+    try {
+      fsyncSync2(fd);
+    } finally {
+      closeSync4(fd);
+    }
+    renameSync3(restorePath, configPath);
+    restoreExists = false;
+    fsyncDirectory(configDir);
+    if (readFileSync8(configPath, "utf8") !== restoreText) {
+      throw new Error("rollback verification failed");
+    }
+  } finally {
+    if (restoreExists) {
+      try {
+        unlinkSync3(restorePath);
+      } catch {
+      }
+    }
+  }
+}
+function writeConfigUnderLock(configPath, beforeText, candidateText, options) {
+  const beforeSha256 = sha256Text(beforeText);
+  const afterSha256 = sha256Text(candidateText);
+  const configDir = dirname6(configPath);
+  const configDirStat = lstatSync3(configDir);
+  if (!configDirStat.isDirectory() || configDirStat.isSymbolicLink()) {
+    throw new Error(`config directory must be a real directory: ${configDir}`);
+  }
+  const initialStat = lstatSync3(configPath);
+  if (!initialStat.isFile() || initialStat.isSymbolicLink()) {
+    throw new Error(`config must be a regular non-symlink file: ${configPath}`);
+  }
+  if (readFileSync8(configPath, "utf8") !== beforeText) {
+    throw new Error("config changed after snapshot; refusing stale write");
+  }
+  const configMode = initialStat.mode & 511;
+  const repoRoot = options?.repoRoot ? resolve4(options.repoRoot) : resolve4(configDir, "..");
+  const controlDir = join8(repoRoot, ".ccsop");
+  const backupsDir = join8(controlDir, "backups");
+  const backupDir = join8(backupsDir, "config");
+  ensureDirectory(controlDir, 448);
+  ensureDirectory(backupsDir, 448);
+  ensureDirectory(backupDir, 448);
+  const backupPath = join8(backupDir, `${beforeSha256}.toml`);
+  writeExclusiveOrVerify(backupPath, beforeText);
+  fsyncDirectory(backupDir);
+  injectFault(options, "after-backup");
+  const tempPath = join8(
+    configDir,
+    `.config.toml.ccsop-${process.pid}-${Date.now().toString(36)}.tmp`
+  );
+  let tempExists = false;
+  let published = false;
+  try {
+    writeFileSync4(tempPath, candidateText, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: configMode
+    });
+    tempExists = true;
+    const fd = openSync4(tempPath, "r");
+    try {
+      fsyncSync2(fd);
+    } finally {
+      closeSync4(fd);
+    }
+    injectFault(options, "after-temp-fsync");
+    const publishStat = lstatSync3(configPath);
+    if (!publishStat.isFile() || publishStat.isSymbolicLink()) {
+      throw new Error(`config became a non-regular file before publish: ${configPath}`);
+    }
+    if (readFileSync8(configPath, "utf8") !== beforeText) {
+      throw new Error("config changed concurrently before publish");
+    }
+    renameSync3(tempPath, configPath);
+    tempExists = false;
+    published = true;
+    injectFault(options, "after-rename");
+    fsyncDirectory(configDir);
+    const persisted = readFileSync8(configPath, "utf8");
+    if (persisted !== candidateText || sha256Text(persisted) !== afterSha256) {
+      throw new Error("atomic config write verification failed");
+    }
+    parsedRecord(persisted);
+    injectFault(options, "after-verify");
+    return { beforeSha256, afterSha256, backupPath };
+  } catch (err) {
+    if (published) {
+      try {
+        restoreConfigAtomically(
+          configPath,
+          candidateText,
+          beforeText,
+          configMode
+        );
+      } catch (rollbackErr) {
+        throw new Error(
+          `atomic config write failed (${err.message}); rollback also failed: ${rollbackErr.message}`
+        );
+      }
+    }
+    throw err;
+  } finally {
+    if (tempExists) {
+      try {
+        unlinkSync3(tempPath);
+      } catch {
+      }
+    }
+  }
+}
+function writeConfigAtomically(configPath, beforeText, candidateText, options) {
+  const configDir = dirname6(configPath);
+  const lockPath = join8(configDir, ".config.toml.ccsop.lock");
+  let lockFd;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      lockFd = openSync4(lockPath, "wx", 384);
+      break;
+    } catch (err) {
+      const code = err.code;
+      if (code !== "EEXIST") throw err;
+      let ownerPid;
+      try {
+        const lockStat = lstatSync3(lockPath);
+        if (lockStat.isFile() && !lockStat.isSymbolicLink()) {
+          const parsed = Number(readFileSync8(lockPath, "utf8").trim());
+          if (Number.isSafeInteger(parsed) && parsed > 0) ownerPid = parsed;
+        }
+      } catch {
+      }
+      let ownerAlive = true;
+      if (ownerPid !== void 0) {
+        try {
+          process.kill(ownerPid, 0);
+        } catch (probeErr) {
+          ownerAlive = probeErr.code !== "ESRCH";
+        }
+      }
+      if (ownerPid !== void 0 && !ownerAlive && attempt === 0) {
+        try {
+          unlinkSync3(lockPath);
+          continue;
+        } catch {
+        }
+      }
+      const owner = ownerPid === void 0 ? "unknown" : String(ownerPid);
+      throw new Error(
+        `config mutation lock is busy: ${lockPath} (owner pid=${owner}); if no ccsop writer is running, delete this lock file and retry`
+      );
+    }
+  }
+  let operationError;
+  try {
+    writeFileSync4(lockFd, `${process.pid}
+`, "utf8");
+    fsyncSync2(lockFd);
+    return writeConfigUnderLock(
+      configPath,
+      beforeText,
+      candidateText,
+      options
+    );
+  } catch (err) {
+    operationError = err;
+    throw err;
+  } finally {
+    let releaseError;
+    try {
+      closeSync4(lockFd);
+      unlinkSync3(lockPath);
+    } catch (err) {
+      releaseError = err;
+    }
+    if (releaseError !== void 0 && operationError === void 0) {
+      throw new Error(
+        `failed to release config mutation lock ${lockPath}: ${releaseError.message}`
+      );
+    }
+  }
+}
+
+// src/tools/ccsop-configure.ts
+var ExpectedSha = external_exports.string().regex(/^[a-f0-9]{64}$/);
+var ConfigureInput = external_exports.discriminatedUnion("action", [
+  external_exports.object({ action: external_exports.literal("status") }).strict(),
+  external_exports.object({
+    action: external_exports.literal("stamp-schema-v1"),
+    expected_config_sha256: ExpectedSha
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("set-flow"),
+    expected_config_sha256: ExpectedSha,
+    flow: external_exports.enum(FLOW_VALUES)
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("set-tier"),
+    expected_config_sha256: ExpectedSha,
+    scope: external_exports.string(),
+    model: external_exports.string().optional(),
+    effort: external_exports.string().optional(),
+    backend: external_exports.enum(["api", "cli"]).optional()
+  }).strict()
+]);
+function record2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : {};
+}
+function get(raw, section, key) {
+  let cursor = raw;
+  for (const part of section.split(".")) cursor = record2(cursor)[part];
+  return record2(cursor)[key];
+}
+function requireExpectedSha(action, expected, actual) {
+  if (expected !== actual) {
+    throw new Error(
+      `config sha mismatch for ${action}: expected=${expected} actual=${actual}`
+    );
+  }
+}
+function desiredUpdates(raw, candidates) {
+  return candidates.filter(
+    (candidate) => get(raw, candidate.section, candidate.key) !== candidate.value
+  );
+}
+function flowUpdates(raw, flow) {
+  const [designOwner, implementOwner] = flow.split("+");
+  const candidates = [
+    { section: "collaboration", key: "design_owner", value: designOwner },
+    { section: "collaboration", key: "implement_owner", value: implementOwner }
+  ];
+  if (flow === "claude+codex") {
+    candidates.push({ section: "implement", key: "enabled", value: true });
+  } else if (flow === "claude+claude") {
+    candidates.push({ section: "implement", key: "enabled", value: false });
+  }
+  return desiredUpdates(raw, candidates);
+}
+function tierUpdates(raw, input, scope) {
+  if (input.model === void 0 && input.effort === void 0 && input.backend === void 0) {
+    throw new Error("set-tier requires at least one of model, effort, or backend");
+  }
+  let section;
+  let modelKey = "model";
+  let effortKey = "effort";
+  if (scope === "claude-review") {
+    section = "review.claude";
+    if (input.effort !== void 0 && !CLAUDE_EFFORT_VALUES.includes(
+      input.effort
+    )) {
+      throw new Error(`invalid Claude effort: ${input.effort}`);
+    }
+  } else {
+    if (input.backend !== void 0) {
+      throw new Error(`backend is not accepted for ${scope}`);
+    }
+    if (input.effort !== void 0 && !CODEX_EFFORT_VALUES.includes(
+      input.effort
+    )) {
+      throw new Error(`invalid codex effort: ${input.effort}`);
+    }
+    if (scope === "codex-review") section = "review.codex";
+    else if (scope === "codex-dispatch") section = "implement";
+    else {
+      section = "codex";
+      modelKey = "default_model";
+      effortKey = "default_effort";
+    }
+  }
+  const candidates = [];
+  if (input.backend !== void 0) {
+    candidates.push({ section, key: "backend", value: input.backend });
+  }
+  if (input.model !== void 0) {
+    candidates.push({ section, key: modelKey, value: input.model });
+  }
+  if (input.effort !== void 0) {
+    candidates.push({ section, key: effortKey, value: input.effort });
+  }
+  return desiredUpdates(raw, candidates);
+}
+function statusResult(action, snapshot) {
+  const config2 = snapshot.config;
+  const flowIsExplicit = config2.collaboration.design_owner !== void 0 || config2.collaboration.implement_owner !== void 0;
+  const resolvedFlow = flowIsExplicit ? `${config2.collaboration.design_owner ?? "claude"}+${config2.collaboration.implement_owner ?? "claude"}` : void 0;
+  return {
+    ok: true,
+    action,
+    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+    observed_schema: snapshot.observedSchema ?? null,
+    before_sha256: snapshot.sha256,
+    after_sha256: snapshot.sha256,
+    changed_keys: [],
+    status: {
+      config_valid: true,
+      flow_mode: flowIsExplicit ? "explicit" : "legacy",
+      ...resolvedFlow ? { resolved_flow: resolvedFlow } : {},
+      ...config2.collaboration.design_owner ? { design_owner: config2.collaboration.design_owner } : {},
+      ...config2.collaboration.implement_owner ? { implement_owner: config2.collaboration.implement_owner } : {},
+      review_provider: config2.review.provider,
+      codex_implement_enabled: config2.implement.enabled,
+      tiers: {
+        "claude-review": {
+          backend: config2.review.claude.backend,
+          model: config2.review.claude.model,
+          effort: config2.review.claude.effort
+        },
+        "codex-review": {
+          model: config2.review.codex.model,
+          effort: config2.review.codex.effort
+        },
+        "codex-dispatch": {
+          model: config2.implement.model,
+          effort: config2.implement.effort
+        },
+        "codex-default": {
+          model: config2.codex.default_model,
+          effort: config2.codex.default_effort
+        }
+      }
+    }
+  };
+}
+function rawString(raw, section, key) {
+  const value = get(raw, section, key);
+  return typeof value === "string" ? value : void 0;
+}
+function rawStatusResult(action, snapshot, validationError) {
+  const designOwner = rawString(snapshot.raw, "collaboration", "design_owner");
+  const implementOwner = rawString(
+    snapshot.raw,
+    "collaboration",
+    "implement_owner"
+  );
+  const ownerIsValid = (value) => value === void 0 || value === "claude" || value === "codex";
+  const flowIsExplicit = designOwner !== void 0 || implementOwner !== void 0;
+  const resolvedFlow = ownerIsValid(designOwner) && ownerIsValid(implementOwner) ? `${designOwner ?? "claude"}+${implementOwner ?? "claude"}` : void 0;
+  const implementEnabled = get(snapshot.raw, "implement", "enabled");
+  const tier = (section, fields) => Object.fromEntries(
+    fields.flatMap((field) => {
+      const value = rawString(snapshot.raw, section, field);
+      return value === void 0 ? [] : [[field, value]];
+    })
+  );
+  return {
+    ok: true,
+    action,
+    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+    observed_schema: snapshot.observedSchema ?? null,
+    before_sha256: snapshot.sha256,
+    after_sha256: snapshot.sha256,
+    changed_keys: [],
+    status: {
+      config_valid: false,
+      validation_error: validationError instanceof Error ? validationError.message : String(validationError),
+      flow_mode: ownerIsValid(designOwner) && ownerIsValid(implementOwner) ? flowIsExplicit ? "explicit" : "legacy" : "invalid",
+      ...resolvedFlow ? { resolved_flow: resolvedFlow } : {},
+      ...designOwner !== void 0 ? { design_owner: designOwner } : {},
+      ...implementOwner !== void 0 ? { implement_owner: implementOwner } : {},
+      ...rawString(snapshot.raw, "review", "provider") ? { review_provider: rawString(snapshot.raw, "review", "provider") } : {},
+      ...typeof implementEnabled === "boolean" ? { codex_implement_enabled: implementEnabled } : {},
+      tiers: {
+        "claude-review": tier("review.claude", ["backend", "model", "effort"]),
+        "codex-review": tier("review.codex", ["model", "effort"]),
+        "codex-dispatch": tier("implement", ["model", "effort"]),
+        "codex-default": tier("codex", ["default_model", "default_effort"])
+      }
+    }
+  };
+}
+function validateCandidate(candidate, configPath) {
+  try {
+    return parseConfigText(candidate, configPath);
+  } catch (err) {
+    throw new Error(
+      `candidate config failed validation before publish: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+function handleCcsopConfigure(configPath, rawInput) {
+  const input = ConfigureInput.parse(rawInput);
+  const store = new RuntimeConfigStore(configPath);
+  const snapshot = store.inspect();
+  if (input.action === "status") {
+    try {
+      const loaded = parseConfigText(snapshot.text, configPath);
+      return statusResult(input.action, {
+        ...snapshot,
+        config: loaded.config,
+        loaded
+      });
+    } catch (err) {
+      return rawStatusResult(input.action, snapshot, err);
+    }
+  }
+  requireExpectedSha(
+    input.action,
+    input.expected_config_sha256,
+    snapshot.sha256
+  );
+  if (input.action === "stamp-schema-v1") {
+    if (snapshot.observedSchema === CONTROL_SURFACE_SCHEMA_V1) {
+      const loaded = validateCandidate(snapshot.text, configPath);
+      return statusResult(input.action, {
+        ...snapshot,
+        config: loaded.config,
+        loaded
+      });
+    }
+    if (snapshot.observedSchema !== void 0) {
+      throw new Error(
+        `unsupported control_surface_schema=${snapshot.observedSchema}; expected absent or 1`
+      );
+    }
+    const updates2 = [
+      {
+        section: "meta",
+        key: "control_surface_schema",
+        value: CONTROL_SURFACE_SCHEMA_V1
+      }
+    ];
+    const candidate2 = applyTomlUpdates(snapshot.text, updates2);
+    const candidateLoaded2 = validateCandidate(candidate2, configPath);
+    const written2 = writeConfigAtomically(configPath, snapshot.text, candidate2, {
+      repoRoot: resolve5(dirname7(configPath), candidateLoaded2.config.meta.repo_root)
+    });
+    const after2 = store.loadValidated();
+    if (after2.observedSchema !== CONTROL_SURFACE_SCHEMA_V1) {
+      throw new Error("schema stamp verification failed");
+    }
+    return {
+      ok: true,
+      action: input.action,
+      contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+      observed_schema: after2.observedSchema,
+      before_sha256: written2.beforeSha256,
+      after_sha256: written2.afterSha256,
+      changed_keys: ["meta.control_surface_schema"],
+      backup_path: written2.backupPath
+    };
+  }
+  if (snapshot.observedSchema !== CONTROL_SURFACE_SCHEMA_V1) {
+    throw new Error(
+      `control_surface_schema must be 1 before ${input.action}; run /sop-update`
+    );
+  }
+  let updates;
+  let selectedFlow;
+  if (input.action === "set-flow") {
+    selectedFlow = input.flow;
+    updates = flowUpdates(snapshot.raw, input.flow);
+  } else {
+    if (!PHASE1_TIER_SCOPES.includes(
+      input.scope
+    )) {
+      throw new Error(`unsupported Phase 1 tier scope: ${input.scope}`);
+    }
+    updates = tierUpdates(snapshot.raw, input, input.scope);
+  }
+  if (updates.length === 0) {
+    const loaded = validateCandidate(snapshot.text, configPath);
+    return {
+      ...statusResult(input.action, {
+        ...snapshot,
+        config: loaded.config,
+        loaded
+      }),
+      ...selectedFlow ? { flow: selectedFlow } : {},
+      ...selectedFlow === "codex+claude" ? { delivery: "manual relay" } : {}
+    };
+  }
+  const candidate = applyTomlUpdates(snapshot.text, updates);
+  const candidateLoaded = validateCandidate(candidate, configPath);
+  const written = writeConfigAtomically(configPath, snapshot.text, candidate, {
+    repoRoot: resolve5(dirname7(configPath), candidateLoaded.config.meta.repo_root)
+  });
+  const after = store.loadValidated();
+  if (after.observedSchema !== CONTROL_SURFACE_SCHEMA_V1) {
+    throw new Error("post-write schema verification failed");
+  }
+  return {
+    ok: true,
+    action: input.action,
+    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+    observed_schema: after.observedSchema,
+    before_sha256: written.beforeSha256,
+    after_sha256: written.afterSha256,
+    changed_keys: updates.map((update) => `${update.section}.${update.key}`),
+    backup_path: written.backupPath,
+    ...selectedFlow ? { flow: selectedFlow } : {},
+    ...selectedFlow === "codex+claude" ? { delivery: "manual relay" } : {}
+  };
+}
+var ccsopConfigureToolName = "ccsop_configure";
+var ccsopConfigureToolSchema = {
+  name: ccsopConfigureToolName,
+  description: "Read or deterministically update the ccsop Phase 1 flow/tier control surface. Mutations require an expected config sha and preserve unrelated TOML bytes.",
+  inputSchema: {
+    type: "object",
+    oneOf: [
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: { action: { const: "status" } },
+        required: ["action"]
+      },
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          action: { const: "stamp-schema-v1" },
+          expected_config_sha256: {
+            type: "string",
+            pattern: "^[a-f0-9]{64}$"
+          }
+        },
+        required: ["action", "expected_config_sha256"]
+      },
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          action: { const: "set-flow" },
+          expected_config_sha256: {
+            type: "string",
+            pattern: "^[a-f0-9]{64}$"
+          },
+          flow: { type: "string", enum: [...FLOW_VALUES] }
+        },
+        required: ["action", "expected_config_sha256", "flow"]
+      },
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          action: { const: "set-tier" },
+          expected_config_sha256: {
+            type: "string",
+            pattern: "^[a-f0-9]{64}$"
+          },
+          scope: { type: "string", enum: [...PHASE1_TIER_SCOPES] },
+          model: { type: "string" },
+          effort: { type: "string" },
+          backend: { type: "string", enum: ["api", "cli"] }
+        },
+        required: ["action", "expected_config_sha256", "scope"]
+      }
+    ]
+  }
+};
 
 // src/review-tool-response.ts
 function toReviewToolResponse(result) {
@@ -36995,18 +37825,32 @@ async function main() {
   const { configPath } = parseArgs(process.argv.slice(2));
   let deps = null;
   let implementDeps = null;
+  let runtimeConfigSha = null;
   let configError = null;
-  try {
-    if (!existsSync5(configPath)) {
+  const runtimeConfigStore = new RuntimeConfigStore(configPath);
+  const breakerState = initialBreakerState();
+  const emittedWarnings = /* @__PURE__ */ new Set();
+  const reloadRuntimeDependencies = () => {
+    if (!existsSync6(configPath)) {
       configError = `ccsop review bridge: config not found at ${configPath}. Run /sop-init to scaffold .codex-review/config.toml, then /reload-plugins.`;
-    } else {
-      const loaded = loadConfig({ configPath });
-      for (const warning of claudeApiOnlyKeyWarnings(loaded.config, loaded.raw)) {
+      deps = null;
+      implementDeps = null;
+      runtimeConfigSha = null;
+      return;
+    }
+    try {
+      const loaded = runtimeConfigStore.loadValidated();
+      for (const warning of claudeApiOnlyKeyWarnings(
+        loaded.config,
+        loaded.loaded.raw
+      )) {
+        if (emittedWarnings.has(warning)) continue;
+        emittedWarnings.add(warning);
         process.stderr.write(`[codex-review-mcp] ${warning}
 `);
       }
-      enforceMinSafetyPolicy(loaded.config, loaded.raw);
-      const baseDir = dirname6(configPath);
+      enforceMinSafetyPolicy(loaded.config, loaded.loaded.raw);
+      const baseDir = dirname8(configPath);
       const config2 = loaded.config;
       const projectRoot = resolveProjectPath(config2, baseDir, ".");
       const sessionsDir = resolveProjectPath(config2, baseDir, config2.paths.sessions_dir);
@@ -37018,7 +37862,6 @@ async function main() {
       });
       const promptRenderer = new PromptRenderer(config2, projectRoot);
       const breakers = new BreakerEngine(config2);
-      const breakerState = initialBreakerState();
       const providerCache = /* @__PURE__ */ new Map();
       const providerFor = (kind) => {
         const cached2 = providerCache.get(kind);
@@ -37070,10 +37913,16 @@ async function main() {
           };
         }
       };
+      runtimeConfigSha = loaded.sha256;
+      configError = null;
+    } catch (err) {
+      deps = null;
+      implementDeps = null;
+      runtimeConfigSha = null;
+      configError = `ccsop review bridge: config load failed for ${configPath}: ${err.message}`;
     }
-  } catch (err) {
-    configError = `ccsop review bridge: config load failed for ${configPath}: ${err.message}`;
-  }
+  };
+  reloadRuntimeDependencies();
   if (configError) {
     process.stderr.write(`[codex-review-mcp] degraded: ${configError}
 `);
@@ -37094,11 +37943,37 @@ async function main() {
       fixReviewToolSchema,
       // Listed even when [implement] enabled=false — a disabled call returns the actionable
       // enable-instructions error (design §4.3 default-off).
-      implementToolSchema
+      implementToolSchema,
+      // Deterministic flow/tier/schema writer. It is deliberately NOT in the shipped permission
+      // baseline; host approval remains visible UX friction, not a server authorization proof.
+      ccsopConfigureToolSchema
     ]
   }));
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params;
+    if (name === ccsopConfigureToolName) {
+      try {
+        const result = handleCcsopConfigure(configPath, args ?? {});
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                { ok: false, error: err.message },
+                null,
+                2
+              )
+            }
+          ]
+        };
+      }
+    }
+    reloadRuntimeDependencies();
     if (deps === null) {
       return {
         isError: true,
@@ -37114,12 +37989,21 @@ async function main() {
         ]
       };
     }
+    const invocationConfigSha = runtimeConfigSha;
+    const assertInvocationConfigUnchanged = () => {
+      if (invocationConfigSha === null || runtimeConfigStore.inspect().sha256 !== invocationConfigSha) {
+        throw new Error(
+          "config changed during tool invocation; result rejected, retry against the new config"
+        );
+      }
+    };
     const d = deps;
     if (name === implementToolName) {
       try {
         const impl = implementDeps;
         if (impl === null) throw new Error(configError ?? "bridge not initialized");
         const result = await handleImplement(impl, args ?? {}, extra?.signal);
+        assertInvocationConfigUnchanged();
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
           ...result.ok ? {} : { isError: true }
@@ -37154,6 +38038,7 @@ async function main() {
     };
     try {
       const result = await dispatch();
+      assertInvocationConfigUnchanged();
       return {
         content: [
           {

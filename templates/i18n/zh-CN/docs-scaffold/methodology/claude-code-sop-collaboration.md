@@ -77,7 +77,8 @@ full-auto 无人值守运行，**除非**以下任一成立 —— 则停下、�
 3. **拆分流程**（`design_owner ≠ implement_owner`）是真接力：**implement 任务卡必出**（§4.1 —— 拆分
    流程定义上就是 N≥2）。implement 段 —— implement → 自测 → code review → fix 循环 → ready-to-test
    —— **整段在 implementer 的 CLI session 内闭环**；交回主推 CLI 靠 §6 结构化结果 + `current.md`
-   断点。CLI 切换由用户执行（自动化 harness 不属于 ccsop）—— **唯一例外：`claude+codex` 格支持下述
+   断点。Codex `$handoff` 与 Claude `/handoff` 都重读这个活断点。CLI 切换由用户执行
+   （自动化 harness 不属于 ccsop）—— **唯一例外：`claude+codex` 格支持下述
    规则 3.A 的单会话主持模式。**
 
 3.A **主持模式（仅 `claude+codex`）："Claude 主持 + codex 写手" —— 不切 CLI。**
@@ -94,8 +95,10 @@ full-auto 无人值守运行，**除非**以下任一成立 —— 则停下、�
    review 桥读它做 reviewer 派生）。**键的在场与否有语义**：**两键都缺**时桥处于 **legacy 模式** ——
    全局 `review.provider` 统管所有阶段，与此轴引入前逐字节一致。**任一键在**则派生生效（缺的那个键
    按 `claude` 解析）。非法值 loud 失败（桥降级启动），绝不静默回退。显式用户指令（"这单 codex+claude"）
-   可按 session 覆盖，约定同 §1.A。claude 主推流可用 `/sop-flow` 切 standing default：命令写两
-   个 owner 键并联动 implement gate；reload 桥后生效。
+   可按 session 覆盖，约定同 §1.A。Claude 主推流用 `/sop-flow`，Codex 主推流用
+   `$sop-flow`；两者调用同一个 `ccsop_configure` 契约，下一次公共 bridge 调用即读到新配置，
+   无需 reload。Phase 1 的 `codex+claude` 仍是 manual relay，不下发无人消费的 Claude
+   implement 配置。
 5. `review.provider = manual` 仍强制所有阶段**手动传递** —— 流程依旧有效；每阶段的 prompt/verdict 由
    用户手动转发给对侧模型。
 6. **reviewer-led fallback（§1 模式 3）**用矩阵语言说 ≈ manual 传递下的 `codex+claude` 流程 —— 它早于
@@ -104,7 +107,7 @@ full-auto 无人值守运行，**除非**以下任一成立 —— 则停下、�
 ## 2. 角色
 
 1. **Driver** —— 澄清 + 头脑风暴（SOP §4 分块确认节奏）；设计、任务卡、验收标准；实现、测试脚本、
-   验证命令；跑 `/simplify` 预筛（SOP §5.A）；跑自测并报结构化结果（§6 字段）；应用 review 修复；
+   验证命令；按 owner 跑 `/simplify` 或 `$simplify` 预筛（SOP §5.A）；跑自测并报结构化结果（§6 字段）；应用 review 修复；
    用户"test passed"后做 closeout（单主题 commit + handoff closeout + 任务卡归档 + `code-home:` 行）。
    遇阻塞（限速 / 权限 / 环境 / 契约不清）即暂停并报告 —— 不静默扩大 scope。
 2. **Reviewer** —— 看真实仓库 diff / 任务卡 / 测试证据 / handoff 状态并跑 §9（9.A/9.B/9.C/9.D）；

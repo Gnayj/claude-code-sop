@@ -4,7 +4,7 @@
 
 This repository follows the ccsop delivery workflow. Before acting in a Codex session here:
 
-1. Read the Codex-side execution map: `.codex/skills/project-sop/SKILL.md` (which role this
+1. Read the Codex-side execution map: `.agents/skills/project-sop/SKILL.md` (which role this
    session has under the collaboration flow — `.codex-review/config.toml [collaboration]`).
 2. Read the live state breakpoint: `docs/records/current.md`.
 3. Rules source of truth: `docs/methodology/` (`project-delivery-sop.md`,

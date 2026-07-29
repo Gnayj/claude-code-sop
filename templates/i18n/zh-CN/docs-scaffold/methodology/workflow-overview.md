@@ -35,8 +35,8 @@
     N=1 单轮：无 implement card；N≥2：每阶段一张 card
     每个 commit 单主题
         ↓
-(5) /simplify 提测前预筛  (SOP §5.A：代码后缀 allowlist + ≥30 add+del 行)
-    TRIGGER → 跑 /simplify → 自修 → 重跑至干净
+(5) simplify 提测前预筛  (Claude /simplify | Codex $simplify；相对 main 的 allowlist code ≥30 add+del)
+    TRIGGER → 跑 owner 对应 skill → 自修 → 重跑至干净
     EXEMPT / 不可用 → 跳过 + 记录理由（非阻塞）
         ↓
 (6) 自测（driver）   build / test / 增量日志窗口 / verify 脚本 (SOP §6.4)
@@ -65,7 +65,7 @@
 | (3) design review | review envelope | 桥状态；design.md 顶部记录 review chain（Round N verdict + finding ids） |
 | (4) Implement | 从 main 切 feature 分支 | `<design-id>` 或自定义 |
 | (4) Implement card | 多轮时每阶段一张 | `docs/plans/active/<design-id>-<phase>-implement.txt`（单轮：无） |
-| (5) /simplify | 自测证据 | implement commit / verify 证据记录 TRIGGER/EXEMPT + 理由 |
+| (5) simplify | 自测证据 | implement commit / verify 证据记录 TRIGGER/EXEMPT + 理由 |
 | (6) 自测 | verify 脚本 / 接口结果 | `scripts/verify_*.sh`（运行时功能）+ 增量日志 |
 | (7) code review | review envelope | 桥状态；closeout commit 引用 review chain |
 | (8) 用户验收 | "test passed" / "failed: X" | 用户回复 |
@@ -87,12 +87,19 @@
 | N≥2 独立 closeout 阶段 | 每阶段一张（从 `_template-implement.txt`） |
 | N=1 中途暂停 / 接力 | 一张 card，在阶段切换处创建 |
 
-## 5. 流程中的 /handoff 与 /simplify
+## 5. 流程中的 handoff 与 simplify
 
 | skill | 阶段 | 触发 | 产出 / 行为 |
 |---|---|---|---|
-| `/handoff` | (1) 之前 / session 启动 / 切换 active 任务 | 用户说 "按 SOP 推进 / 现状如何 / 继续 <task>" | ~150 行结构化 handoff（模式 + active 任务 + scope + 非目标 + 验收 + review 状态 + 锁定决策 + 协作边界 + 下一步） |
-| `/simplify`（内置） | (5) implement 后、自测前 | 改动后缀在代码 allowlist 内 且 ≥30 add+del 行 | 报告问题或无；driver 自修；不替代 reviewer |
+| Claude `/handoff` / Codex `$handoff` | (1) 之前 / session 启动 / 切换 active 任务 | 用户说 "按 SOP 推进 / 现状如何 / 继续 <task>" | 重读 `current.md`；输出结构化 handoff |
+| Claude `/simplify` / Codex `$simplify` | (5) implement 后、自测前 | 以下 inline 生成判据；Codex 还读取 canonical JSON | 四角预筛；driver 自修；不替代 reviewer |
+
+以下可读触发判据由 `SIMPLIFY_CONTRACT_V1` 生成（因此 Claude-only consumer 不依赖 Codex
+scaffold 路径）：
+
+- code 路径 allowlist：`.go`, `.vue`, `.ts`, `.tsx`, `.js`, `.py`, `.sh`；
+- 相对 base ref `main` 的 committed + staged + unstaged + untracked diff 中，allowlist code 的 add+del 合计达到 `30` 行时触发；
+- 非 git 仓库、缺少 `main`、detached HEAD、纯文档/SOP/typo，或 allowlist code 未达阈值时豁免。
 
 ## 6. 失败模式
 
@@ -101,15 +108,15 @@
 | `codex_code_review = No-Go` | 停；报告用户；不自动重启循环 | collaboration §3 |
 | `codex_code_review` 反复 `Rereview-after-fixes` 超上限 | 断路器触发；停，报告 | 桥设计（breakers） |
 | `codex_design_review = No-Go` | 重新设计；不进 implement | collaboration §4.5 |
-| `/simplify` 误报 | inline note + 证据 "non-issue: <reason>"；继续到 reviewer（其仍可否决） | SOP §5.A |
+| simplify 误报 | inline note + 证据 "non-issue: <reason>"；继续到 reviewer（其仍可否决） | SOP §5.A |
 | 用户验收 "failed: X" | 未 closeout；修复 → 重自测 → 重测；无 closeout commit | SOP §6.3 |
 | build / test 失败 | implement 内正常修复；别报 "可提测" | SOP §5 |
 | 桥 / provider 不可用 | 降级为手动转发；记录理由；不自动重启自动通道 | collaboration §3 |
 | §4.5 触发不明 | 默认走 pre-review | collaboration §4.5 |
 | ff-only 合并失败（已分叉） | 暂停；别自行 rebase；报告用户 | collaboration §4.6 |
 | session 阻塞（fix 循环卡住 / 等用户） | 起 git worktree，另开 session 做别的活 | collaboration §4.7 |
-| `/handoff` 漏关键信息 | 调用后再 Read 完整任务卡 / design 文档 | collaboration §4 |
-| `/simplify` 不可用 | 跳过 + 记录理由；非阻塞 | SOP §5.A |
+| handoff 漏关键信息 | 调用后再 Read 完整任务卡 / design 文档 | collaboration §4 |
+| simplify 不可用 | 跳过 + 记录理由；非阻塞 | SOP §5.A |
 | fix 循环不收敛（同一 Critical 复现 / Critical 总数 2 轮持平 / 回归 ping-pong） | 标记 stall；停；报告分歧 + ≥2 选项；在软上限处升级 | collaboration §9.E |
 | 试验/诊断补丁留在主代码 | 探针放进一次性脚本 + 三态 verdict；临时主代码改动登记，closeout 时清理或固化 | SOP §13 + §14 |
 

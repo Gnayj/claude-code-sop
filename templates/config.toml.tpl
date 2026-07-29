@@ -7,6 +7,7 @@
 project_id = "<PROJECT_ID>"
 project_name = "<PROJECT_NAME>"
 language = "<LANGUAGE>"          # the language /sop-init materialized docs in (en | zh | ...)
+control_surface_schema = 1       # ccsop_configure contract; unknown future values fail closed
 repo_root = ".."                 # relative to this config file (.codex-review/)
 allowed_doc_roots = [
   "docs/",

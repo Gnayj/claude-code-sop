@@ -14,9 +14,7 @@ import {
 
 import {
   claudeApiOnlyKeyWarnings,
-  loadConfig,
   resolveProjectPath,
-  type ResolvedConfig,
 } from "./config.js";
 import { enforceMinSafetyPolicy } from "./safety.js";
 import { createReviewProvider } from "./providers/factory.js";
@@ -45,11 +43,17 @@ import {
   implementToolSchema,
   handleImplement,
 } from "./tools/implement.js";
+import {
+  ccsopConfigureToolName,
+  ccsopConfigureToolSchema,
+  handleCcsopConfigure,
+} from "./tools/ccsop-configure.js";
 import { toReviewToolResponse } from "./review-tool-response.js";
 import type { FlowDependencies } from "./run-review-flow.js";
 import type { ImplementFlowDependencies } from "./run-implement-flow.js";
 import { ImplementStore } from "./implement-workspace.js";
 import { OpenAICodexClient } from "./codex-client.js";
+import { RuntimeConfigStore } from "./runtime-config-store.js";
 
 interface ParsedArgs {
   configPath: string;
@@ -96,19 +100,35 @@ async function main(): Promise<void> {
   // before /sop-init has written .codex-review/config.toml.
   let deps: FlowDependencies | null = null;
   let implementDeps: ImplementFlowDependencies | null = null;
+  let runtimeConfigSha: string | null = null;
   let configError: string | null = null;
-  try {
+  const runtimeConfigStore = new RuntimeConfigStore(configPath);
+  const breakerState = initialBreakerState();
+  const emittedWarnings = new Set<string>();
+
+  const reloadRuntimeDependencies = (): void => {
     if (!existsSync(configPath)) {
       configError =
         `ccsop review bridge: config not found at ${configPath}. ` +
         `Run /sop-init to scaffold .codex-review/config.toml, then /reload-plugins.`;
-    } else {
-      const loaded = loadConfig({ configPath });
-      for (const warning of claudeApiOnlyKeyWarnings(loaded.config, loaded.raw)) {
+      deps = null;
+      implementDeps = null;
+      runtimeConfigSha = null;
+      return;
+    }
+    try {
+      // No cache by design: every public tool invocation observes the current config bytes.
+      const loaded = runtimeConfigStore.loadValidated();
+      for (const warning of claudeApiOnlyKeyWarnings(
+        loaded.config,
+        loaded.loaded.raw,
+      )) {
+        if (emittedWarnings.has(warning)) continue;
+        emittedWarnings.add(warning);
         process.stderr.write(`[codex-review-mcp] ${warning}\n`);
       }
       // Defense in depth: reject any project config that tries to relax MIN_SAFETY_POLICY.
-      enforceMinSafetyPolicy(loaded.config, loaded.raw);
+      enforceMinSafetyPolicy(loaded.config, loaded.loaded.raw);
       const baseDir = dirname(configPath);
       const config = loaded.config;
       const projectRoot = resolveProjectPath(config, baseDir, ".");
@@ -121,7 +141,6 @@ async function main(): Promise<void> {
       });
       const promptRenderer = new PromptRenderer(config, projectRoot);
       const breakers = new BreakerEngine(config);
-      const breakerState = initialBreakerState();
       // Review backends are constructed lazily PER KIND (flow matrix, collaboration.md §1.D):
       // the stage→kind derivation happens per call in run-review-flow; this memoized registry
       // hands it a backend for whatever kind it resolves (legacy configs only ever ask for
@@ -186,12 +205,21 @@ async function main(): Promise<void> {
           };
         },
       };
+      runtimeConfigSha = loaded.sha256;
+      configError = null;
+    } catch (err) {
+      // Invalid config (schema / safety-policy / provider-selection): stay degraded with the
+      // specific reason rather than crashing the transport.
+      deps = null;
+      implementDeps = null;
+      runtimeConfigSha = null;
+      configError =
+        `ccsop review bridge: config load failed for ${configPath}: ` +
+        `${(err as Error).message}`;
     }
-  } catch (err) {
-    // Invalid config (schema / safety-policy / provider-selection): stay degraded with the
-    // specific reason rather than crashing the transport.
-    configError = `ccsop review bridge: config load failed for ${configPath}: ${(err as Error).message}`;
-  }
+  };
+
+  reloadRuntimeDependencies();
   if (configError) {
     process.stderr.write(`[codex-review-mcp] degraded: ${configError}\n`);
   }
@@ -214,11 +242,37 @@ async function main(): Promise<void> {
       // Listed even when [implement] enabled=false — a disabled call returns the actionable
       // enable-instructions error (design §4.3 default-off).
       implementToolSchema,
+      // Deterministic flow/tier/schema writer. It is deliberately NOT in the shipped permission
+      // baseline; host approval remains visible UX friction, not a server authorization proof.
+      ccsopConfigureToolSchema,
     ],
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params;
+    if (name === ccsopConfigureToolName) {
+      try {
+        const result = handleCcsopConfigure(configPath, args ?? {});
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                { ok: false, error: (err as Error).message },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+    }
+    reloadRuntimeDependencies();
     // Degraded mode: no usable config → return the actionable reason instead of dispatching.
     if (deps === null) {
       return {
@@ -235,6 +289,17 @@ async function main(): Promise<void> {
         ],
       };
     }
+    const invocationConfigSha = runtimeConfigSha;
+    const assertInvocationConfigUnchanged = (): void => {
+      if (
+        invocationConfigSha === null ||
+        runtimeConfigStore.inspect().sha256 !== invocationConfigSha
+      ) {
+        throw new Error(
+          "config changed during tool invocation; result rejected, retry against the new config",
+        );
+      }
+    };
     const d = deps; // narrowed to FlowDependencies for the closure below
     if (name === implementToolName) {
       // Separate result shape from the review envelope — return the flow result directly.
@@ -244,6 +309,7 @@ async function main(): Promise<void> {
         // MCP cancellation: a cancelled call must never publish (design §4.1; the SDK cannot
         // abort a running turn mid-flight — the flow checks the signal at each boundary).
         const result = await handleImplement(impl, args ?? {}, extra?.signal);
+        assertInvocationConfigUnchanged();
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
           ...(result.ok ? {} : { isError: true }),
@@ -278,6 +344,7 @@ async function main(): Promise<void> {
     };
     try {
       const result = await dispatch();
+      assertInvocationConfigUnchanged();
       return {
         content: [
           {

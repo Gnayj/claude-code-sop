@@ -98,8 +98,8 @@
 1. 需求契约已锁定（含边界条件）。
 2. design 文档已更新。
 3. 实现完成。
-4. **`/simplify` 提测前预筛已跑或豁免**（见 §5.A）。若触发，跑 `/simplify` 并自修全部问题再进下一步；
-   若豁免，在自测证据里记理由。
+4. **按 implement owner 选择的 simplify 预筛已跑或豁免**（Claude：`/simplify`；Codex：
+   `$simplify`；见 §5.A）。若触发，自修全部问题再进下一步；若豁免，在自测证据里记理由。
 5. Build 通过（如 `${BUILD_CMD}`）。
 6. 关键路径测试脚本可跑。
 7. 日志可观测（命中/回源/延迟/错误原因）。
@@ -110,26 +110,29 @@
 12. 已验收改动单独提交，或显式记录为何尚未提交。
 13. 若用户声明"按 SOP"，授权前缀策略遵循最小可复用原则。
 
-### 5.A `/simplify` 提测前预筛（默认强制）
+### 5.A `/simplify` 或 `$simplify` 提测前预筛（默认强制）
 
-`/simplify` 是 Claude Code 内置 skill（"Review changed code for reuse, quality, and efficiency,
-then fix any issues found"），用作 reviewer 闸门（`codex_code_review`）*之前*的廉价本地预筛，
-过滤死代码 / 重复 / 过度抽象，减少 reviewer 轮次。
+按 implement 所在 CLI 选 skill：Claude Code 用 `/simplify`，Codex 用 repo-local
+`$simplify`。它们是 reviewer 闸门之前的廉价本地预筛；Codex skill 完整检查 reuse /
+quality / efficiency / coverage 四角并修复确认项，但不替代独立 reviewer。
 
 **触发（机器判据）：**
-- 改动文件后缀 ∈ 代码 allowlist（如 `.go .ts .tsx .js .py .vue .sh` —— 按 `${STACK}` 调整）；
-- feature 分支相对 base 的 add+del ≥ 30 行（committed + staged + unstaged + untracked）；
-- base ref 默认 `main`；非 git 仓 / 无 `main` / detached HEAD → 跳过 → 豁免（记理由）；
-- 否则（纯文档 / SOP / typo / 小修 / 后缀不在 allowlist）→ 豁免。
+以下可读判据由与 Codex JSON 相同的 `SIMPLIFY_CONTRACT_V1` 真源生成。Codex consumer 还会读
+`.agents/skills/simplify/references/contract.json` 的 canonical bytes；Claude-only consumer
+直接使用以下 inline 值，不依赖该 Codex scaffold 路径。
 
-**流程（触发时）：** 调 `/simplify` → 若"无问题"进 build → 若有问题，就地修复并重跑至无问题
+- code 路径 allowlist：`.go`, `.vue`, `.ts`, `.tsx`, `.js`, `.py`, `.sh`；
+- 相对 base ref `main` 的 committed + staged + unstaged + untracked diff 中，allowlist code 的 add+del 合计达到 `30` 行时触发；
+- 非 git 仓库、缺少 `main`、detached HEAD、纯文档/SOP/typo，或 allowlist code 未达阈值时豁免。
+
+**流程（触发时）：** 调 owner 对应的 skill → 若"无问题"进 build → 若有问题，就地修复并重跑至无问题
 （或剩余项以 inline note 确认为非问题）→ 再自测 → reviewer 闸门。
 
 **不可用 fallback：** 若 skill 因任何原因无法调用，跳过预筛，在自测证据里记
-`"/simplify skipped: <reason>"`，**不阻塞**，进 reviewer 闸门。
+`"simplify skipped: <reason>"`，**不阻塞**，进 reviewer 闸门。
 
-**与 reviewer 闸门的关系：** `/simplify` 不替代 reviewer。它抓廉价的本地复用/质量/效率问题；reviewer
-仍覆盖 架构 / scope drift / 跨切面一致性。正交且串行（implement → /simplify → 自修 → 自测 → review）。
+**与 reviewer 闸门的关系：** simplify 不替代 reviewer。它抓廉价的本地复用/质量/效率问题；reviewer
+仍覆盖 架构 / scope drift / 跨切面一致性。正交且串行（implement → simplify → 自修 → 自测 → review）。
 
 ## 6. 测试 SOP（统一判定）
 

@@ -4,7 +4,7 @@
 
 本仓库遵循 ccsop 交付工作流。在此仓库的 Codex session 行动前：
 
-1. 读 Codex 侧执行地图：`.codex/skills/project-sop/SKILL.md`（本 session 在协作流程下的角色 ——
+1. 读 Codex 侧执行地图：`.agents/skills/project-sop/SKILL.md`（本 session 在协作流程下的角色 ——
    `.codex-review/config.toml [collaboration]`）。
 2. 读活的状态断点：`docs/records/current.md`。
 3. 规则真源：`docs/methodology/`（`project-delivery-sop.md`、

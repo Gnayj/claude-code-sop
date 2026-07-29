@@ -1,112 +1,81 @@
 ---
-description: Show or set Codex and Claude reviewer model, effort, and backend tiers.
+description: Show or set the real Claude-review and Codex bridge model/effort tiers.
 ---
 
-# /sop-tier — inspect or set Codex/Claude model, effort, and backend tiers
+# /sop-tier — inspect or set consumed model tiers
 
-Work in `${CLAUDE_PROJECT_DIR}`. The typed-argument form is direct, deterministic, and scriptable.
-The no-argument path prints status, then may offer an interactive selection. There are no flags
-beyond the documented assignments.
+Work in `${CLAUDE_PROJECT_DIR}`. This command is a thin UX wrapper over `ccsop_configure`. It
+never edits TOML directly and never offers a shell/manual-edit fallback.
 
-## Step 0 — Guards
+## Step 0 — guards
 
-If `${CLAUDE_PLUGIN_ROOT}/.orphaned_at` exists, **abort**: the plugin root is an orphaned cache
-snapshot created by a mid-session update. Tell the user to restart the session or reload plugins,
-then re-run. Never auto-resolve to a sibling directory.
+Apply the orphaned-root and missing-config guards from `/sop-flow`. Discover
+`ccsop_configure`; if the tool is missing/old/unregistered, make zero writes and direct the user
+to `/mcp` plus reconnect/restart.
 
-If `${CLAUDE_PROJECT_DIR}/.codex-review/config.toml` is missing, stop and say: "run `/sop-init`
-first".
+Call `action=status`. Require `contract_version=1` and `observed_schema=1`. Schema absent means
+`/sop-update` must run the fixed stamp action; an unknown schema/contract fails loud with zero
+writes.
 
-## Step 1 — Read state
+If status returns `config_valid=false`, show its `validation_error` and raw tier values. An
+explicit legal set may repair the selected invalid tier key: the server publishes only when the
+resulting **whole config** passes TOML+Zod validation. Unrelated invalid fields (or uninspectable
+TOML) reject with zero writes; report the exact field and recover via `/sop-update` where
+supported or a verified `.ccsop/backups/config/<sha256>.toml` preimage. Never hand-edit on behalf
+of this command.
 
-Parse the config without rewriting it. Read these configured keys; commented or missing
-model/effort keys equal `""`, while a commented or missing Claude backend equals `"api"`:
+## Step 1 — scopes and status
 
-- `[codex] default_model` and `default_effort`
-- `[review.codex] model` and `effort`
-- `[implement] model` and `effort`
-- `[review.claude] backend`, `model`, and `effort`
+Only expose scopes with a real Phase 1 consumer:
 
-Resolve review model and effort independently through `[review.codex]` → `[codex]` → SDK default.
-Resolve implement model and effort independently through `[implement]` → `[codex]` → SDK default.
-Record the source of each resolved value. The `claude` scope has no `[codex]` fallback chain:
-`[review.claude]` is its only configured source; an empty model selects the Claude backend's
-strong default.
+| Public command scope | Machine scope | Consumer |
+|---|---|---|
+| `claude` | `claude-review` | `[review.claude]` |
+| `review` | `codex-review` | `[review.codex]` |
+| `implement` | `codex-dispatch` | existing `[implement]` Codex dispatcher |
+| `default` | `codex-default` | shared `[codex]` fallback |
 
-Validate effort against the chosen provider's distinct domain:
+Do not expose `claude-implement`; that runtime does not exist in Phase 1. The current host Claude
+or Codex session model is selected with the host's built-in `/model`, not through this command.
 
-- Codex scopes (`review`, `implement`, `default`): `""`, `minimal`, `low`, `medium`, `high`, or
-  `xhigh` — no `max`.
-- Claude scope (`claude`): `""`, `low`, `medium`, `high`, `xhigh`, or `max` — no `minimal`.
+Print configured values returned by `status`. Explain the existing fallback resolution:
+`codex-review` and `codex-dispatch` each fall back field-by-field to `codex-default`, then the SDK
+default; `claude-review` uses its own backend/model/effort.
 
-The domains do not interoperate. For any other value, report its key and value, that the bridge
-fails loud into its degraded path, and that a valid set repairs it. Status never repairs config.
+## Step 2 — dispatch on `$ARGUMENTS`
 
-## Step 2 — Dispatch on `$ARGUMENTS`
+- Empty: print status and offer `claude`, `review`, `implement`, `default`, and `keep current`.
+  If no picker exists, print typed usage and stop read-only.
+- Typed form:
+  `/sop-tier <review|implement|default|claude> [backend=<api|cli>] [effort=<value>] [model=<id or "">]`
+- Require at least one assignment. Reject duplicate/unknown assignments before calling the tool.
+- Codex effort domain: `""|minimal|low|medium|high|xhigh`; `backend` is forbidden.
+- Claude effort domain: `""|low|medium|high|xhigh|max`; `backend` is optional.
 
-Trim whitespace, then:
+Interactive choices must use the same domains. Empty string means provider/SDK default. Model ids
+are opaque non-empty strings; do not invent model validation.
 
-- Empty: print the status template below. Offer a scope picker: `review`, `implement`, `default`
-  (shared `[codex]` tier), `claude`, and `keep current`. Put each scope's current resolved model
-  and effort in its label; include the current backend in the `claude` label. `keep current`
-  stops without writing.
-- For a picked Codex scope, offer effort choices `minimal`, `low`, `medium`, `high`, `xhigh`,
-  `SDK default ("")`, and `keep current`. For `claude`, instead offer `low`, `medium`, `high`,
-  `xhigh`, `max`, `SDK default ("")`, and `keep current`, then offer backend choices `api`, `cli`,
-  and `keep current`. Offer Codex scopes model choices `keep current`, `SDK default ("")`, and a
-  custom model id through free-text input; for `claude`, label `""` as the strong Claude default
-  instead. Mark current configured values and consolidate the choices into one Step 3 write.
-- If no interactive selection surface is available, print the typed-form usage and stop.
-- Typed form: accept `review`, `implement`, or `default`, followed by `effort=<value>` and/or
-  `model=<value>`; accept `claude` followed by any of `backend=<api|cli>`, `effort=<value>`, and
-  `model=<value>`. Quoted `""` means the empty string. Model ids are any non-empty strings; do
-  not validate their semantics.
-- Require at least one assignment. Before any write, reject an unknown scope, unknown key,
-  duplicate assignment, `backend` outside `api|cli` (or used outside `claude`), or effort outside
-  its scope's provider-specific enum. Print the usage plus a validation note and make zero writes.
+## Step 3 — one CAS mutation
 
-Status output:
+Map the public scope through the table above and call once:
 
-```text
-Configured:
-[codex] default_model=<value> default_effort=<value>
-[review.codex] model=<value> effort=<value>
-[implement] model=<value> effort=<value>
-[review.claude] backend=<value> model=<value> effort=<value>
-Resolved:
-review: effort=<value|SDK default> (from <review.codex|codex|SDK default>), model=<value|SDK default> (from <review.codex|codex|SDK default>)
-implement: effort=<value|SDK default> (from <implement|codex|SDK default>), model=<value|SDK default> (from <implement|codex|SDK default>)
+```json
+{
+  "action": "set-tier",
+  "scope": "<machine scope>",
+  "expected_config_sha256": "<sha from status>",
+  "model": "<only if requested>",
+  "effort": "<only if requested>",
+  "backend": "<only for claude-review and only if requested>"
+}
 ```
 
-Usage:
+The server validates the provider-specific domain and changes only requested keys. On sha
+mismatch, show refreshed read-only status and ask the user to retry; never silently replay.
 
-```text
-Usage: /sop-tier <review|implement|default|claude> [backend=<api|cli>] [effort=<value>] [model=<id or "">]
-Codex scopes effort: <""|minimal|low|medium|high|xhigh>; backend is not accepted.
-Claude scope effort: <""|low|medium|high|xhigh|max>; backend is optional.
-```
+## Step 4 — report
 
-## Step 3 — Set
-
-Make targeted, comment-preserving line edits only in
-`${CLAUDE_PROJECT_DIR}/.codex-review/config.toml`. Map the chosen scope to exactly these keys:
-
-- `default`: `[codex] default_model` and `default_effort`
-- `review`: `[review.codex] model` and `effort`
-- `implement`: `[implement] model` and `effort`
-- `claude`: `[review.claude] backend`, `model`, and `effort` (`backend` accepts only `api` or `cli`)
-
-Write only requested assignments: at most the two allowed keys for a Codex scope or the three
-allowed keys for `claude`. Uncomment or update their existing lines. Append a missing key to its
-section, or append the section and key when the section is absent, matching the file's comment
-style. Never reformat unrelated content or touch `[implement].enabled`, collaboration owner keys,
-`[review] provider`, or any other key.
-
-If every requested key already matches, say "already set; nothing changed" and do not write.
-Otherwise make one consolidated write. When a valid effort replaces an invalid existing effort,
-report that it was repaired.
-
-## Step 4 — Report
-
-Print a diff-style summary containing exactly the changed key lines. After any write, remind:
-"run `/reload-plugins` or restart — the bridge loads config at startup only".
+Print `changed_keys`, before/after sha, and backup path. Empty `changed_keys` means
+`already set; nothing changed`. The next public bridge invocation re-reads config, so no reload is
+needed after an ordinary tier mutation. Reconnect/restart is only for unavailable/changed bundle
+or tool registration.

@@ -2,111 +2,101 @@
 description: Show or set the standing ccsop collaboration flow for Claude-driven work.
 ---
 
-# /sop-flow — inspect or switch the collaboration flow
+# /sop-flow — inspect or switch the Claude-driven collaboration flow
 
-Work in `${CLAUDE_PROJECT_DIR}`. The typed-argument form is direct, deterministic, and scriptable.
-The no-argument path prints status, then may offer an interactive selection. The set flow itself
-asks no wizard questions: one pick maps to one action, equivalent to the single argument. There
-are no flags.
+Work in `${CLAUDE_PROJECT_DIR}`. This command is a thin UX wrapper over the
+`ccsop_configure` machine contract. It never edits `.codex-review/config.toml` itself and has no
+shell/manual-edit fallback.
 
-## Step 0 — Guards
+## Step 0 — guards
 
-If `${CLAUDE_PLUGIN_ROOT}/.orphaned_at` exists, **abort**: the plugin root is an orphaned cache
-snapshot created by a mid-session update. Tell the user to restart the session or reload plugins,
-then re-run. Never auto-resolve to a sibling directory.
+If `${CLAUDE_PLUGIN_ROOT}/.orphaned_at` exists, abort and ask the user to restart the session or
+reload plugins. If `.codex-review/config.toml` is missing, ask them to run `/sop-init`.
 
-If `${CLAUDE_PROJECT_DIR}/.codex-review/config.toml` is missing, stop and say: "run `/sop-init`
-first".
+Discover `ccsop_configure`. If it is missing, from an older bundle, or not registered in this
+session, make zero writes and say:
 
-## Step 1 — Read state
+```text
+ccsop_configure is unavailable. Run /mcp and reconnect/restart the ccsop review bridge, then retry.
+No config was changed.
+```
 
-Parse the config without rewriting it. In every state, read:
+Do not suggest direct TOML edits or a shell fallback.
 
-- `[collaboration] design_owner` and `implement_owner`, including whether each is present.
-  Commented keys are absent; an individually absent owner resolves to `claude`.
-- `[implement] enabled`.
-- `[review] provider`, including for explicit flows.
+## Step 1 — handshake and status
 
-Classify the owner state:
+Call `ccsop_configure` with `action=status`. Require `contract_version=1` and
+`observed_schema=1`.
 
-- **legacy**: both owner keys are absent; `review.provider` governs every stage.
-- **explicit `<design>+<implement>`**: resolve an individually absent owner as above; each value
-  must be `claude` or `codex`.
-- **invalid**: either present owner has another value. Report the invalid key/value and that the
-  bridge fails loud into its degraded path rather than silently choosing a reviewer. Status must
-  not repair it; say that a valid set argument writes both owner keys and the coupled implement
-  gate.
+- `observed_schema=null`: make zero writes and ask the user to run `/sop-update`, which performs
+  the server-fixed `stamp-schema-v1` migration.
+- any schema other than `1`, or any contract other than `1`: fail loud, show the observed and
+  supported values, make zero writes, and ask for a compatible ccsop update.
 
-## Step 2 — Dispatch on `$ARGUMENTS`
+Use the returned owners, implement gate, tiers, and config sha as the only state snapshot. The
+flow contract and reviewer derivation live in the shipped control-surface contract, not in this
+prose wrapper. Status is read-only.
 
-Trim whitespace, then:
+If status returns `config_valid=false`, show its `validation_error` and raw owner values. An
+explicit legal set may repair invalid `collaboration.design_owner` / `implement_owner` values:
+the server publishes only when the resulting **whole config** passes TOML+Zod validation. If an
+unrelated invalid field remains (or TOML cannot be inspected), the server rejects with zero
+writes. Report the exact field and recover via `/sop-update` where supported or a verified
+`.ccsop/backups/config/<sha256>.toml` preimage; this command still never edits TOML itself.
 
-- Empty: print the status template below, then offer an interactive selection with exactly three
-  options: `claude+claude`, `claude+codex`, and `keep current`. Mark the active flow in its option
-  label. A flow pick continues to Step 3 exactly as if that flow were passed as the argument.
-  `keep current` stops with no write. If no interactive selection surface is available, print the
-  two set commands from the status template and stop (the v1 fallback).
-- `claude+claude` or `claude+codex`: continue to Step 3.
-- `codex+codex` or `codex+claude`: reject without writing. Explain that the driving CLI is the
-  `design_owner` CLI (collaboration.md §1.D rule 2), so Codex-driven flows must be switched from
-  the Codex side. Point to the `codex-scaffold` skill and the repository `AGENTS.md`.
-- Anything else: print `Usage: /sop-flow [claude+claude|claude+codex]` and stop.
+## Step 2 — dispatch on `$ARGUMENTS`
+
+Trim whitespace.
+
+- Empty: print current status, then offer exactly `claude+claude`, `claude+codex`, and
+  `keep current`. Mark the active flow. If no interactive picker exists, print the typed usage and
+  stop without writing.
+- `claude+claude` or `claude+codex`: continue.
+- `codex+codex` or `codex+claude`: reject without writing. Codex-driven flows are selected from
+  Codex with `$sop-flow`; `codex+claude` remains **manual relay** in Phase 1.
+- anything else: print `Usage: /sop-flow [claude+claude|claude+codex]` and stop.
 
 Status output:
 
 ```text
-Flow: <design_owner>+<implement_owner>
-Design review: <counterpart(design_owner)>
-Code review: <counterpart(implement_owner)>
-Fix review: inherits the reviewer recorded for that review session
-[implement].enabled: <true|false>
+Flow: <resolved flow or legacy>
+Design review: <derived reviewer>
+Code review: <derived reviewer>
+Fix review: reviewer recorded for that review session
+codex_implement enabled: <true|false>
 Per-session override: "这单走 <flow>" / "this one <flow>"
 Set standing default: /sop-flow claude+claude | /sop-flow claude+codex
 ```
 
-For legacy state, replace the flow and reviewer lines with:
+If `review.provider=manual` is reported by the bridge, describe delivery as manual without
+pretending an automatic reviewer will run.
 
-```text
-Flow: legacy — review.provider=<value> governs all stages
+## Step 3 — one CAS mutation
+
+Call `ccsop_configure` once with:
+
+```json
+{
+  "action": "set-flow",
+  "flow": "<selected flow>",
+  "expected_config_sha256": "<sha from Step 1>"
+}
 ```
 
-For invalid state, show the invalid diagnosis from Step 1 instead of claiming an effective flow.
-When `review.provider = manual` and owner keys are present, show the resolved flow owners, then:
+The server owns the exact coupled mutation:
 
-```text
-Delivery: manual for every stage (you forward to the derived counterpart)
-```
+- `claude+codex` enables the existing Codex implement dispatcher;
+- `claude+claude` disables that dispatcher;
+- the provider key and all unrelated bytes remain untouched.
 
-Do not print an automatic-reviewer table in that manual case. Otherwise, derive design review as
-`counterpart(design_owner)`, code review as `counterpart(implement_owner)`, and fix review from the
-reviewer's kind recorded in that session.
+On sha mismatch, report the concurrent change, call read-only `status` again, and ask the user to
+retry the selection. Do not silently replay a mutation against a new sha.
 
-## Step 3 — Set the standing default
+## Step 4 — report
 
-Make targeted, comment-preserving line edits only in
-`${CLAUDE_PROJECT_DIR}/.codex-review/config.toml`:
+Print the server-returned `changed_keys`, before/after sha, and backup path. If `changed_keys` is
+empty, say `already active; nothing changed`.
 
-1. In the existing `[collaboration]` section, uncomment or update `design_owner` and
-   `implement_owner` to the requested values. Append that section only if it is wholly absent.
-2. For `claude+codex`, set `[implement] enabled = true`.
-3. For `claude+claude`, change `[implement] enabled` from `true` to `false`. On that edge always
-   say: "disabled codex_implement — not used by this flow; re-enable manually if you meant to keep
-   it". If it is already false, leave it unchanged.
-4. If `[implement]` is absent when its target key must be written, append the section.
-
-The complete target state is the two owner keys plus the coupled `[implement].enabled` value
-(`true` for `claude+codex`, `false` for `claude+claude`). Repair invalid owner values on a valid set
-and report the repair. Never change more than these three keys, reformat unrelated content, or
-touch `[review] provider`. If that provider is `manual`, note that delivery remains manual for
-every stage. Writing explicit owner keys activates per-stage derivation: warn when a non-manual
-`review.provider` is set that it no longer selects reviewers (derivation wins — §1.D precedence).
-
-## Step 4 — Report
-
-Print a diff-style summary containing exactly the changed key lines. After any write, remind:
-"run `/reload-plugins` or restart — the bridge loads config at startup only".
-
-Say "already active; nothing changed" only when all three keys already match the complete target
-state. Owner matches alone are not idempotence: explicit `claude+claude` with `enabled = true`
-must still write `enabled = false`, print the disable notice, include that line in the summary,
-and print the reload reminder.
+The next public bridge invocation re-reads config, so do **not** ask for reload after an ordinary
+flow mutation. `/mcp` reconnect/restart is needed only when the bundle/tool registration itself
+was unavailable or changed.

@@ -114,8 +114,9 @@
 1. Requirement contract locked (incl. boundary conditions).
 2. Design doc updated.
 3. Implementation complete.
-4. **`/simplify` pre-test pre-screen run or exempted** (see §5.A). If triggered, run `/simplify`
-   and self-fix all issues before the next step; if exempted, record the reason in self-test evidence.
+4. **The owner-appropriate simplify pre-screen ran or was exempted** (Claude: `/simplify`;
+   Codex: `$simplify`; see §5.A). If triggered, self-fix all issues before the next step; if
+   exempted, record the reason in self-test evidence.
 5. Build passes (e.g. `${BUILD_CMD}`).
 6. Key-path test script runnable.
 7. Logs observable (hit/fallback/latency/error-cause).
@@ -126,28 +127,33 @@
 12. Accepted change committed on its own, or explicitly recorded why not yet.
 13. If the user declared "per the SOP", the authorization-prefix strategy followed the minimal-reusable principle.
 
-### 5.A `/simplify` pre-test pre-screen (default forced)
+### 5.A `/simplify` or `$simplify` pre-test pre-screen (default forced)
 
-`/simplify` is a Claude Code built-in skill ("Review changed code for reuse, quality, and
-efficiency, then fix any issues found"), used as a cheap local pre-screen *before* the reviewer
-gate (`codex_code_review`) to filter dead code / duplication / over-abstraction and cut reviewer rounds.
+Use the skill owned by the implementing CLI: Claude Code `/simplify`, or the repo-local Codex
+`$simplify`. Both are a cheap local pre-screen *before* the reviewer gate. The Codex skill checks
+all four corners — reuse, quality, efficiency, and coverage — then fixes confirmed findings; it
+does not replace the independent reviewer.
 
 **Trigger (machine criteria):**
-- changed-file suffix ∈ a code allowlist (e.g. `.go .ts .tsx .js .py .vue .sh` — adapt to `${STACK}`);
-- feature branch add+del vs base ≥ 30 lines (committed + staged + unstaged + untracked);
-- base ref defaults to `main`; not a git repo / no `main` / detached HEAD → skip → exempt (record reason);
-- otherwise (pure docs / SOP / typo / tiny fix / suffix not in allowlist) → exempt.
+The readable criteria below are rendered from the same `SIMPLIFY_CONTRACT_V1` truth used for the
+Codex JSON. A Codex consumer additionally reads the canonical bytes at
+`.agents/skills/simplify/references/contract.json`; Claude-only consumers use these inline values
+and do not depend on that Codex scaffold path.
 
-**Flow (when triggered):** invoke `/simplify` → if "no issues" go to build → if issues, fix
+- Code-path allowlist: `.go`, `.vue`, `.ts`, `.tsx`, `.js`, `.py`, `.sh`.
+- Trigger when allowlisted code reaches `30` total add+del lines across the committed + staged + unstaged + untracked diff against base ref `main`.
+- Exempt when this is not a git repository, `main` is absent, HEAD is detached, the change is docs/SOP/typo only, or allowlisted code stays below the threshold.
+
+**Flow (when triggered):** invoke the owner-appropriate skill → if "no issues" go to build → if issues, fix
 in-place and re-run until no issues (or remaining items confirmed non-issues with an inline note)
 → then self-test → reviewer gate.
 
 **Unavailable fallback:** if the skill can't be invoked for any reason, skip the pre-screen,
-record `"/simplify skipped: <reason>"` in self-test evidence, **do not block**, proceed to the reviewer gate.
+record `"simplify skipped: <reason>"` in self-test evidence, **do not block**, proceed to the reviewer gate.
 
-**Relationship to the reviewer gate:** `/simplify` does not replace the reviewer. It catches
+**Relationship to the reviewer gate:** simplify does not replace the reviewer. It catches
 cheap local reuse/quality/efficiency issues; the reviewer still covers architecture / scope drift
-/ cross-cutting consistency. Orthogonal and serial (implement → /simplify → self-fix → self-test → review).
+/ cross-cutting consistency. Orthogonal and serial (implement → simplify → self-fix → self-test → review).
 
 ## 6. Test SOP (unified decision)
 

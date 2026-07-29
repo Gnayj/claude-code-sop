@@ -10,6 +10,9 @@ the EN plugin template (via each manifest entry's `template_id`), not the curren
 
 **Step 0 — orphaned-root guard**: if `${CLAUDE_PLUGIN_ROOT}/.orphaned_at` exists, abort (stale
 cache snapshot; restart the session / reload plugins first). Never auto-resolve to a sibling dir.
+Before resolving any Codex skill path/set, read
+`${CLAUDE_PLUGIN_ROOT}/templates/control-surface/codex-skill-host-contract.md`; its
+canonical/legacy roots and five-entry set are authoritative.
 
 ## Mode & source resolution (maintained-first)
 
@@ -23,7 +26,10 @@ the copied artifacts, and recorded `language` / `translation_source`.
   `.ccsop/manifest.json` entry). **All-or-nothing preflight**: resolve **every** in-scope target through the
   maintained manifest **before any write** (exactly one mapping each); any missing/ambiguous mapping →
   **abort the whole command with the missing-file list** (never silently mix with on-the-fly; per-entry
-  continue is `/sop-update`-only). The maintained-copy path is verbatim copying and **requires no
+  continue is `/sop-update`-only). Exception: the single language-neutral
+  `codex-scaffold/skills/simplify/references/contract.json` is verified from and copied byte-for-byte
+  from the EN canonical, with no maintained-manifest lookup. The maintained-copy path is verbatim
+  copying and **requires no
   translation provider**. On each **accepted successful** write, record `translation_source_sha` (the
   artifact's LF-normalized sha) alongside the other baselines **atomically** — never on preserved/failed
   entries; entries switched to `en`/`on-the-fly` **delete** the field. The seed/owner write
@@ -47,12 +53,19 @@ the copied artifacts, and recorded `language` / `translation_source`.
   translate via the Pipeline below **only if a pristine prior render** (on-disk sha == `rendered_sha`); if the
   consumer customized it (sha mismatch / no entry) → **preserve + warn**, do not translate over it (`--force`
   does not override seed). Seed set is path-based (overrides any old `owner=ccsop`).
-- **codex-side scaffold** (`templates/codex-scaffold/skills/project-sop/SKILL.md` →
-  `.codex/skills/project-sop/SKILL.md`, **owner=seed**; flow-matrix, sop-init Step 3.A): same
-  pristine-only seed rule as the review prompts. Maintained mirror lives at
-  `templates/i18n/<canonical-lang>/codex-scaffold/**` (all-or-nothing with the rest of the maintained
-  set). The repo-root `AGENTS.md` ccsop block is machine-stable pointer content — re-render the block
-  from the (translated) snippet template, never prose-translate the consumer's surrounding file.
+- **Codex-side scaffold** (`templates/codex-scaffold/skills/**` →
+  `.agents/skills/**`, **owner=seed**; sop-init Step 3.A): process all five canonical skills and
+  their references with the same pristine-only seed rule as review prompts. A
+  consumer-modified/untracked canonical file is preserved+warned. Maintained prose lives under
+  `templates/i18n/<canonical-lang>/codex-scaffold/**` and participates in the command-wide
+  all-or-nothing preflight. `simplify/references/contract.json` is the single EN canonical machine
+  artifact: copy those exact bytes for every language, never translate it, and do not require an
+  i18n-manifest mapping for it. Never translate or mutate legacy `.codex/skills/**`; an unresolved
+  legacy migration conflict stays untouched. Keep the JSON manifest entry
+  `language="en"` / `translation_source="none(en)"`, with no `translation_source_sha`, regardless
+  of the requested language. Re-render the repo-root AGENTS ccsop block from the
+  translated snippet only when the canonical skill state is already valid; never translate the
+  consumer's surrounding file.
 - **review config** (`templates/config.toml.tpl` → `.codex-review/config.toml`, owner=ccsop): **NOT translated** — re-render from the template and set `[meta].language = <lang>` only. Values/keys are machine-stable; do not run it through prose translation. Update its manifest `rendered_sha`, but it is not a "translated entry".
 - **owner=overlay** (`records/current.md`): never touched.
 

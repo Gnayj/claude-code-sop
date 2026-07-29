@@ -36,8 +36,8 @@ Two live modes (see `claude-code-sop-collaboration.md §1`):
     N=1 single round: no implement card; N≥2: one card per phase
     each commit single-subject
         ↓
-(5) /simplify pre-test pre-screen  (SOP §5.A: code-suffix allowlist + ≥30 add+del lines)
-    TRIGGER → run /simplify → self-fix → re-run until clean
+(5) simplify pre-test pre-screen  (Claude /simplify | Codex $simplify; allowlisted code ≥30 add+del vs main)
+    TRIGGER → run owner skill → self-fix → re-run until clean
     EXEMPT / unavailable → skip + record reason (non-blocking)
         ↓
 (6) Self-test (driver)   build / test / incremental log window / verify scripts (SOP §6.4)
@@ -66,7 +66,7 @@ Two live modes (see `claude-code-sop-collaboration.md §1`):
 | (3) design review | review envelope | bridge state; design.md top records the review chain (Round N verdict + finding ids) |
 | (4) Implement | feature branch off main | `<design-id>` or custom |
 | (4) Implement card | one per phase in multi-round | `docs/plans/active/<design-id>-<phase>-implement.txt` (single-round: none) |
-| (5) /simplify | self-test evidence | implement commit / verify evidence records TRIGGER/EXEMPT + reason |
+| (5) simplify | self-test evidence | implement commit / verify evidence records TRIGGER/EXEMPT + reason |
 | (6) Self-test | verify scripts / interface results | `scripts/verify_*.sh` (runtime features) + incremental logs |
 | (7) code review | review envelope | bridge state; closeout commit references the review chain |
 | (8) User verify | "test passed" / "failed: X" | user reply |
@@ -88,12 +88,19 @@ Decision matrix (same as `collaboration §4.1`):
 | N≥2 independent-closeout phases | one per phase (from `_template-implement.txt`) |
 | N=1 paused mid-round / relay | one card, created at the phase switch |
 
-## 5. /handoff and /simplify in the flow
+## 5. Handoff and simplify in the flow
 
 | skill | stage | trigger | output / behavior |
 |---|---|---|---|
-| `/handoff` | before (1) / session start / switching active task | user says "proceed per SOP / what's the state / continue <task>" | ~150-line structured handoff (mode + active task + scope + non-goals + acceptance + review state + locked decisions + collaboration boundary + next step) |
-| `/simplify` (built-in) | (5) after implement, before self-test | changed suffix in the code allowlist AND ≥30 add+del lines | reports issues or none; driver self-fixes; does not replace the reviewer |
+| Claude `/handoff` / Codex `$handoff` | before (1) / session start / switching active task | user says "proceed per SOP / what's the state / continue <task>" | re-read `current.md`; structured handoff |
+| Claude `/simplify` / Codex `$simplify` | (5) after implement, before self-test | inline generated criteria below; Codex also reads its canonical JSON | four-corner pre-screen; driver self-fixes; does not replace reviewer |
+
+Readable trigger criteria, generated from `SIMPLIFY_CONTRACT_V1` (so Claude-only consumers do not
+depend on a Codex scaffold path):
+
+- Code-path allowlist: `.go`, `.vue`, `.ts`, `.tsx`, `.js`, `.py`, `.sh`.
+- Trigger when allowlisted code reaches `30` total add+del lines across the committed + staged + unstaged + untracked diff against base ref `main`.
+- Exempt when this is not a git repository, `main` is absent, HEAD is detached, the change is docs/SOP/typo only, or allowlisted code stays below the threshold.
 
 ## 6. Failure modes
 
@@ -102,15 +109,15 @@ Decision matrix (same as `collaboration §4.1`):
 | `codex_code_review = No-Go` | stop; report user; don't auto-restart the loop | collaboration §3 |
 | `codex_code_review` repeatedly `Rereview-after-fixes` past the cap | breaker fires; stop, report | bridge design (breakers) |
 | `codex_design_review = No-Go` | redesign; don't enter implement | collaboration §4.5 |
-| `/simplify` false positive | inline note + evidence "non-issue: <reason>"; continue to the reviewer (which can still reject) | SOP §5.A |
+| simplify false positive | inline note + evidence "non-issue: <reason>"; continue to the reviewer (which can still reject) | SOP §5.A |
 | user verify "failed: X" | not closed out; fix → re-self-test → re-test; no closeout commit | SOP §6.3 |
 | build / test fails | normal in-implement fix; don't report "ready to test" | SOP §5 |
 | bridge / provider unavailable | degrade to manual forwarding; record reason; don't auto-restart auto channel | collaboration §3 |
 | §4.5 trigger unclear | default to pre-review | collaboration §4.5 |
 | ff-only merge fails (diverged) | pause; don't rebase on your own; report user | collaboration §4.6 |
 | session blocked (fix loop stuck / awaiting user) | start a git worktree, run another session for other work | collaboration §4.7 |
-| `/handoff` missed key info | re-Read the full task card / design doc after invoking | collaboration §4 |
-| `/simplify` unavailable | skip + record reason; non-blocking | SOP §5.A |
+| handoff missed key info | re-read the full task card / design doc after invoking | collaboration §4 |
+| simplify unavailable | skip + record reason; non-blocking | SOP §5.A |
 | fix loop won't converge (same Critical recurs / Critical total flat 2 rounds / regression ping-pong) | mark stall; stop; report divergence + ≥2 options; escalate at the soft cap | collaboration §9.E |
 | trial/diagnostic patch left in main code | probes go in disposable scripts + three-state verdict; temp main-code changes registered, cleaned or consolidated at closeout | SOP §13 + §14 |
 

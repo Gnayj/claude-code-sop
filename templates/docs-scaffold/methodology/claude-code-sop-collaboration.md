@@ -107,7 +107,8 @@ Rules:
    mandatory** (§4.1 — a split flow is N≥2 by definition). The implement segment — implement →
    self-test → code review → fix loop → ready-to-test — runs **wholly in the implementer's CLI
    session**; hand-back to the driving CLI is via the §6 structured results + the `current.md`
-   breakpoint. The user carries the CLI switch (no automation harness is part of ccsop) — **except
+   breakpoint. Codex `$handoff` and Claude `/handoff` both re-read that live breakpoint. The user
+   carries the CLI switch (no automation harness is part of ccsop) — **except
    the `claude+codex` cell, which supports the single-session preside mode of rule 3.A below.**
 
 3.A **Preside mode (`claude+codex` only): "Claude presides + codex writes" — no CLI switch.**
@@ -129,8 +130,10 @@ Rules:
    governs every stage exactly as before this axis existed. With **any key present** derivation is
    active (a missing counterpart key resolves `claude`). Invalid values fail loud (bridge degraded),
    never silently fall back. An explicit user instruction ("this one codex+claude") overrides per
-   session, same convention as §1.A. For Claude-driven flows, `/sop-flow` switches the standing
-   default by writing both owner keys and the coupled implement gate; reload the bridge to pick it up.
+   session, same convention as §1.A. Claude-driven flows use `/sop-flow`; Codex-driven flows use
+   `$sop-flow`. Both call the same `ccsop_configure` contract, and the next public bridge
+   invocation observes the change without reload. In Phase 1, `codex+claude` remains a manual
+   relay and no unused Claude-implement configuration is emitted.
 5. `review.provider = manual` keeps forcing **manual delivery** for every stage — the flows stay
    valid; the user forwards each stage's prompt/verdict to the counterpart model by hand.
 6. The **reviewer-led fallback (§1 mode 3)** is, in matrix terms, approximately the `codex+claude`
@@ -139,8 +142,9 @@ Rules:
 ## 2. Roles
 
 1. **Driver** — clarification + brainstorming (SOP §4 chunked-confirmation cadence); design,
-   task cards, acceptance criteria; implementation, test scripts, verification commands; runs
-   `/simplify` pre-screen (SOP §5.A); runs self-test and reports structured results (§6 fields);
+   task cards, acceptance criteria; implementation, test scripts, verification commands; runs the
+   owner-appropriate `/simplify` or `$simplify` pre-screen (SOP §5.A); runs self-test and reports
+   structured results (§6 fields);
    applies review fixes; performs closeout after the user's "test passed" (single-subject commit
    + handoff closeout + task-card archive + `code-home:` line). On a blocker (rate limit /
    permission / environment / unclear contract) it pauses and reports — it does not silently widen scope.
