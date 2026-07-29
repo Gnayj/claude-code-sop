@@ -108,6 +108,10 @@
    - changing production config or services;
    - overwriting database data, irreversible DDL/DML;
    - deploy / restart / wipe / bulk-write against a production environment.
+5. Proposal writers do not widen this delegation. `codex_implement` / `claude_implement` may only
+   return server-validated patch artifacts; they never apply to the caller repository. Claude
+   proposals default to `advisory-only / export-only` until operator validation is configured,
+   and flow/tier commands never enable the Claude writer.
 
 ## 5. Feature checklist (tick at execution)
 

@@ -79,7 +79,7 @@ describe("Codex control-surface scaffold", () => {
     ).toEqual(renderSimplifyContract());
   });
 
-  it("keeps the Phase 1 scaffold free of speculative Claude implement capability", () => {
+  it("activates Claude implement UX only with the real Phase 2 contract", () => {
     const paths = [
       "templates/codex-scaffold/skills/sop-flow/SKILL.md",
       "templates/codex-scaffold/skills/sop-flow/references/contract.md",
@@ -93,9 +93,9 @@ describe("Codex control-surface scaffold", () => {
       "templates/i18n/zh-CN/codex-scaffold/skills/project-sop/references/host-contract.md",
     ];
     const corpus = paths.map(read).join("\n");
-    expect(corpus).not.toContain("[implement.claude]");
-    expect(corpus).not.toContain("claude_implement");
-    expect(corpus).not.toContain("claude-implement");
+    expect(corpus).toContain("[implement.claude]");
+    expect(corpus).toContain("claude_implement");
+    expect(corpus).toContain("claude-implement");
     expect(JSON.stringify(CONTROL_SURFACE_CONTRACT_V1)).not.toContain("claude-implement");
   });
 
@@ -149,7 +149,8 @@ describe("Codex control-surface scaffold", () => {
     expect(init).toContain("five discoverable entries");
     expect(init).toContain("legacy-skill-unknown-provenance");
     expect(update).toContain("--rollback-codex-skills");
-    expect(update).toContain("stamp-schema-v1");
+    expect(update).toContain("migrate-schema-v2");
+    expect(update).toContain("rollback-schema-v1");
     expect(update).toContain("unfinished (scoped)");
     expect(lang).toContain("Never translate or mutate legacy `.codex/skills/**`");
     for (const wrapper of [flow, tier]) {
@@ -192,11 +193,13 @@ describe("Codex control-surface scaffold", () => {
     }
   });
 
-  it("keeps config template and public methodology on the Phase 1 contract", () => {
+  it("keeps config template and public methodology on the real Phase 2 contract", () => {
     const config = read("templates/config.toml.tpl");
-    expect(config).toContain("control_surface_schema = 1");
+    expect(config).toContain("control_surface_schema = 2");
     expect(config).toContain("scope_drift_lines_threshold = 400");
-    expect(config).not.toContain("[implement.claude]");
+    expect(config).toContain("[implement.claude]");
+    expect(config).toContain("enabled = false");
+    expect(config).toContain("validation_commands = []");
     for (const path of [
       "templates/docs-scaffold/methodology/project-delivery-sop.md",
       "templates/i18n/zh-CN/docs-scaffold/methodology/project-delivery-sop.md",

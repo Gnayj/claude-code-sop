@@ -3,6 +3,8 @@
 
 export const CONTROL_SURFACE_SCHEMA_V1 = 1 as const;
 export const CONTROL_SURFACE_CONTRACT_VERSION_V1 = 1 as const;
+export const CONTROL_SURFACE_SCHEMA_V2 = 2 as const;
+export const CONTROL_SURFACE_CONTRACT_VERSION_V2 = 2 as const;
 export const MIN_CODEX_SKILL_HOST_VERSION = "0.145.0-alpha.2" as const;
 export const CANONICAL_CODEX_SKILL_ROOT = ".agents/skills" as const;
 export const LEGACY_CODEX_SKILL_ROOT = ".codex/skills" as const;
@@ -39,6 +41,12 @@ export const PHASE1_TIER_SCOPES = [
   "codex-default",
 ] as const;
 export type Phase1TierScope = (typeof PHASE1_TIER_SCOPES)[number];
+
+export const PHASE2_TIER_SCOPES = [
+  ...PHASE1_TIER_SCOPES,
+  "claude-implement",
+] as const;
+export type Phase2TierScope = (typeof PHASE2_TIER_SCOPES)[number];
 
 export const CONTROL_SURFACE_CONTRACT_V1 = {
   schema_version: CONTROL_SURFACE_SCHEMA_V1,
@@ -107,6 +115,92 @@ export const CONTROL_SURFACE_CONTRACT_V1 = {
     names: ["project-sop", "handoff", "simplify", "sop-flow", "sop-tier"],
     legacy_migration: "pristine-only",
     rollback_flag: "--rollback-codex-skills",
+  },
+} as const;
+
+export const CLAUDE_IMPLEMENT_DEFAULTS_V2 = {
+  enabled: false,
+  backend: "cli",
+  model: "opus",
+  effort: "max",
+  cli_path: "",
+  timeout_seconds: 900,
+  max_output_bytes: 1_048_576,
+  max_budget_usd: 5,
+  supported_version_range: ">=2.1.220 <2.2.0",
+  allow_uncertified_version: false,
+  max_dispatches_per_design: 3,
+  max_cumulative_wall_seconds: 3_600,
+  max_cumulative_budget_usd: 20,
+  max_daily_budget_usd: 50,
+  validation_commands: [] as readonly (readonly string[])[],
+  validation_definition_paths: [] as readonly string[],
+  validation_additive_test_globs: [] as readonly string[],
+  allow_advisory_apply: false,
+} as const;
+
+export const CLAUDE_IMPLEMENT_AGENT_MUTABLE_KEYS = [
+  "model",
+  "effort",
+  "timeout_seconds",
+  "max_output_bytes",
+  "max_budget_usd",
+  "max_dispatches_per_design",
+  "max_cumulative_wall_seconds",
+  "max_cumulative_budget_usd",
+  "max_daily_budget_usd",
+] as const;
+
+export const CLAUDE_IMPLEMENT_SHRINK_ONLY_KEYS = [
+  "timeout_seconds",
+  "max_output_bytes",
+  "max_budget_usd",
+  "max_dispatches_per_design",
+  "max_cumulative_wall_seconds",
+  "max_cumulative_budget_usd",
+  "max_daily_budget_usd",
+] as const;
+
+export const CONTROL_SURFACE_CONTRACT_V2 = {
+  ...CONTROL_SURFACE_CONTRACT_V1,
+  schema_version: CONTROL_SURFACE_SCHEMA_V2,
+  contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
+  actions: [
+    ...CONTROL_SURFACE_CONTRACT_V1.actions,
+    "migrate-schema-v2",
+    "rollback-schema-v1",
+    "disable-claude-implement",
+  ] as const,
+  flows: {
+    ...CONTROL_SURFACE_CONTRACT_V1.flows,
+    "codex+claude": {
+      ...CONTROL_SURFACE_CONTRACT_V1.flows["codex+claude"],
+      delivery: "claude_implement proposal",
+      claude_implement_enable: "operator-only",
+    },
+  },
+  tiers: {
+    ...CONTROL_SURFACE_CONTRACT_V1.tiers,
+    "claude-implement": {
+      section: "implement.claude",
+      keys: CLAUDE_IMPLEMENT_AGENT_MUTABLE_KEYS,
+      shrink_only: CLAUDE_IMPLEMENT_SHRINK_ONLY_KEYS,
+      effort_values: CLAUDE_EFFORT_VALUES,
+    },
+  },
+  claude_implement: {
+    tool: "claude_implement",
+    exact_gate: {
+      control_surface_schema: 2,
+      design_owner: "codex",
+      implement_owner: "claude",
+      enabled: true,
+    },
+    enable: "operator-only",
+    disable_action: "disable-claude-implement",
+    backend: "cli",
+    tools: ["Read", "Edit", "Write"],
+    defaults: CLAUDE_IMPLEMENT_DEFAULTS_V2,
   },
 } as const;
 
@@ -244,56 +338,64 @@ function renderLines(lines: readonly string[]): string {
 export function renderFlowContract(locale: "en" | "zh-CN"): string {
   if (locale === "zh-CN") {
     return renderLines([
-      "# ccsop flow contract v1",
+      "# ccsop flow contract v2",
       "",
       "- Claude 命令入口只接受 `claude+claude` / `claude+codex`。",
       "- Codex skill 入口只接受 `codex+codex` / `codex+claude`。",
       "- 空参和隐式触发只读；显式 set 必须调用 `ccsop_configure`。",
       "- tool 缺失、旧 bridge 或未重启：零写并提示 `/mcp` 重连/重启。",
       "- invalid config 的 status 返回 error/raw owners；显式 set 仅在 whole-config 校验通过时修目标键，否则零写。",
-      "- `codex+claude` 在 Phase 1 的 delivery 是 `manual relay`。",
-      "- 配置 schema 必须为 `1`；禁止 shell 或手改 TOML fallback。",
+      "- schema=1 保持 Phase 1：`codex+claude` delivery 为 `manual relay`，flow/Codex tier 仍可用。",
+      "- schema=2 且 bridge catalog 含 `claude_implement` 时，`codex+claude` 可使用 proposal adapter；flow 永不自动 enable。",
+      "- implement owner 变化会原子强制 `[implement.claude].enabled=false`；重新 enable 只能由 operator 在 agent session 外完成。",
+      "- 禁止 shell 或手改 TOML fallback；schema 迁移/回滚只调用 server-fixed action。",
     ]);
   }
   return renderLines([
-    "# ccsop flow contract v1",
+    "# ccsop flow contract v2",
     "",
     "- The Claude command accepts only `claude+claude` / `claude+codex`.",
     "- The Codex skill accepts only `codex+codex` / `codex+claude`.",
     "- Empty arguments and implicit triggers are read-only; explicit sets call `ccsop_configure`.",
     "- A missing, old, or unrestarted bridge causes zero writes and `/mcp` reconnect guidance.",
     "- Invalid-config status returns the error/raw owners; explicit set repairs target keys only when whole-config validation passes, otherwise zero writes.",
-    "- `codex+claude` delivery is `manual relay` in Phase 1.",
-    "- Config schema must be `1`; shell and manual-TOML fallbacks are forbidden.",
+    "- Schema 1 preserves Phase 1: `codex+claude` is manual relay and flow/Codex tiers remain usable.",
+    "- With schema 2 and `claude_implement` in the bridge catalog, `codex+claude` can use the proposal adapter; flow never auto-enables it.",
+    "- Changing implement owner atomically forces `[implement.claude].enabled=false`; only an operator outside the agent session may re-enable it.",
+    "- Shell/manual-TOML fallbacks are forbidden; schema migration and rollback use server-fixed actions only.",
   ]);
 }
 
 export function renderTierContract(locale: "en" | "zh-CN"): string {
   if (locale === "zh-CN") {
     return renderLines([
-      "# ccsop tier contract v1",
+      "# ccsop tier contract v2",
       "",
       "- `claude-review` → `[review.claude] backend/model/effort`。",
       "- `codex-review` → `[review.codex] model/effort`。",
       "- `codex-dispatch` → `[implement] model/effort`（只控制 `codex_implement`）。",
       "- `codex-default` → `[codex] default_model/default_effort`。",
+      "- schema=2 新增 `claude-implement` → `[implement.claude]` model/effort 与 shrink-only timeout/output/budget/ledger cap。",
+      "- backend/cli_path/version override/validation/additive globs/advisory apply/enabled 全部 operator-only，tool 拒绝。",
       "- 当前 Codex host session 的模型/effort 用内置 `/model`。",
       "- 空参和隐式触发只读；显式 set 必须调用 `ccsop_configure`。",
       "- invalid config 的 status 返回 error/raw tiers；显式 set 仅在 whole-config 校验通过时修目标键，否则零写。",
-      "- Phase 1 不接受未发布的 implement scope。",
+      "- schema=1 继续拒绝 `claude-implement`；schema=2 还要求 catalog 中真实存在 `claude_implement`。",
     ]);
   }
   return renderLines([
-    "# ccsop tier contract v1",
+    "# ccsop tier contract v2",
     "",
     "- `claude-review` → `[review.claude] backend/model/effort`.",
     "- `codex-review` → `[review.codex] model/effort`.",
     "- `codex-dispatch` → `[implement] model/effort` (`codex_implement` only).",
     "- `codex-default` → `[codex] default_model/default_effort`.",
+    "- Schema 2 adds `claude-implement` → `[implement.claude]` model/effort and shrink-only timeout/output/budget/ledger caps.",
+    "- backend/cli_path/version overrides/validation/additive globs/advisory apply/enabled are operator-only and rejected by the tool.",
     "- Use the built-in `/model` for the current Codex host session model/effort.",
     "- Empty arguments and implicit triggers are read-only; explicit sets call `ccsop_configure`.",
     "- Invalid-config status returns the error/raw tiers; explicit set repairs target keys only when whole-config validation passes, otherwise zero writes.",
-    "- Phase 1 rejects every unpublished implement scope.",
+    "- Schema 1 still rejects `claude-implement`; schema 2 also requires a real `claude_implement` tool in the catalog.",
   ]);
 }
 

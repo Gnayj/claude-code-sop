@@ -78,8 +78,7 @@ full-auto 无人值守运行，**除非**以下任一成立 —— 则停下、�
    流程定义上就是 N≥2）。implement 段 —— implement → 自测 → code review → fix 循环 → ready-to-test
    —— **整段在 implementer 的 CLI session 内闭环**；交回主推 CLI 靠 §6 结构化结果 + `current.md`
    断点。Codex `$handoff` 与 Claude `/handoff` 都重读这个活断点。CLI 切换由用户执行
-   （自动化 harness 不属于 ccsop）—— **唯一例外：`claude+codex` 格支持下述
-   规则 3.A 的单会话主持模式。**
+   （自动化 harness 不属于 ccsop）—— 除了下述 3.A / 3.B 两条各自独立 gate 的 proposal adapter。
 
 3.A **主持模式（仅 `claude+codex`）："Claude 主持 + codex 写手" —— 不切 CLI。**
    该格里 code reviewer = counterpart(codex) = claude = 主推 session 本人，因此整个闭环可在一个
@@ -91,14 +90,23 @@ full-auto 无人值守运行，**除非**以下任一成立 —— 则停下、�
    随后**直接按 §9 review 这份 patch**（跨模型 —— 实现者是 codex；不走桥、无自评审）并**亲手
    apply**：`git apply --check` → `git apply`。fix 轮 = 带着 driver 标级 findings 的新派工。
    判断权永远在 driver；没有任何自动 apply；不存在自动 fix 循环。
+3.B **可选 proposal 模式（仅 `codex+claude`）："Codex 主持 + Claude 写手"。**
+   schema 2 只在 operator 独立开启完整 `[implement.claude]` 后暴露 `claude_implement`。server
+   校验 active card path/SHA 与 exact allowlist，再把已认证版本的 Claude CLI 放进 Linux
+   bubblewrap，只给 Read/Edit/Write（无 Bash），使用 replacement env、只读 OAuth credential、
+   process/resource limit、durable per-design/daily budget 与 caller/config/credential integrity。
+   capture 复用 `codex_implement` 的 provider-neutral patch transaction。server validation 在断网
+   sandbox 中对恢复后的 definition preimage 跑 operator argv。PASS 可产 `applicable`；
+   unconfigured/失败/definition-affecting 只产 `advisory-only`，除非 operator 另行 opt in，
+   否则 export-only。没有自动 apply。
 4. **配置**：`.codex-review/config.toml` `[collaboration] design_owner / implement_owner`（操作键 +
    review 桥读它做 reviewer 派生）。**键的在场与否有语义**：**两键都缺**时桥处于 **legacy 模式** ——
    全局 `review.provider` 统管所有阶段，与此轴引入前逐字节一致。**任一键在**则派生生效（缺的那个键
    按 `claude` 解析）。非法值 loud 失败（桥降级启动），绝不静默回退。显式用户指令（"这单 codex+claude"）
    可按 session 覆盖，约定同 §1.A。Claude 主推流用 `/sop-flow`，Codex 主推流用
    `$sop-flow`；两者调用同一个 `ccsop_configure` 契约，下一次公共 bridge 调用即读到新配置，
-   无需 reload。Phase 1 的 `codex+claude` 仍是 manual relay，不下发无人消费的 Claude
-   implement 配置。
+   无需 reload。schema 1 的 `codex+claude` 保持 manual relay；schema 2 把完整 disabled config、
+   真实 tool、sandbox runner、validation 与 readiness UX 同版交付。flow 永不自动 enable。
 5. `review.provider = manual` 仍强制所有阶段**手动传递** —— 流程依旧有效；每阶段的 prompt/verdict 由
    用户手动转发给对侧模型。
 6. **reviewer-led fallback（§1 模式 3）**用矩阵语言说 ≈ manual 传递下的 `codex+claude` 流程 —— 它早于

@@ -146,6 +146,86 @@ const CollaborationSchema = z.object({
 // Ships DISABLED. /sop-init enables it only for the exact preside flow
 // design_owner=claude ∧ implement_owner=codex. Thresholds are shrink-only vs the
 // IMPLEMENT_MIN_POLICY defaults (enforced in safety.ts — config may tighten, never widen).
+export const CLAUDE_IMPLEMENT_COMPILED_MAX = {
+  timeout_seconds: 900,
+  max_output_bytes: 1_048_576,
+  max_budget_usd: 5,
+  max_dispatches_per_design: 3,
+  max_cumulative_wall_seconds: 3_600,
+  max_cumulative_budget_usd: 20,
+  max_daily_budget_usd: 50,
+} as const;
+
+const ValidationArgvSchema = z
+  .array(z.string().min(1).max(4_096))
+  .min(1)
+  .max(32)
+  .refine((argv) => argv.every((part) => !part.includes("\u0000")), {
+    message: "validation argv must not contain NUL",
+  });
+
+export const ClaudeImplementConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    backend: z.literal("cli").default("cli"),
+    model: z.string().default("opus"),
+    effort: ClaudeEffortSchema.default("max"),
+    cli_path: z.string().default(""),
+    timeout_seconds: z
+      .number()
+      .int()
+      .positive()
+      .max(CLAUDE_IMPLEMENT_COMPILED_MAX.timeout_seconds)
+      .default(CLAUDE_IMPLEMENT_COMPILED_MAX.timeout_seconds),
+    max_output_bytes: z
+      .number()
+      .int()
+      .positive()
+      .max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_output_bytes)
+      .default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_output_bytes),
+    max_budget_usd: z
+      .number()
+      .positive()
+      .max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_budget_usd)
+      .default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_budget_usd),
+    supported_version_range: z.string().min(1).default(">=2.1.220 <2.2.0"),
+    allow_uncertified_version: z.boolean().default(false),
+    max_dispatches_per_design: z
+      .number()
+      .int()
+      .positive()
+      .max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_dispatches_per_design)
+      .default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_dispatches_per_design),
+    max_cumulative_wall_seconds: z
+      .number()
+      .int()
+      .positive()
+      .max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_cumulative_wall_seconds)
+      .default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_cumulative_wall_seconds),
+    max_cumulative_budget_usd: z
+      .number()
+      .positive()
+      .max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_cumulative_budget_usd)
+      .default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_cumulative_budget_usd),
+    max_daily_budget_usd: z
+      .number()
+      .positive()
+      .max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_daily_budget_usd)
+      .default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_daily_budget_usd),
+    validation_commands: z.array(ValidationArgvSchema).max(16).default([]),
+    validation_definition_paths: z
+      .array(z.string().min(1).max(4_096))
+      .max(256)
+      .default([]),
+    validation_additive_test_globs: z
+      .array(z.string().min(1).max(4_096))
+      .max(256)
+      .default([]),
+    allow_advisory_apply: z.boolean().default(false),
+  })
+  .strict()
+  .default({});
+
 const ImplementConfig = z.object({
   enabled: z.boolean().default(false),
   model: z.string().default(""),
@@ -153,6 +233,7 @@ const ImplementConfig = z.object({
   max_implement_rounds: z.number().int().positive().default(3),
   // v1 text-only patch contract (design §4.2.D): per-file byte cap applied to BOTH delta sides.
   max_file_bytes: z.number().int().positive().default(2 * 1024 * 1024),
+  claude: ClaudeImplementConfigSchema,
 }).default({});
 
 export const ConfigSchema = z.object({

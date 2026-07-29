@@ -162,8 +162,13 @@ export interface ClaudeCliRunResult {
   usage: { inputTokens: number; outputTokens: number };
   contextWindow?: number;
   warnings: string[];
-  /** Subscription-equivalent accounting only; callers must not treat this as billed cost. */
+  /**
+   * Subscription-equivalent accounting only. Review callers must not treat this as billed
+   * spend; the implement adapter may use it solely against its explicitly equivalent-value
+   * CLI budget/ledger ceiling.
+   */
   totalCostUsd?: number;
+  permissionDenials?: unknown[];
 }
 
 /** The exact CLI contract (design §4.2). `--safe-mode` + an empty `--tools` set is the isolation
@@ -181,6 +186,50 @@ export function buildClaudeCliArgs(input: ClaudeCliRunInput): string[] {
   return args;
 }
 
+export interface ClaudeImplementCliArgsInput {
+  model: string;
+  effort?: ClaudeEffort | "";
+  systemPrompt: string;
+  maxBudgetUsd: number;
+}
+
+/**
+ * Phase 2 implement contract: fresh print-mode process, no resume/custom settings,
+ * Read/Edit/Write only, and a CLI-enforced per-dispatch budget. The surrounding
+ * implement-sandbox owns cwd, stdin, replacement env, bwrap and process limits.
+ */
+export function buildClaudeImplementCliArgs(
+  input: ClaudeImplementCliArgsInput,
+): string[] {
+  const args = [
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    input.model,
+  ];
+  if (input.effort) args.push("--effort", input.effort);
+  args.push(
+    "--system-prompt",
+    input.systemPrompt,
+    "--safe-mode",
+    "--setting-sources",
+    "",
+    "--no-session-persistence",
+    "--no-chrome",
+    "--permission-mode",
+    "acceptEdits",
+    "--tools",
+    "Read,Edit,Write",
+    "--max-budget-usd",
+    String(input.maxBudgetUsd),
+    "--strict-mcp-config",
+    "--mcp-config",
+    '{"mcpServers":{}}',
+  );
+  return args;
+}
+
 /** Shape pinned by probe #3 (design §2.2); every field stays `unknown` until narrowed. */
 interface CliJson {
   type?: unknown;
@@ -191,6 +240,7 @@ interface CliJson {
   terminal_reason?: unknown;
   total_cost_usd?: unknown;
   modelUsage?: unknown;
+  permission_denials?: unknown;
 }
 
 function truncate(value: string, limit = 500): string {
@@ -330,6 +380,9 @@ export function parseClaudeCliResult(
     ...(contextWindow === undefined ? {} : { contextWindow }),
     warnings,
     ...(totalCostUsd === undefined ? {} : { totalCostUsd }),
+    ...(Array.isArray(parsed.permission_denials)
+      ? { permissionDenials: parsed.permission_denials }
+      : {}),
   };
 }
 

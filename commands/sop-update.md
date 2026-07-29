@@ -6,8 +6,8 @@ description: Incrementally update the ccsop-owned scaffolded files (methodology 
 
 This is the single-source repair loop: ccsop-owned generic files are re-materialized from the
 plugin; local breakpoint/overlay files are never touched. Plugin root = `${CLAUDE_PLUGIN_ROOT}`;
-target repo = `${CLAUDE_PROJECT_DIR}`. `$ARGUMENTS` may contain `--force`, a path filter, or the
-exclusive migration action `--rollback-codex-skills`.
+target repo = `${CLAUDE_PROJECT_DIR}`. `$ARGUMENTS` may contain `--force`, a path filter, or one
+exclusive migration action: `--rollback-codex-skills` / `--rollback-config-schema-v1`.
 
 ## Step 0 — Orphaned-root guard
 
@@ -257,15 +257,17 @@ skill trees, manifest, config, and AGENTS pointer unless the outcome column name
 The four AGENTS-pointer states are therefore pinned explicitly: C2 gate-fail = legacy; C4–C6
 conflict-pending = preimage; C3/C7 success = canonical; C9 rollback = legacy.
 
-## Step 2.D — Phase 1 config schema stamp
+## Step 2.D — config schema migration / rollback
 
 This command never constructs or edits TOML for schema migration. Discover `ccsop_configure` and
 call `action=status`.
 
-- Require `contract_version=1`.
+- Require `contract_version=2`.
 - `observed_schema=null`: call `stamp-schema-v1` with the sha returned by status. Report its
-  before/after sha, exact backup path, and changed key.
-- `observed_schema=1`: record `up-to-date` with no write.
+  before/after sha, exact backup path, and changed key; then refresh status and continue.
+- `observed_schema=1`: call the server-fixed `migrate-schema-v2` with the refreshed sha. It must
+  create the complete disabled `[implement.claude]`, exact backup, and canonical provenance.
+- `observed_schema=2`: record `up-to-date` with no write.
 - any other schema/contract: fail loud for this entry, make zero config writes, and give compatible
   upgrade/remediation guidance.
 - missing/old/unregistered tool: record a scoped informational conflict, make zero config writes,
@@ -273,7 +275,11 @@ call `action=status`.
   entries.
 
 There is no direct-edit or shell fallback. `ccsop_configure` remains outside the automatic
-permission baseline.
+permission baseline. An explicit `--rollback-config-schema-v1` is exclusive with normal update
+and calls only `rollback-schema-v1`; require `enabled=false`, no in-flight dispatch, current
+config sha equal to the canonical migration postimage, and verified backup/provenance. Phase 2
+implement-state rollback is separate and requires a stopped server plus
+`scripts/migrate-implement-state.mjs --to-v1`; Claude/v2 dispatch state cannot be disguised as v1.
 
 ## Step 3 — `--force`
 

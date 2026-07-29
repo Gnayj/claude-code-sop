@@ -108,8 +108,8 @@ Rules:
    self-test → code review → fix loop → ready-to-test — runs **wholly in the implementer's CLI
    session**; hand-back to the driving CLI is via the §6 structured results + the `current.md`
    breakpoint. Codex `$handoff` and Claude `/handoff` both re-read that live breakpoint. The user
-   carries the CLI switch (no automation harness is part of ccsop) — **except
-   the `claude+codex` cell, which supports the single-session preside mode of rule 3.A below.**
+   carries the CLI switch (no automation harness is part of ccsop) — except the two independently
+   gated proposal adapters in rules 3.A and 3.B below.
 
 3.A **Preside mode (`claude+codex` only): "Claude presides + codex writes" — no CLI switch.**
    In this cell the code reviewer = counterpart(codex) = claude = the driving session itself, so
@@ -124,6 +124,16 @@ Rules:
    call, no self-review) and **applies it itself**: `git apply --check` → `git apply`. Fix rounds
    are new dispatches with the driver's graded findings. Judgment never leaves the driver; nothing
    auto-applies; there is no automated fix loop.
+3.B **Optional proposal mode (`codex+claude` only): "Codex presides + Claude writes".**
+   Schema 2 exposes `claude_implement` only when the operator has independently enabled the
+   complete `[implement.claude]` section. The server verifies the active card path/SHA and exact
+   allowlist, then runs the certified Claude CLI inside Linux bubblewrap with Read/Edit/Write only
+   (no Bash), replacement env, read-only OAuth credential, process/resource limits, durable
+   per-design/daily budgets, and caller/config/credential integrity checks. Capture feeds the same
+   provider-neutral patch transaction as `codex_implement`. Server validation runs operator-owned
+   argv arrays offline against restored definition preimages. PASS can produce `applicable`;
+   unconfigured/failed/definition-affecting validation produces `advisory-only`, which is
+   export-only unless the operator separately opted into advisory apply. Nothing auto-applies.
 4. **Config**: `.codex-review/config.toml` `[collaboration] design_owner / implement_owner`
    (operational + read by the review bridge for reviewer derivation). **Key presence matters**:
    with **both keys absent** the bridge stays in **legacy mode** — the global `review.provider`
@@ -132,8 +142,9 @@ Rules:
    never silently fall back. An explicit user instruction ("this one codex+claude") overrides per
    session, same convention as §1.A. Claude-driven flows use `/sop-flow`; Codex-driven flows use
    `$sop-flow`. Both call the same `ccsop_configure` contract, and the next public bridge
-   invocation observes the change without reload. In Phase 1, `codex+claude` remains a manual
-   relay and no unused Claude-implement configuration is emitted.
+   invocation observes the change without reload. Schema 1 keeps `codex+claude` as manual relay;
+   schema 2 couples the complete disabled config, real tool, sandbox runner, validation, and
+   readiness UX. Flow selection never enables the write-capable adapter.
 5. `review.provider = manual` keeps forcing **manual delivery** for every stage — the flows stay
    valid; the user forwards each stage's prompt/verdict to the counterpart model by hand.
 6. The **reviewer-led fallback (§1 mode 3)** is, in matrix terms, approximately the `codex+claude`

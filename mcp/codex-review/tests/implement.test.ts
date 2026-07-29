@@ -555,6 +555,53 @@ describe("codex_implement flow (proposal mode)", () => {
       repo.cleanup();
     }
   });
+
+  it("keeps legacy Codex cards outside plans_active readable", async () => {
+    const repo = makeCallerRepo();
+    try {
+      const config = implConfig(repo.root);
+      const activeCard = makeCard(repo.root, ["src.txt"]);
+      const completedCard = "docs/plans/completed/t-implement.txt";
+      mkdirSync(join(repo.root, "docs/plans/completed"), { recursive: true });
+      writeFileSync(
+        join(repo.root, completedCard),
+        readFileSync(join(repo.root, activeCard)),
+      );
+      const { deps } = makeDeps(repo.root, config, (scratch) => {
+        writeFileSync(join(scratch, "src.txt"), "codex legacy card\n");
+      });
+      const result = await runImplementFlow(
+        deps,
+        baseInput(completedCard, ["src.txt"], "completed-card"),
+      );
+      expect(result.ok).toBe(true);
+    } finally {
+      repo.cleanup();
+    }
+  });
+
+  it("keeps legacy Codex proposal semantics under unrelated caller edits", async () => {
+    const repo = makeCallerRepo();
+    try {
+      writeFileSync(join(repo.root, "unrelated.txt"), "before\n");
+      const config = implConfig(repo.root);
+      const card = makeCard(repo.root, ["src.txt"]);
+      const { deps } = makeDeps(repo.root, config, (scratch) => {
+        writeFileSync(join(scratch, "src.txt"), "codex proposal\n");
+        writeFileSync(join(repo.root, "unrelated.txt"), "concurrent editor\n");
+      });
+      const result = await runImplementFlow(
+        deps,
+        baseInput(card, ["src.txt"], "caller-drift"),
+      );
+      expect(result.ok).toBe(true);
+      expect(readFileSync(join(repo.root, "unrelated.txt"), "utf8")).toBe(
+        "concurrent editor\n",
+      );
+    } finally {
+      repo.cleanup();
+    }
+  });
 });
 
 // ---------- unit: identity encoding ----------

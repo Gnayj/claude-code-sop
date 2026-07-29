@@ -5,7 +5,7 @@
     {
       "target_rel": "README.zh-CN.md",
       "source_path": "README.md",
-      "source_sha": "68bffbad2908d707fa9e146eb42e83d300c4dbd620a0e55f0525c8334581c798"
+      "source_sha": "8a27893834578dcb63e8b190668f67687cdf5f01f1d824409a5c333d61fe4832"
     },
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/project-sop/SKILL.md",
@@ -30,22 +30,22 @@
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/sop-flow/SKILL.md",
       "source_path": "templates/codex-scaffold/skills/sop-flow/SKILL.md",
-      "source_sha": "daed31d66326429eef17f90ca4589372426aa8776840a3ac8f3b2d2f1a3a9e91"
+      "source_sha": "c2c0f364d10c2ad6cadd3479d9f144a2400b0d7c710362a5f4d7606d8e9c801c"
     },
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/sop-flow/references/contract.md",
       "source_path": "templates/codex-scaffold/skills/sop-flow/references/contract.md",
-      "source_sha": "79d0435d94c279aa37ed4c575bdc71b9eafd684fa9891de19214a2a7e5113cee"
+      "source_sha": "cac6a5e8ef5518d75cba4c4670aced046a478d8c4e0654930f61a3fbf2d536c1"
     },
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/sop-tier/SKILL.md",
       "source_path": "templates/codex-scaffold/skills/sop-tier/SKILL.md",
-      "source_sha": "5781bfd109c48e2de651bfea6eef05b83441c4d143cb90b1d9de6e158acaf8f0"
+      "source_sha": "e737e2d4a89fd6c7f0f1aca9e3b4c112000f05f7424a2facd7237574ca81f76c"
     },
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/sop-tier/references/contract.md",
       "source_path": "templates/codex-scaffold/skills/sop-tier/references/contract.md",
-      "source_sha": "5150c91ac5c58c1eaa52dc2a5d706f95364b890e64c51d5e6e13bc39b45151d9"
+      "source_sha": "532905070e3b6a016f73116a926886ec49030c5e87632fde581b55e8ded08b9f"
     },
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/AGENTS-snippet.md",
@@ -55,12 +55,12 @@
     {
       "target_rel": "templates/i18n/zh-CN/control-surface/flow-contract.md",
       "source_path": "templates/control-surface/flow-contract.md",
-      "source_sha": "79d0435d94c279aa37ed4c575bdc71b9eafd684fa9891de19214a2a7e5113cee"
+      "source_sha": "cac6a5e8ef5518d75cba4c4670aced046a478d8c4e0654930f61a3fbf2d536c1"
     },
     {
       "target_rel": "templates/i18n/zh-CN/control-surface/tier-contract.md",
       "source_path": "templates/control-surface/tier-contract.md",
-      "source_sha": "5150c91ac5c58c1eaa52dc2a5d706f95364b890e64c51d5e6e13bc39b45151d9"
+      "source_sha": "532905070e3b6a016f73116a926886ec49030c5e87632fde581b55e8ded08b9f"
     },
     {
       "target_rel": "templates/i18n/zh-CN/control-surface/codex-skill-host-contract.md",
@@ -75,7 +75,7 @@
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/claude-code-sop-collaboration.md",
       "source_path": "templates/docs-scaffold/methodology/claude-code-sop-collaboration.md",
-      "source_sha": "22d5d391d355e98a94f9b336875d930ae67a3ce6c2804cd7df6dfb57365c4227"
+      "source_sha": "977e412f896379baa3f38d212b28d2500654275250ce08e88821741c29cbc023"
     },
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/index.md",
@@ -90,12 +90,12 @@
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/project-delivery-sop.md",
       "source_path": "templates/docs-scaffold/methodology/project-delivery-sop.md",
-      "source_sha": "09eee489cf004a9f71a3408e3d597241fe1c938635291abf35b8a3dbc818bbf1"
+      "source_sha": "2e38d90a0edebdc1c53d902568c6c2b9288657fe4ec02a84e0bc588e6e1a826d"
     },
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/methodology/workflow-overview.md",
       "source_path": "templates/docs-scaffold/methodology/workflow-overview.md",
-      "source_sha": "cdbebd5828cba610aac990e7bc4a32435e8c3d6ccf24c6fb4c0024e4deeb0a13"
+      "source_sha": "2f6177452312f454a9675ef2c99253b66a2d00f9336490a40dcaaa2fa5a3ebc9"
     },
     {
       "target_rel": "templates/i18n/zh-CN/docs-scaffold/plans/_template-design.txt",

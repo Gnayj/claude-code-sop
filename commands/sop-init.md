@@ -64,6 +64,10 @@ Ask, one decision at a time (chunked confirmation, SOP §4):
      `codex_implement` preside-mode dispatch tool (collaboration.md §1.D rule 3.A — the tool never
      writes the repo; it returns patch artifacts the driver reviews + applies). All other flows
      keep `enabled = false`.
+   - **Exactly `codex+claude`**: materialize the schema-2 `[implement.claude]` section but keep
+     `enabled=false`. Probe Linux/bwrap/prlimit/Claude CLI readiness and display validation/apply
+     readiness. Never enable it from this command; the operator may opt in only outside the agent
+     session after reviewing the generated config.
 
 ## Step 3 — Materialize the docs scaffold
 
@@ -208,8 +212,9 @@ For every materialized file, append an entry:
   non-default collaboration flow (Step 2.5) also uncomment + fill the `[collaboration]`
   `design_owner` / `implement_owner` keys; for `claude+claude` leave them commented (absent =
   legacy semantics — see the tpl's precedence comment).
-  The template already contains `[meta].control_surface_schema = 1`; do not invent or emit any
-  `[implement.claude]` section.
+  The template contains `[meta].control_surface_schema = 2` and the complete disabled
+  `[implement.claude]` section. Preserve it for every flow so flow switching is a coupled,
+  server-consumed operation; never set its `enabled` key true.
 - Copy `${CLAUDE_PLUGIN_ROOT}/templates/review-prompts/*.tpl` → `.codex-review/templates/` **per the Step 3
   seed policy** (these are `owner=seed`: copy only if absent or a pristine prior render; preserve+warn if the
   consumer has customized them).
@@ -220,8 +225,8 @@ For every materialized file, append an entry:
   - The template is **provider-independent** — the bridge exposes the same three read-only review
     tools (`mcp__plugin_ccsop_ccsop-review__codex_{design,code,fix}_review`) for every provider, so
     one template serves `codex`/`claude`/`manual`. It is enumerated, **not** a `…__*` wildcard (a
-    wildcard would also grant `codex_implement`, a repo-writing dispatch tool that stays a separate
-    opt-in). Never add destructive prefixes.
+    wildcard would also grant `codex_implement` and `claude_implement`, write-capable proposal
+    tools that stay separate opt-ins). Never add destructive prefixes.
     `ccsop_configure` is also intentionally absent from this permission baseline: a host approval
     prompt is visible UX friction, not server-verifiable authorization.
   - **Fresh repo (no `.claude/settings.json`)**: copy the template verbatim.

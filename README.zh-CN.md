@@ -46,7 +46,8 @@ TypeScript build 步骤 —— 你只需为桥的运行时依赖跑一次 `npm i
 /plugin marketplace add Gnayj/claude-code-sop
 /plugin install ccsop@gnayj
 ```
-ccsop 按 commit SHA 版本化 —— 没有版本号要 bump，所以 `/plugin marketplace update` 总是拉到最新。
+ccsop release 同时带插件版本与不可变 Git tag；marketplace 解析当前 release commit，
+所以 `/plugin marketplace update` 会拉取最新已发布版本。
 
 **或从 clone 加载**（如固定某版本或改它）：
 ```bash
@@ -101,10 +102,15 @@ cd /your/repo && claude --plugin-dir /path/to/ccsop
   按卡内 ```files 白名单校验结果（任何越界终态改动 ⇒ 整单拒绝、什么都不产出）并返回 **patch
   工件** —— driver 自己 review 后亲手 apply（`git apply --check` → `git apply`）。工具从不写你的
   仓库，也没有任何自动 apply。
+- **`codex+claude` 可选 proposal 模式**：Linux + `bwrap`/`prlimit` 且有已认证、版本受支持的
+  Claude CLI 时，schema 2 暴露 `claude_implement`。它复用同一 snapshot/capture/allowlist
+  transaction，只给 Read/Edit/Write、不给 Bash，并校验 task-card SHA、durable design/daily
+  budget、process-group cancellation 与 server 侧断网 validation。默认 `enabled=false`，
+  flow 不会自动开启；validation 未配置时只产诚实的 `advisory-only / export-only` 工件。
 - **切换**走共享控制面：Claude 主推流用 `/sop-flow`，Codex 主推流用 `$sop-flow`。两者都调用
   schema-valid `ccsop_configure` writer，下一次 bridge 调用即读到新配置，无需 restart。按 session
-  口头指定（"这单 codex+claude"）仍是只读 override。Phase 1 明报 `codex+claude` 为
-  **manual relay**，不会下发一个尚无 runner 消费的配置。
+  口头指定（"这单 codex+claude"）仍是只读 override。schema 1 保持 **manual relay**；
+  schema 2 展示真实 Claude proposal adapter 的 enable/validation/apply readiness。
   每次 mutation 会把 preimage 按内容寻址保存到
   `<meta.repo_root>/.ccsop/backups/config/<sha256>.toml`。这些是 operator-retained 恢复数据
   （不会自动过期）；保持 `.ccsop/backups/` 不提交，并只按本仓 retention policy 清理旧条目。

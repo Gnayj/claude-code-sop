@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
@@ -11,7 +12,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { RuntimeConfigStore } from "../src/runtime-config-store.js";
-import { CONTROL_SURFACE_CONTRACT_V1 } from "../src/control-surface-contract.js";
+import {
+  CONTROL_SURFACE_CONTRACT_V1,
+  CONTROL_SURFACE_CONTRACT_V2,
+} from "../src/control-surface-contract.js";
 import {
   applyTomlUpdates,
   writeConfigAtomically,
@@ -142,7 +146,7 @@ describe("ccsop_configure Phase 1 contract", () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.contract_version).toBe(1);
+    expect(result.contract_version).toBe(2);
     expect(result.changed_keys).toEqual(["meta.control_surface_schema"]);
     expect(result.before_sha256).toBe(before.sha256);
     expect(result.after_sha256).not.toBe(before.sha256);
@@ -314,7 +318,179 @@ describe("ccsop_configure Phase 1 contract", () => {
         scope: "claude-implement",
         effort: "max",
       }),
-    ).toThrow(/unsupported Phase 1 tier scope/);
+    ).toThrow(/requires control_surface_schema=2/);
+  });
+
+  it("migrates schema 1 to the complete disabled v2 section and strictly rolls back", () => {
+    const { dir, path } = fixture(1);
+    const before = new RuntimeConfigStore(path).inspect();
+    const migrated = handleCcsopConfigure(path, {
+      action: "migrate-schema-v2",
+      expected_config_sha256: before.sha256,
+    });
+    expect(migrated.contract_version).toBe(2);
+    expect(migrated.observed_schema).toBe(2);
+    expect(migrated.changed_keys).toHaveLength(19);
+    const text = readFileSync(path, "utf8");
+    expect(text).toContain("control_surface_schema = 2");
+    expect(text).toContain("[implement.claude]");
+    expect(text).toContain('backend = "cli"');
+    expect(text).toContain('model = "opus"');
+    expect(text).toContain('effort = "max"');
+    expect(text).toContain("timeout_seconds = 900");
+    expect(text).toContain("max_output_bytes = 1048576");
+    expect(text).toContain("max_budget_usd = 5");
+    expect(text).toContain('supported_version_range = ">=2.1.220 <2.2.0"');
+    expect(text).toContain("validation_commands = []");
+    expect(text).toContain("validation_definition_paths = []");
+    expect(text).toContain("validation_additive_test_globs = []");
+    expect(text).toContain("allow_advisory_apply = false");
+    expect(migrated.migration_provenance_path).toBeTruthy();
+    expect(
+      readFileSync(migrated.migration_provenance_path!, "utf8"),
+    ).toContain(before.sha256);
+    expect(migrated.backup_path).toBe(
+      join(dir, ".ccsop", "backups", "config", `${before.sha256}.toml`),
+    );
+
+    const noOp = handleCcsopConfigure(path, {
+      action: "migrate-schema-v2",
+      expected_config_sha256: new RuntimeConfigStore(path).inspect().sha256,
+    });
+    expect(noOp.changed_keys).toEqual([]);
+
+    const rolledBack = handleCcsopConfigure(path, {
+      action: "rollback-schema-v1",
+      expected_config_sha256: new RuntimeConfigStore(path).inspect().sha256,
+    });
+    expect(rolledBack.observed_schema).toBe(1);
+    expect(readFileSync(path, "utf8")).toBe(before.text);
+  });
+
+  it.each([
+    "missing-provenance",
+    "missing-backup",
+    "tampered-backup",
+    "mismatched-after-sha",
+    "enabled-writer",
+    "changed-postimage",
+    "noncanonical-backup-path",
+  ])("rejects rollback proof failure %s with zero config writes", (fault) => {
+    const { path } = fixture(1);
+    const migrated = handleCcsopConfigure(path, {
+      action: "migrate-schema-v2",
+      expected_config_sha256: new RuntimeConfigStore(path).inspect().sha256,
+    });
+    const provenancePath = migrated.migration_provenance_path!;
+    const backupPath = migrated.backup_path!;
+    const provenance = JSON.parse(readFileSync(provenancePath, "utf8"));
+
+    if (fault === "missing-provenance") {
+      rmSync(provenancePath);
+    } else if (fault === "missing-backup") {
+      rmSync(backupPath);
+    } else if (fault === "tampered-backup") {
+      writeFileSync(backupPath, `${readFileSync(backupPath, "utf8")}# tampered\n`);
+    } else if (fault === "mismatched-after-sha") {
+      provenance.after_sha256 = "0".repeat(64);
+      writeFileSync(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
+    } else if (fault === "enabled-writer") {
+      writeFileSync(
+        path,
+        readFileSync(path, "utf8").replace(
+          "[implement.claude]\nenabled = false",
+          "[implement.claude]\nenabled = true",
+        ),
+      );
+    } else if (fault === "changed-postimage") {
+      writeFileSync(path, `${readFileSync(path, "utf8")}# later operator edit\n`);
+    } else {
+      provenance.backup_path = "elsewhere/config.toml";
+      writeFileSync(provenancePath, `${JSON.stringify(provenance, null, 2)}\n`);
+    }
+
+    const beforeRollback = readFileSync(path, "utf8");
+    expect(() =>
+      handleCcsopConfigure(path, {
+        action: "rollback-schema-v1",
+        expected_config_sha256: new RuntimeConfigStore(path).inspect().sha256,
+      }),
+    ).toThrow(/rollback refused/);
+    expect(readFileSync(path, "utf8")).toBe(beforeRollback);
+  });
+
+  it("refuses ambiguous migration and enforces disable-only plus shrink-only v2 changes", () => {
+    const ambiguous = fixture(1);
+    writeFileSync(
+      ambiguous.path,
+      `${readFileSync(ambiguous.path, "utf8")}\n[implement.claude]\nenabled = false\n`,
+      "utf8",
+    );
+    const ambiguousBefore = new RuntimeConfigStore(ambiguous.path).inspect();
+    expect(() =>
+      handleCcsopConfigure(ambiguous.path, {
+        action: "migrate-schema-v2",
+        expected_config_sha256: ambiguousBefore.sha256,
+      }),
+    ).toThrow(/already exists/);
+    expect(readFileSync(ambiguous.path, "utf8")).toBe(ambiguousBefore.text);
+
+    const target = fixture(1);
+    handleCcsopConfigure(target.path, {
+      action: "migrate-schema-v2",
+      expected_config_sha256: new RuntimeConfigStore(target.path).inspect().sha256,
+    });
+    const shrunk = handleCcsopConfigure(target.path, {
+      action: "set-tier",
+      expected_config_sha256: new RuntimeConfigStore(target.path).inspect().sha256,
+      scope: "claude-implement",
+      model: "claude-opus-4-1",
+      effort: "high",
+      timeout_seconds: 600,
+      max_budget_usd: 3,
+    });
+    expect(shrunk.changed_keys).toEqual([
+      "implement.claude.model",
+      "implement.claude.effort",
+      "implement.claude.timeout_seconds",
+      "implement.claude.max_budget_usd",
+    ]);
+    expect(() =>
+      handleCcsopConfigure(target.path, {
+        action: "set-tier",
+        expected_config_sha256: new RuntimeConfigStore(target.path).inspect().sha256,
+        scope: "claude-implement",
+        timeout_seconds: 601,
+      }),
+    ).toThrow(/shrink-only/);
+    expect(() =>
+      handleCcsopConfigure(target.path, {
+        action: "disable-claude-implement",
+        expected_config_sha256: new RuntimeConfigStore(target.path).inspect().sha256,
+        enabled: true,
+      }),
+    ).toThrow();
+  });
+
+  it("safety-disables Claude implement when set-flow changes implement ownership", () => {
+    const { path } = fixture(1);
+    handleCcsopConfigure(path, {
+      action: "migrate-schema-v2",
+      expected_config_sha256: new RuntimeConfigStore(path).inspect().sha256,
+    });
+    const enabled = applyTomlUpdates(readFileSync(path, "utf8"), [
+      { section: "implement.claude", key: "enabled", value: true },
+    ]);
+    writeFileSync(path, enabled, "utf8");
+    const selected = handleCcsopConfigure(path, {
+      action: "set-flow",
+      expected_config_sha256: new RuntimeConfigStore(path).inspect().sha256,
+      flow: "codex+codex",
+    });
+    expect(selected.safety_disable).toBe(true);
+    expect(readFileSync(path, "utf8")).toContain(
+      "[implement.claude]\nenabled = false",
+    );
   });
 
   it("fails compare-and-swap races without writing", () => {
@@ -575,5 +751,8 @@ describe("ccsop_configure Phase 1 contract", () => {
     expect(rendered).not.toContain("claude-implement");
     expect(rendered).not.toContain("claude_implement");
     expect(rendered).not.toContain("implement.claude");
+    const v2 = JSON.stringify(CONTROL_SURFACE_CONTRACT_V2);
+    expect(v2).toContain("claude_implement");
+    expect(v2).toContain("disable-claude-implement");
   });
 });

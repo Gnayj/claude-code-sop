@@ -47,8 +47,8 @@ the bridge's runtime dependencies.
 /plugin marketplace add Gnayj/claude-code-sop
 /plugin install ccsop@gnayj
 ```
-ccsop is versioned by commit SHA — there's no version number to bump, so `/plugin marketplace update`
-always pulls the latest.
+ccsop releases carry a plugin version and immutable Git tag; the marketplace resolves the current
+release commit, so `/plugin marketplace update` pulls the latest published version.
 
 **Or load from a clone** (e.g. to pin or hack on a revision):
 ```bash
@@ -107,11 +107,17 @@ Beyond picking a reviewer, you can split the **work itself** between the two mod
   the card's ```files allowlist (any out-of-scope end-state change ⇒ rejected, nothing emitted)
   and returns a **patch artifact** — which the driver reviews and applies itself
   (`git apply --check` → `git apply`). The tool never writes your repo and nothing auto-applies.
+- **`codex+claude` optional proposal mode**: on Linux with `bwrap`/`prlimit` and a certified,
+  authenticated Claude CLI, schema 2 exposes `claude_implement`. It reuses the same
+  snapshot/capture/allowlist transaction, with Read/Edit/Write only, no Bash, a task-card SHA,
+  durable design/daily budgets, process-group cancellation, and server-side offline validation.
+  It ships `enabled=false`; flow selection never enables it. Unconfigured validation produces
+  honest `advisory-only / export-only` artifacts, not apply-ready patches.
 - **Switch** through the shared control surface: `/sop-flow` for Claude-driven flows and
   `$sop-flow` for Codex-driven flows. Both use the schema-valid `ccsop_configure` writer; the next
   bridge call observes the change without restart. A per-session instruction ("this one
-  codex+claude") remains read-only. Phase 1 reports `codex+claude` as **manual relay**; it does not
-  emit a configuration for a writer runtime that does not yet exist.
+  codex+claude") remains read-only. Schema 1 keeps `codex+claude` as **manual relay**; schema 2
+  reports the real Claude proposal adapter's enable/validation/apply readiness.
   Each mutation keeps a content-addressed preimage under
   `<meta.repo_root>/.ccsop/backups/config/<sha256>.toml`. These backups are operator-retained
   recovery data (no automatic expiry); keep `.ccsop/backups/` uncommitted and remove old entries

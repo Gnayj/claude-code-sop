@@ -7,7 +7,7 @@
 project_id = "<PROJECT_ID>"
 project_name = "<PROJECT_NAME>"
 language = "<LANGUAGE>"          # the language /sop-init materialized docs in (en | zh | ...)
-control_surface_schema = 1       # ccsop_configure contract; unknown future values fail closed
+control_surface_schema = 2       # ccsop_configure contract; unknown future values fail closed
 repo_root = ".."                 # relative to this config file (.codex-review/)
 allowed_doc_roots = [
   "docs/",
@@ -116,6 +116,30 @@ model = ""                       # see codex fallback chains above
 effort = ""                      # "" | minimal | low | medium | high | xhigh; see chains above
 max_implement_rounds = 3         # dispatch budget per design_id (shrink-only, server max 3)
 max_file_bytes = 2097152         # v1 text-only patch contract: per-file cap, BOTH delta sides (shrink-only)
+
+# claude_implement — optional "Codex presides + Claude writes" proposal adapter. Linux+bwrap
+# only. It shares the same server-side snapshot/capture/allowlist transaction as codex_implement,
+# never writes the caller repository, and ships DISABLED. /sop-init and $sop-flow never enable it:
+# after checking readiness, the operator must opt in outside the agent session.
+[implement.claude]
+enabled = false
+backend = "cli"                  # operator-only; Phase 2 v1 supports cli only
+model = "opus"
+effort = "max"                   # "" | low | medium | high | xhigh | max
+cli_path = ""                    # operator-only; absolute pin recommended
+timeout_seconds = 900            # shrink-only; compiled maximum 900
+max_output_bytes = 1048576       # shrink-only; compiled maximum 1 MiB
+max_budget_usd = 5.0             # shrink-only CLI limit and durable reserve
+supported_version_range = ">=2.1.220 <2.2.0" # operator-only certified range
+allow_uncertified_version = false            # operator-only escape hatch; probe still mandatory
+max_dispatches_per_design = 3                # shrink-only durable ledger cap
+max_cumulative_wall_seconds = 3600           # shrink-only per-design cap
+max_cumulative_budget_usd = 20.0              # shrink-only per-design cap
+max_daily_budget_usd = 50.0                   # shrink-only UTC-day cap
+validation_commands = []                      # operator-only argv arrays, e.g. [["npm","test"]]
+validation_definition_paths = []              # operator-only exact preimage roots
+validation_additive_test_globs = []            # operator-only baseline-only test globs
+allow_advisory_apply = false                  # operator-only; default advisory is export-only
 
 # Doc translation provider (design §4.3 / Q8) — INDEPENDENT of review.provider. When
 # review.provider=manual, translation defaults to unsupported (bring your own translated

@@ -14,6 +14,11 @@ Two live modes (see `claude-code-sop-collaboration.md §1`):
 | `driver-led + reviewer gate` | user **manually** forwards diff / verdict (or `review.provider=manual`) | driver implements + closes out | bridge down, or manual control wanted |
 | `reviewer-led closed loop` (fallback, dormant) | user/automation forwarded | reviewer owns design + acceptance + closeout; driver implements | reviewer-owned design/acceptance wanted (see collaboration §1 mode 3 / §8.1) |
 
+Split-flow proposal adapters are optional transport, not new authority:
+`claude+codex` may use `codex_implement`; schema-2 `codex+claude` may use the independently
+operator-enabled `claude_implement` on Linux+bwrap. Both return patches only. An unconfigured
+Claude validation stage is explicitly `advisory-only / export-only`.
+
 ## 2. End-to-end flow
 
 ```

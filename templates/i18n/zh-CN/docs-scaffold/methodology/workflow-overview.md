@@ -13,6 +13,11 @@
 | `driver-led + reviewer gate` | 用户**手动**转发 diff / verdict（或 `review.provider=manual`） | driver implement + closeout | 桥宕机，或想手动控制 |
 | `reviewer-led closed loop`（fallback，休眠） | 用户/自动化转发 | reviewer 拥有 design + 验收 + closeout；driver 只 implement | 想让 reviewer 拥有 design/验收（见协作协议 §1 模式 3 / §8.1） |
 
+拆分 flow 的 proposal adapter 只是可选传输，不是新授权：`claude+codex` 可用
+`codex_implement`；schema-2 `codex+claude` 可在 Linux+bwrap 上使用由 operator 独立开启的
+`claude_implement`。两者都只返回 patch。Claude validation 未配置时明确为
+`advisory-only / export-only`。
+
 ## 2. 端到端流程
 
 ```

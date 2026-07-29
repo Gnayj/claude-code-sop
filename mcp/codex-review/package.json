@@ -19,7 +19,9 @@
     "typecheck": "tsc --noEmit",
     "verify:mcp": "node scripts/verify-mcp.mjs",
     "smoke:claude": "node scripts/claude-live-smoke.mjs",
-    "smoke:implement": "node scripts/implement-live-smoke.mjs"
+    "smoke:implement": "node scripts/implement-live-smoke.mjs",
+    "smoke:claude-implement": "npm run build --silent && node scripts/claude-implement-live-smoke.mjs",
+    "migrate:implement-state": "node scripts/migrate-implement-state.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

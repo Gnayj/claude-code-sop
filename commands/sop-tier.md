@@ -13,9 +13,9 @@ Apply the orphaned-root and missing-config guards from `/sop-flow`. Discover
 `ccsop_configure`; if the tool is missing/old/unregistered, make zero writes and direct the user
 to `/mcp` plus reconnect/restart.
 
-Call `action=status`. Require `contract_version=1` and `observed_schema=1`. Schema absent means
-`/sop-update` must run the fixed stamp action; an unknown schema/contract fails loud with zero
-writes.
+Call `action=status`. Require `contract_version=2` and `observed_schema=1|2`. Schema absent means
+`/sop-update` must run the fixed migration actions; an unknown schema/contract fails loud with zero
+writes. Schema 1 preserves the four Phase 1 scopes below.
 
 If status returns `config_valid=false`, show its `validation_error` and raw tier values. An
 explicit legal set may repair the selected invalid tier key: the server publishes only when the
@@ -26,7 +26,7 @@ of this command.
 
 ## Step 1 — scopes and status
 
-Only expose scopes with a real Phase 1 consumer:
+Expose only scopes with a real runtime consumer:
 
 | Public command scope | Machine scope | Consumer |
 |---|---|---|
@@ -34,9 +34,12 @@ Only expose scopes with a real Phase 1 consumer:
 | `review` | `codex-review` | `[review.codex]` |
 | `implement` | `codex-dispatch` | existing `[implement]` Codex dispatcher |
 | `default` | `codex-default` | shared `[codex]` fallback |
+| `claude-implement` | `claude-implement` | schema-2 `claude_implement` proposal adapter |
 
-Do not expose `claude-implement`; that runtime does not exist in Phase 1. The current host Claude
-or Codex session model is selected with the host's built-in `/model`, not through this command.
+The `claude-implement` row is available only when schema=2 and the live tool catalog contains
+`claude_implement`; otherwise fail that scope with `/sop-update` + `/mcp` remediation while keeping
+the four Phase 1 rows usable. The current host Claude or Codex session model is selected with the
+host's built-in `/model`, not through this command.
 
 Print configured values returned by `status`. Explain the existing fallback resolution:
 `codex-review` and `codex-dispatch` each fall back field-by-field to `codex-default`, then the SDK
@@ -44,13 +47,19 @@ default; `claude-review` uses its own backend/model/effort.
 
 ## Step 2 — dispatch on `$ARGUMENTS`
 
-- Empty: print status and offer `claude`, `review`, `implement`, `default`, and `keep current`.
+- Empty: print status and offer `claude`, `review`, `implement`, `default`, conditionally
+  `claude-implement`, and `keep current`.
   If no picker exists, print typed usage and stop read-only.
 - Typed form:
-  `/sop-tier <review|implement|default|claude> [backend=<api|cli>] [effort=<value>] [model=<id or "">]`
+  `/sop-tier <review|implement|default|claude|claude-implement> [key=value ...]`
 - Require at least one assignment. Reject duplicate/unknown assignments before calling the tool.
 - Codex effort domain: `""|minimal|low|medium|high|xhigh`; `backend` is forbidden.
 - Claude effort domain: `""|low|medium|high|xhigh|max`; `backend` is optional.
+- `claude-implement` accepts `model`, `effort`, `timeout_seconds`, `max_output_bytes`,
+  `max_budget_usd`, `max_dispatches_per_design`, `max_cumulative_wall_seconds`,
+  `max_cumulative_budget_usd`, and `max_daily_budget_usd`. Numeric fields are shrink-only from
+  `min(on-disk current, compiled maximum)`. Reject backend/cli_path/version overrides/validation
+  fields/additive globs/advisory apply/enabled as operator-only.
 
 Interactive choices must use the same domains. Empty string means provider/SDK default. Model ids
 are opaque non-empty strings; do not invent model validation.

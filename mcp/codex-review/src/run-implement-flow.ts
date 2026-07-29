@@ -11,11 +11,20 @@
 // and the diff budget; a cancelled dispatch terminalizes `failed (cancelled)` and publishes
 // nothing.
 
-import { readFileSync } from "node:fs";
-import { relative } from "node:path";
+import {
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+} from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
 
-import type { CodexEffort, ResolvedConfig } from "./config.js";
+import type {
+  ClaudeEffort,
+  CodexEffort,
+  ResolvedConfig,
+} from "./config.js";
 import { resolveCodexTier, resolveProjectPath } from "./config.js";
 import {
   canonicalSetsEqual,
@@ -29,6 +38,7 @@ import {
   getDispatch,
   type DispatchRecord,
   type FileChangeFact,
+  type ImplementWriterKind,
   type PublishedArtifact,
   allocateDispatchResources,
   BlobStore,
@@ -51,16 +61,26 @@ import {
   LockTimeoutError,
   acquisitionDeadline,
 } from "./locks.js";
+import {
+  ImplementLedger,
+  type LedgerReservation,
+} from "./implement-ledger.js";
+import {
+  validateClaudeProposal,
+  type ClaudeProposalValidation,
+} from "./implement-sandbox.js";
 
 export interface WriterTurnRequest {
   scratchRoot: string;
+  /** Server-private per-dispatch home, sibling of scratch. */
+  privateHome?: string;
   prompt: string;
   /** Full replacement env (isolated CODEX_HOME + neutralized git) for the writer CLI. */
   env: Record<string, string>;
   /** CLI `--config` overrides (sandbox tmp exclusions — Q19 defense in depth). */
   cliConfigOverrides?: Record<string, unknown>;
   model?: string;
-  effort?: CodexEffort;
+  effort?: CodexEffort | ClaudeEffort;
   /** Cancellation — MUST be forwarded into the SDK turn (TurnOptions.signal; design §4.4). */
   signal?: AbortSignal;
 }
@@ -71,6 +91,11 @@ export interface WriterTurnResult {
   threadId?: string;
   /** Total token estimate for the turn (accounting). */
   tokensTotal?: number;
+  /** Provider-specific, server-derived execution provenance. */
+  writerAttestation?: Record<string, unknown>;
+  warnings?: string[];
+  wallSeconds?: number;
+  costUsd?: number;
 }
 
 /** Injectable writer boundary: production wraps OpenAICodexClient (tier "implement", fresh
@@ -84,11 +109,18 @@ export interface ImplementFlowDependencies {
   runWriterTurn: RunWriterTurn;
   /** Test seam for the Q19 attestation gate (defaults to the real builder). */
   buildWriterEnv?: typeof buildWriterEnvironment;
+  /** The writer adapter sharing this provider-neutral proposal transaction. */
+  writerKind?: ImplementWriterKind;
+  /** Runtime config bytes used to build this dependency snapshot. */
+  configPath?: string;
+  configSha256?: string;
 }
 
 export interface ImplementFlowInput {
   designId: string;
   taskCardPath: string;
+  /** Required by claude_implement; exact bytes are verified before reserve. */
+  taskCardSha256?: string;
   filesAllowlist: string[];
   workOrder: string;
   dispatchKey: string;
@@ -127,6 +159,12 @@ export interface ImplementFlowResult {
     codex_failure_streak: number;
     parser_failure_streak: number;
   };
+  writer_kind?: ImplementWriterKind;
+  patch_sha256?: string;
+  applicability?: "applicable" | "advisory-only";
+  apply_policy?: "normal-confirmation" | "advisory-opt-in" | "export-only";
+  warnings?: string[];
+  validation?: ClaudeProposalValidation;
 }
 
 /** Built-in prompt fallback; a consumer-seeded `.codex-review/templates/implement.md.tpl`
@@ -206,20 +244,213 @@ export function extractLastJsonObject(text: string): unknown {
   return null;
 }
 
+function readActiveTaskCard(
+  config: ResolvedConfig,
+  configBaseDir: string,
+  repoRoot: string,
+  taskCardPath: string,
+): { text: string; sha256: string } {
+  const parsedPath = parseAllowlist([taskCardPath]);
+  if (!parsedPath.ok || parsedPath.canonical[0] !== taskCardPath) {
+    throw new Error("task_card_path must be a repo-relative POSIX path");
+  }
+  const cardPath = resolve(repoRoot, taskCardPath);
+  const activeRoot = resolveProjectPath(
+    config,
+    configBaseDir,
+    config.paths.plans_active,
+  );
+  const rel = relative(activeRoot, cardPath);
+  if (rel === "" || rel.startsWith("../") || isAbsolute(rel)) {
+    throw new Error(
+      `task_card_path must name a file below ${config.paths.plans_active}`,
+    );
+  }
+  let cursor = repoRoot;
+  for (const segment of relative(repoRoot, cardPath).split("/")) {
+    cursor = resolve(cursor, segment);
+    const stat = lstatSync(cursor);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`task card path must not contain symlinks: ${taskCardPath}`);
+    }
+  }
+  const stat = lstatSync(cardPath);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`task card must be a regular non-symlink file: ${taskCardPath}`);
+  }
+  if (realpathSync(cardPath) !== cardPath) {
+    throw new Error(`task card canonical path mismatch: ${taskCardPath}`);
+  }
+  const text = readFileSync(cardPath, "utf8");
+  return { text, sha256: sha256(Buffer.from(text, "utf8")) };
+}
+
+const CLAUDE_SECRET_FILE =
+  /^(?:\.npmrc|\.pypirc|\.netrc|\.git-credentials|credentials?(?:\.[^/]+)?|id_(?:rsa|dsa|ecdsa|ed25519)|secrets?(?:\.[^/]+)?|[^/]*\.(?:pem|key|p12|pfx|jks|keystore))$/i;
+const CLAUDE_SECRET_DIRS = new Set([
+  ".ssh",
+  ".gnupg",
+  ".aws",
+  ".azure",
+  ".docker",
+  ".kube",
+]);
+
+function claudeSecretPath(path: string): boolean {
+  const segments = path.split("/");
+  const base = segments.at(-1) ?? "";
+  if (/^\.env(?:\.|$)/i.test(base)) {
+    return !/^\.env\.(?:example|sample|template)$/i.test(base);
+  }
+  return (
+    segments.some((segment) => CLAUDE_SECRET_DIRS.has(segment.toLowerCase())) ||
+    CLAUDE_SECRET_FILE.test(base)
+  );
+}
+
+function claudeAllowlistError(
+  paths: readonly string[],
+  authorityPaths: {
+    taskCardPath: string;
+    handoffPath: string;
+    designRoot: string;
+    recordsRoot: string;
+  },
+): string | undefined {
+  if (paths.length > 256) {
+    return `claude_implement files_allowlist exceeds the 256-path hard cap (${paths.length})`;
+  }
+  const authorityPath = paths.find(
+    (path) =>
+      path === authorityPaths.taskCardPath ||
+      path === authorityPaths.handoffPath ||
+      equalOrBelow(path, authorityPaths.designRoot) ||
+      (authorityPaths.recordsRoot !== "." &&
+        equalOrBelow(path, authorityPaths.recordsRoot)),
+  );
+  if (authorityPath) {
+    return `claude_implement authority path is hard-denied: ${JSON.stringify(authorityPath)}`;
+  }
+  const denied = paths.find(claudeSecretPath);
+  return denied
+    ? `claude_implement hard secret denylist rejects ${JSON.stringify(denied)}`
+    : undefined;
+}
+
+function claudeScratchExcluded(path: string): boolean {
+  const segments = path.split("/");
+  if (
+    [".codex-review", ".claude", ".agents", ".codex"].includes(
+      segments[0] ?? "",
+    )
+  ) {
+    return true;
+  }
+  if (
+    segments.some((segment) =>
+      [
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+      ].includes(segment),
+    )
+  ) {
+    return true;
+  }
+  return claudeSecretPath(path);
+}
+
+function claudeSnapshotExcluded(path: string): boolean {
+  return path === ".codex-review" || path.startsWith(".codex-review/");
+}
+
+function equalOrBelow(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
+}
+
+function repoRelativePath(repoRoot: string, absolutePath: string): string {
+  const rel = relative(repoRoot, absolutePath).replaceAll("\\", "/");
+  if (rel === "" || rel.startsWith("../") || isAbsolute(rel)) {
+    throw new Error(`configured authority path is outside the repository: ${absolutePath}`);
+  }
+  return rel;
+}
+
+function snapshotInventorySha(snapshot: {
+  inventory: Map<string, unknown>;
+  opaqueRoots: Set<string>;
+}): string {
+  const facts = [...snapshot.inventory.entries()].sort(([left], [right]) =>
+    Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")),
+  );
+  return sha256(
+    Buffer.from(
+      JSON.stringify({
+        inventory: facts,
+        opaque_roots: [...snapshot.opaqueRoots].sort(),
+      }),
+      "utf8",
+    ),
+  );
+}
+
 export async function runImplementFlow(
   deps: ImplementFlowDependencies,
   input: ImplementFlowInput,
 ): Promise<ImplementFlowResult> {
   const { config, configBaseDir, store, runWriterTurn } = deps;
+  const writerKind = deps.writerKind ?? "codex";
 
   // ---------- 0) gates + identity (nothing persisted is touched yet) ----------
-  if (!config.implement.enabled) {
+  const explicitOwners =
+    config.collaboration.design_owner !== undefined ||
+    config.collaboration.implement_owner !== undefined;
+  if (writerKind === "codex" && !config.implement.enabled) {
     return {
       ok: false,
       error:
         "codex_implement is disabled ([implement] enabled=false). Enable it in " +
         ".codex-review/config.toml only for the claude+codex preside flow (collaboration.md §1.D).",
     };
+  }
+  if (
+    writerKind === "codex" &&
+    explicitOwners &&
+    config.collaboration.implement_owner !== "codex"
+  ) {
+    return {
+      ok: false,
+      error:
+        "codex_implement requires implement_owner=codex when collaboration owners are explicit",
+    };
+  }
+  if (writerKind === "claude") {
+    const gateFailures = [
+      config.meta.control_surface_schema === 2
+        ? ""
+        : "meta.control_surface_schema must be 2",
+      config.collaboration.design_owner === "codex"
+        ? ""
+        : "design_owner must be codex",
+      config.collaboration.implement_owner === "claude"
+        ? ""
+        : "implement_owner must be claude",
+      config.implement.claude.enabled
+        ? ""
+        : "[implement.claude] enabled must be true (operator opt-in)",
+      config.implement.claude.backend === "cli"
+        ? ""
+        : "only backend=cli is supported",
+    ].filter(Boolean);
+    if (gateFailures.length > 0) {
+      return {
+        ok: false,
+        error: `claude_implement gate failed: ${gateFailures.join("; ")}`,
+      };
+    }
   }
   if (input.designId.endsWith(".implement")) {
     return { ok: false, error: "design_id must not end with '.implement' (reserved namespace suffix)" };
@@ -233,13 +464,54 @@ export async function runImplementFlow(
     return { ok: false, error: `files_allowlist invalid:\n${inputList.errors.join("\n")}` };
   }
   const repoRoot = resolveProjectPath(config, configBaseDir, ".");
-  let cardText: string;
+  let card: { text: string; sha256: string };
   try {
-    cardText = readFileSync(resolveProjectPath(config, configBaseDir, input.taskCardPath), "utf8");
+    if (writerKind === "claude") {
+      card = readActiveTaskCard(
+        config,
+        configBaseDir,
+        repoRoot,
+        input.taskCardPath,
+      );
+      const handoffPath = repoRelativePath(
+        repoRoot,
+        resolveProjectPath(config, configBaseDir, config.paths.handoff),
+      );
+      const recordsRoot = dirname(handoffPath).replaceAll("\\", "/");
+      const allowlistError = claudeAllowlistError(inputList.canonical, {
+        taskCardPath: input.taskCardPath,
+        handoffPath,
+        designRoot: join(dirname(recordsRoot), "design").replaceAll("\\", "/"),
+        recordsRoot,
+      });
+      if (allowlistError) return { ok: false, error: allowlistError };
+    } else {
+      const text = readFileSync(
+        resolveProjectPath(config, configBaseDir, input.taskCardPath),
+        "utf8",
+      );
+      card = { text, sha256: sha256(Buffer.from(text, "utf8")) };
+    }
   } catch (err) {
     return { ok: false, error: `cannot read task card ${input.taskCardPath}: ${(err as Error).message}` };
   }
-  const cardSha = sha256(Buffer.from(cardText, "utf8"));
+  const cardText = card.text;
+  const cardSha = card.sha256;
+  if (writerKind === "claude") {
+    if (!input.taskCardSha256) {
+      return {
+        ok: false,
+        error: "claude_implement requires task_card_sha256",
+      };
+    }
+    if (input.taskCardSha256 !== cardSha) {
+      return {
+        ok: false,
+        error:
+          `task card sha mismatch: expected=${input.taskCardSha256} actual=${cardSha}`,
+      };
+    }
+  }
   const cardList = parseFilesBlockFromCard(cardText);
   if (!cardList.ok) {
     return { ok: false, error: `task card \`\`\`files block invalid:\n${cardList.errors.join("\n")}` };
@@ -254,6 +526,13 @@ export async function runImplementFlow(
   }
   const allowlist = inputList.canonical;
   const payloadSha = computePayloadSha({
+    workOrder: input.workOrder,
+    canonicalAllowlist: allowlist,
+    cardSha,
+    previousFindings: input.previousFindings,
+    writerKind,
+  });
+  const legacyPayloadSha = computePayloadSha({
     workOrder: input.workOrder,
     canonicalAllowlist: allowlist,
     cardSha,
@@ -285,9 +564,25 @@ export async function runImplementFlow(
     try {
       state =
         (await store.recoverAndGc(input.designId, entryDeadline, input.signal)) ??
-        store.newState(input.designId);
+        store.newState(input.designId, writerKind);
     } catch (err) {
       return { ok: false, error: `control-state unavailable: ${(err as Error).message}` };
+    }
+    const stateWriterKind = state.writer_kind ?? "codex";
+    if (stateWriterKind !== writerKind) {
+      return {
+        ok: false,
+        error:
+          `design_id ${input.designId} is already owned by writer_kind=${stateWriterKind}; ` +
+          `cross-writer reuse as ${writerKind} is prohibited`,
+      };
+    }
+    const legacyState = state.schema_version === undefined;
+    if (legacyState && writerKind !== "codex") {
+      return {
+        ok: false,
+        error: "legacy implement state can only be migrated as writer_kind=codex",
+      };
     }
     const sessionFacts = () => ({
       rounds_used: state.rounds,
@@ -297,7 +592,18 @@ export async function runImplementFlow(
     });
     const existing = getDispatch(state, input.dispatchKey);
     if (existing) {
-      if (existing.payload_sha !== payloadSha) {
+      const existingKind = existing.writer_kind ?? "codex";
+      if (existingKind !== writerKind) {
+        return {
+          ok: false,
+          error:
+            `dispatch_key belongs to writer_kind=${existingKind}; cross-writer replay is prohibited`,
+          session: sessionFacts(),
+        };
+      }
+      const expectedPayload =
+        existing.payload_schema_version === 2 ? payloadSha : legacyPayloadSha;
+      if (existing.payload_sha !== expectedPayload) {
         return {
           ok: false,
           error: `dispatch_key reuse with a DIFFERENT payload (recorded round ${existing.round}); use a fresh key for a new dispatch`,
@@ -346,6 +652,8 @@ export async function runImplementFlow(
     }
     const round = state.rounds + 1;
     const record: DispatchRecord = {
+      writer_kind: writerKind,
+      payload_schema_version: 2,
       dispatch_key: input.dispatchKey,
       payload_sha: payloadSha,
       artifact_id: newArtifactId(),
@@ -355,10 +663,43 @@ export async function runImplementFlow(
       epoch_started_at: PROCESS_EPOCH_STARTED_AT,
       ...(PROCESS_EPOCH_START_TOKEN != null ? { epoch_start_token: PROCESS_EPOCH_START_TOKEN } : {}),
     };
+    if (legacyState) store.archiveLegacyState(state);
     state.dispatches.push(record);
+    state.schema_version = 2;
+    state.writer_kind = writerKind;
+    state.dispatch_count_total = (state.dispatch_count_total ?? 0) + 1;
     // The reserved round is consumed durably NOW (breaker honesty across crashes).
     state.rounds = round;
     store.write(state);
+
+    let ledger: ImplementLedger | undefined;
+    let ledgerReservation: LedgerReservation | undefined;
+    if (writerKind === "claude") {
+      ledger = new ImplementLedger(repoRoot);
+      try {
+        ledgerReservation = await ledger.reserve({
+          designId: input.designId,
+          artifactId: record.artifact_id,
+          writerKind,
+          config: config.implement.claude,
+          allowCreate: state.dispatches.length === 1,
+          lockTimeoutMs,
+          ...(input.signal ? { signal: input.signal } : {}),
+        });
+      } catch (err) {
+        const failed: ImplementFlowResult = {
+          ok: false,
+          error: `Claude implement budget reservation failed: ${(err as Error).message}`,
+          round,
+          lifecycle: "failed",
+        };
+        record.lifecycle = "failed";
+        record.failure_reason = failed.error;
+        record.result = failed;
+        store.write(state);
+        return failed;
+      }
+    }
 
     const finishFailed = (result: ImplementFlowResult): ImplementFlowResult => {
       record.lifecycle = "failed";
@@ -382,16 +723,39 @@ export async function runImplementFlow(
 
         // Writer environment + attestation gate (Q11 + Q19): a constructed config missing
         // either tmp exclusion hard-fails BEFORE the writer spawns.
-        const { model: writerModel, effort: writerEffort } = resolveCodexTier(
-          config,
-          "implement",
-        );
-        const writerEnv = (deps.buildWriterEnv ?? buildWriterEnvironment)(
-          resources.home,
-          writerModel,
-          writerEffort,
-        );
-        if (!writerEnv.attestation.excludeSlashTmp || !writerEnv.attestation.excludeTmpdirEnvVar) {
+        const codexTier =
+          writerKind === "codex"
+            ? resolveCodexTier(config, "implement")
+            : undefined;
+        const writerModel =
+          writerKind === "codex"
+            ? codexTier?.model
+            : config.implement.claude.model;
+        const writerEffort =
+          writerKind === "codex"
+            ? codexTier?.effort
+            : config.implement.claude.effort || undefined;
+        const writerEnv =
+          writerKind === "codex"
+            ? (deps.buildWriterEnv ?? buildWriterEnvironment)(
+                resources.home,
+                writerModel,
+                writerEffort as CodexEffort | undefined,
+              )
+            : {
+                env: {} as Record<string, string>,
+                cliConfigOverrides: undefined,
+                attestation: {
+                  writer_kind: "claude",
+                  isolation: "delegated-to-claude-implement-adapter",
+                },
+              };
+        if (
+          writerKind === "codex" &&
+          (!("excludeSlashTmp" in writerEnv.attestation) ||
+            !writerEnv.attestation.excludeSlashTmp ||
+            !writerEnv.attestation.excludeTmpdirEnvVar)
+        ) {
           return finishFailed({
             ok: false,
             error:
@@ -402,7 +766,14 @@ export async function runImplementFlow(
 
         // Typed snapshot + pre-spawn topology pass (r7): unmerged stages / opaque-root
         // allowlist entries reject BEFORE the writer spawns.
-        const snapResult = buildSnapshot(repoRoot, allowlist, snapshotStore);
+        const snapResult = buildSnapshot(
+          repoRoot,
+          allowlist,
+          snapshotStore,
+          writerKind === "claude"
+            ? { excludePath: claudeSnapshotExcluded }
+            : undefined,
+        );
         if (snapResult.rejections.length > 0) {
           return finishFailed({
             ok: false,
@@ -411,7 +782,14 @@ export async function runImplementFlow(
           });
         }
         const snapshot = snapResult.snapshot;
-        const scratch = materializeScratch(snapshot, resources.scratch);
+        const callerPreimageSha = snapshotInventorySha(snapshot);
+        const scratch = materializeScratch(
+          snapshot,
+          resources.scratch,
+          writerKind === "claude"
+            ? { excludePath: claudeScratchExcluded }
+            : undefined,
+        );
         record.lifecycle = "executing";
         store.write(state);
 
@@ -431,6 +809,7 @@ export async function runImplementFlow(
         try {
           turn = await runWriterTurn({
             scratchRoot: scratch.root,
+            privateHome: resources.home,
             prompt,
             env: writerEnv.env,
             cliConfigOverrides: writerEnv.cliConfigOverrides,
@@ -440,6 +819,31 @@ export async function runImplementFlow(
           });
           state.codex_failure_streak = 0;
         } catch (err) {
+          if (ledger && ledgerReservation) {
+            try {
+              await ledger.settle(
+                ledgerReservation,
+                {
+                  wallSeconds: config.implement.claude.timeout_seconds,
+                  budgetUsd: config.implement.claude.max_budget_usd,
+                },
+                lockTimeoutMs,
+              );
+              state.wall_seconds_total =
+                (state.wall_seconds_total ?? 0) +
+                config.implement.claude.timeout_seconds;
+              state.budget_usd_total =
+                (state.budget_usd_total ?? 0) +
+                config.implement.claude.max_budget_usd;
+            } catch (ledgerError) {
+              return finishFailed({
+                ok: false,
+                error:
+                  `writer turn failed and budget settlement also failed: ` +
+                  `${(err as Error).message}; ${(ledgerError as Error).message}`,
+              });
+            }
+          }
           if (input.signal?.aborted) {
             return finishFailed(cancelledResult("during the writer turn"));
           }
@@ -457,9 +861,63 @@ export async function runImplementFlow(
         }
         record.thread_id = turn.threadId ?? "";
         state.tokens_used_estimate_total += turn.tokensTotal ?? 0;
+        if (ledger && ledgerReservation) {
+          const wallSeconds = Math.min(
+            turn.wallSeconds ?? config.implement.claude.timeout_seconds,
+            config.implement.claude.timeout_seconds,
+          );
+          const costUsd = Math.min(
+            turn.costUsd ?? config.implement.claude.max_budget_usd,
+            config.implement.claude.max_budget_usd,
+          );
+          await ledger.settle(
+            ledgerReservation,
+            { wallSeconds, budgetUsd: costUsd },
+            lockTimeoutMs,
+            input.signal,
+          );
+          state.wall_seconds_total =
+            (state.wall_seconds_total ?? 0) + wallSeconds;
+          state.budget_usd_total =
+            (state.budget_usd_total ?? 0) + costUsd;
+        }
         store.write(state);
         if (input.signal?.aborted) {
           return finishFailed(cancelledResult("after the writer turn"));
+        }
+
+        // The writer namespace cannot see the caller repo, but an external concurrent actor can.
+        // Re-inventory before artifact publication so a stale/mutated caller preimage fails closed.
+        if (writerKind === "claude") {
+          const integrityBlobDir = join(resources.base, "integrity-blobs");
+          mkdirSync(integrityBlobDir, { mode: 0o700 });
+          const callerAfter = buildSnapshot(
+            repoRoot,
+            allowlist,
+            new BlobStore(integrityBlobDir),
+            { excludePath: claudeSnapshotExcluded },
+          );
+          if (
+            callerAfter.rejections.length > 0 ||
+            snapshotInventorySha(callerAfter.snapshot) !== callerPreimageSha
+          ) {
+            return finishFailed({
+              ok: false,
+              error:
+                "caller repository integrity changed during dispatch; proposal quarantined",
+            });
+          }
+          if (
+            deps.configPath &&
+            deps.configSha256 &&
+            sha256(readFileSync(deps.configPath)) !== deps.configSha256
+          ) {
+            return finishFailed({
+              ok: false,
+              error:
+                "runtime config integrity changed during dispatch; proposal quarantined",
+            });
+          }
         }
 
         // ---------- 6) sealed capture + validation (opaque-root baseline semantics) ----------
@@ -500,6 +958,36 @@ export async function runImplementFlow(
               `scope_drift_lines_threshold=${scopeLimit}; dispatch discarded`,
           });
         }
+        let proposalValidation: ClaudeProposalValidation | undefined;
+        if (writerKind === "claude") {
+          try {
+            proposalValidation = await validateClaudeProposal({
+              config: config.implement.claude,
+              repoRoot,
+              snapshot,
+              deltas: validation.deltas,
+              patch: generated.patch,
+              validationRoot: join(resources.base, "validation"),
+              ...(input.signal ? { signal: input.signal } : {}),
+            });
+          } catch (err) {
+            proposalValidation = {
+              status: "fail",
+              applicability: "advisory-only",
+              apply_policy: config.implement.claude.allow_advisory_apply
+                ? "advisory-opt-in"
+                : "export-only",
+              reasons: [
+                `server validation infrastructure failed: ${(err as Error).message}`,
+              ],
+              validation_affecting_changes: [],
+              definition_preimage_sha256: "",
+              dependency_mounts: [],
+              commands: [],
+              baseline_only: false,
+            };
+          }
+        }
         const rawReport = extractLastJsonObject(turn.text);
         const parsedReport = SelfReportSchema.safeParse(rawReport);
         let selfReport: unknown = null;
@@ -518,14 +1006,27 @@ export async function runImplementFlow(
         // ---------- 8) publish (fsync, store-locked under design→store order; fresh
         // acquisition deadline for this episode) THEN durable completed ----------
         const report = {
+          schema_version: 2,
           design_id: input.designId,
+          writer_kind: writerKind,
           round,
           artifact_id: record.artifact_id,
           files_changed: generated.filesChanged,
           diffstat: generated.diffstat,
           self_report: selfReport,
-          writer_attestation: writerEnv.attestation,
+          writer_attestation: {
+            ...writerEnv.attestation,
+            ...(turn.writerAttestation ?? {}),
+          },
           writer_thread_id: record.thread_id,
+          warnings: turn.warnings ?? [],
+          ...(proposalValidation
+            ? {
+                validation: proposalValidation,
+                applicability: proposalValidation.applicability,
+                apply_policy: proposalValidation.apply_policy,
+              }
+            : {}),
           generated_at: new Date().toISOString(),
         };
         let published: PublishedArtifact;
@@ -555,16 +1056,36 @@ export async function runImplementFlow(
         }
         const result: ImplementFlowResult = {
           ok: true,
+          writer_kind: writerKind,
           dispatch_summary:
             `round ${round}: ${generated.diffstat.files} file(s), +${generated.diffstat.added}/-${generated.diffstat.removed}; ` +
             `patch ready for driver review + git apply`,
           patch_path: relative(repoRoot, published.patchPath),
           report_path: relative(repoRoot, published.reportPath),
+          patch_sha256: published.patchSha,
           files_changed: generated.filesChanged,
           diffstat: generated.diffstat,
           self_report: selfReport,
           ...(rawExcerpt !== undefined ? { self_report_raw_excerpt: rawExcerpt } : {}),
           violations: [],
+          ...(proposalValidation
+            ? {
+                applicability: proposalValidation.applicability,
+                apply_policy: proposalValidation.apply_policy,
+              }
+            : {}),
+          warnings: [
+            ...(turn.warnings ?? []),
+            ...(proposalValidation?.reasons ?? []),
+            ...(proposalValidation?.baseline_only
+              ? [
+                  "validation is baseline-only for additive tests; full driver self-test is mandatory after apply",
+                ]
+              : []),
+          ],
+          ...(proposalValidation
+            ? { validation: proposalValidation }
+            : {}),
           round,
           lifecycle: "completed",
           session: sessionFacts(),

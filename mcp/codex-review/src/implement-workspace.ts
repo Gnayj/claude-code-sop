@@ -354,6 +354,9 @@ export interface Snapshot {
   /** Opaque roots (design r7): nonregular non-absent paths — never materialized; absence in
    * capture is UNCHANGED; any captured presence at/below one is a violation. */
   opaqueRoots: Set<string>;
+  /** Baseline paths intentionally withheld from a provider scratch (Claude secret/runtime
+   * filter). Their absence is unchanged; recreating one is a violation. */
+  excludedPaths?: Set<string>;
 }
 
 export interface TrackedEntry {
@@ -391,21 +394,27 @@ export interface SnapshotDomain {
 export function enumerateSnapshotDomain(
   repoRoot: string,
   allowlist: readonly string[],
+  options?: { excludePath?: (path: string) => boolean },
 ): SnapshotDomain {
+  const excluded = (path: string): boolean =>
+    options?.excludePath?.(path) ?? false;
   const tracked = listTrackedWithStage(repoRoot);
   const gitlinkPaths = new Set<string>();
   const unmerged = new Set<string>();
   const domain = new Set<string>();
   for (const e of tracked) {
+    if (excluded(e.path)) continue;
     domain.add(e.path);
     if (e.mode === "160000") gitlinkPaths.add(e.path);
     if (e.stage !== 0) unmerged.add(e.path);
   }
   const untracked = git(repoRoot, ["ls-files", "-zo", "--exclude-standard"]).toString("utf8");
   for (const p of untracked.split("\0")) {
-    if (p.length > 0) domain.add(p);
+    if (p.length > 0 && !excluded(p)) domain.add(p);
   }
-  for (const p of allowlist) domain.add(p);
+  for (const p of allowlist) {
+    if (!excluded(p)) domain.add(p);
+  }
   return { paths: [...domain].sort(), gitlinkPaths, unmergedPaths: [...unmerged].sort() };
 }
 
@@ -459,8 +468,9 @@ export function buildSnapshot(
   repoRoot: string,
   allowlist: readonly string[],
   store: BlobStore,
+  options?: { excludePath?: (path: string) => boolean },
 ): SnapshotResult {
-  const domain = enumerateSnapshotDomain(repoRoot, allowlist);
+  const domain = enumerateSnapshotDomain(repoRoot, allowlist, options);
   const rejections: TopologyRejection[] = [];
   for (const p of domain.unmergedPaths) {
     rejections.push({ reason: `unmerged index entry (nonzero stage): ${p}` });
@@ -513,15 +523,25 @@ export interface ScratchWorkspace {
 /** Materialize the snapshot into the per-dispatch scratch dir + an ergonomic (untrusted)
  * scratch git baseline commit. All bytes come from the sealed blob store (never the caller
  * worktree). Only regular files materialize; gitlink paths and their subtrees never do (Q21). */
-export function materializeScratch(snapshot: Snapshot, scratchRoot: string): ScratchWorkspace {
+export function materializeScratch(
+  snapshot: Snapshot,
+  scratchRoot: string,
+  options?: { excludePath?: (path: string) => boolean },
+): ScratchWorkspace {
   const root = scratchRoot;
+  const excludedPaths = new Set<string>();
   for (const [path, entry] of snapshot.inventory) {
     if (entry.state !== "present" || entry.kind !== "file") continue;
+    if (options?.excludePath?.(path)) {
+      excludedPaths.add(path);
+      continue;
+    }
     const target = join(root, path);
     mkdirSync(dirname(target), { recursive: true });
     snapshot.store.copyTo(entry.sha, target);
     chmodSync(target, entry.mode === "100755" ? 0o755 : 0o644);
   }
+  if (excludedPaths.size > 0) snapshot.excludedPaths = excludedPaths;
   const scratchEnv = {
     ...isolatedGitEnv(),
     GIT_AUTHOR_NAME: "ccsop-writer",
@@ -619,6 +639,14 @@ export function validateCapture(
   for (const path of [...paths].sort()) {
     const before = snapshot.inventory.get(path) ?? { state: "absent" as const };
     const after = capture.inventory.get(path) ?? { state: "absent" as const };
+    if (snapshot.excludedPaths?.has(path)) {
+      if (after.state === "present") {
+        violations.push(
+          `captured presence at provider-excluded baseline path: ${path}`,
+        );
+      }
+      continue;
+    }
     // Opaque-root baseline semantics (design r7): absence in capture is UNCHANGED (the path was
     // never materialized — not a deletion); ANY captured presence there is a violation.
     if (snapshot.opaqueRoots.has(path)) {
@@ -827,8 +855,13 @@ export async function publishArtifact(
 // ---------- dispatch record store (design §4.1 lifecycle + §4.2.E object-class GC) ----------
 
 export type DispatchLifecycle = "reserved" | "executing" | "completed" | "failed";
+export type ImplementWriterKind = "codex" | "claude";
 
 export interface DispatchRecord {
+  /** Required for v2 records; absence is a legacy v1 Codex record. */
+  writer_kind?: ImplementWriterKind;
+  /** Legacy records keep v1 identity hashing after writer_kind backfill. */
+  payload_schema_version?: 1 | 2;
   dispatch_key: string;
   payload_sha: string;
   artifact_id: string;
@@ -850,10 +883,17 @@ export interface DispatchRecord {
 }
 
 export interface ImplementSessionState {
+  /** Required for records authored by v0.2.13+; absence is legacy schema v1. */
+  schema_version?: 2;
+  /** A design bucket is permanently owned by one writer kind. */
+  writer_kind?: ImplementWriterKind;
   design_id: string;
   tool_class: "implement";
   rounds: number;
   tokens_used_estimate_total: number;
+  dispatch_count_total?: number;
+  wall_seconds_total?: number;
+  budget_usd_total?: number;
   codex_failure_streak: number;
   parser_failure_streak: number;
   /** Serialized as an ARRAY: dispatch keys are arbitrary Unicode ("__proto__", …) and must
@@ -874,6 +914,7 @@ export function computePayloadSha(fields: {
   canonicalAllowlist: readonly string[];
   cardSha: string;
   previousFindings: unknown;
+  writerKind?: ImplementWriterKind;
 }): string {
   const h = createHash("sha256");
   const put = (tag: string, bytes: Buffer): void => {
@@ -882,7 +923,15 @@ export function computePayloadSha(fields: {
     len.writeUInt32BE(bytes.length);
     h.update(tagBytes).update(len).update(bytes);
   };
-  h.update(Buffer.from("ccsop-dispatch-v1", "utf8"));
+  h.update(
+    Buffer.from(
+      fields.writerKind ? "ccsop-dispatch-v2" : "ccsop-dispatch-v1",
+      "utf8",
+    ),
+  );
+  if (fields.writerKind) {
+    put("writer", Buffer.from(fields.writerKind, "utf8"));
+  }
   put("allow", Buffer.from(JSON.stringify(fields.canonicalAllowlist), "utf8"));
   put("card", Buffer.from(fields.cardSha, "utf8"));
   put("order", Buffer.from(fields.workOrder, "utf8"));
@@ -998,6 +1047,23 @@ export class ImplementStore {
       throw err;
     }
     const parsed = JSON.parse(text) as ImplementSessionState;
+    if (
+      parsed.schema_version !== undefined &&
+      parsed.schema_version !== 2
+    ) {
+      throw new Error(
+        `state file ${path} has unsupported schema_version=${String(parsed.schema_version)}`,
+      );
+    }
+    if (
+      parsed.writer_kind !== undefined &&
+      parsed.writer_kind !== "codex" &&
+      parsed.writer_kind !== "claude"
+    ) {
+      throw new Error(
+        `state file ${path} has invalid writer_kind=${String(parsed.writer_kind)}`,
+      );
+    }
     if (parsed.tool_class !== "implement") {
       throw new Error(
         `state file ${path} is not an implement-class session (cross-class resume is prohibited)`,
@@ -1011,19 +1077,86 @@ export class ImplementStore {
     if (!Array.isArray(parsed.dispatches)) {
       throw new Error(`state file ${path} has a non-array dispatches field`);
     }
+    for (const dispatch of parsed.dispatches) {
+      if (
+        dispatch.writer_kind !== undefined &&
+        dispatch.writer_kind !== "codex" &&
+        dispatch.writer_kind !== "claude"
+      ) {
+        throw new Error(
+          `state file ${path} has an invalid dispatch writer_kind`,
+        );
+      }
+      if (
+        dispatch.payload_schema_version !== undefined &&
+        dispatch.payload_schema_version !== 1 &&
+        dispatch.payload_schema_version !== 2
+      ) {
+        throw new Error(
+          `state file ${path} has an invalid dispatch payload_schema_version`,
+        );
+      }
+    }
     return parsed;
   }
 
-  newState(designId: string): ImplementSessionState {
+  newState(
+    designId: string,
+    writerKind: ImplementWriterKind = "codex",
+  ): ImplementSessionState {
     return {
+      schema_version: 2,
+      writer_kind: writerKind,
       design_id: designId,
       tool_class: "implement",
       rounds: 0,
       tokens_used_estimate_total: 0,
+      dispatch_count_total: 0,
+      wall_seconds_total: 0,
+      budget_usd_total: 0,
       codex_failure_streak: 0,
       parser_failure_streak: 0,
       dispatches: [],
     };
+  }
+
+  /** Preserve exact legacy bytes before the first v2 mutation. Call under the design lock. */
+  archiveLegacyState(state: ImplementSessionState): string | undefined {
+    if (state.schema_version !== undefined) return undefined;
+    const sourcePath = this.statePath(state.design_id);
+    let bytes: Buffer;
+    try {
+      bytes = readFileSync(sourcePath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw err;
+    }
+    const archiveDir = resolveControlDir(this.repoRoot, [
+      "implement-state-migration-archive",
+    ]);
+    const hash = sha256(bytes);
+    const archivePath = join(archiveDir, `${hash}.implement-v1.json`);
+    try {
+      const fd = openSync(archivePath, "wx", 0o600);
+      try {
+        writeFileSync(fd, bytes);
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+      const dirFd = openSync(archiveDir, "r");
+      try {
+        fsyncSync(dirFd);
+      } finally {
+        closeSync(dirFd);
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      if (!readFileSync(archivePath).equals(bytes)) {
+        throw new Error(`legacy implement-state archive collision: ${archivePath}`);
+      }
+    }
+    return archivePath;
   }
 
   /** Durable state transaction (design §4.2.E): exclusive-create recognizable `*.tmp.*` →
@@ -1104,7 +1237,10 @@ export class ImplementStore {
           dirty = true;
         }
       }
-      if (dirty) this.write(state);
+      if (dirty) {
+        this.archiveLegacyState(state);
+        this.write(state);
+      }
     }
     const all = this.readAllStates();
     this.gcResidue(all.states, all.complete);

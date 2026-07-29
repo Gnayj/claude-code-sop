@@ -2990,7 +2990,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve6.call(this, root, ref);
+      let _sch = resolve8.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a2 = root.localRefs) === null || _a2 === void 0 ? void 0 : _a2[ref];
         const { schemaId } = this.opts;
@@ -3017,7 +3017,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve6(root, ref) {
+    function resolve8(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3639,55 +3639,55 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve6(baseURI, relativeURI, options) {
+    function resolve8(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse7(baseURI, schemelessOptions), parse7(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
-    function resolveComponent(base, relative4, options, skipNormalization) {
+    function resolveComponent(base, relative6, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
         base = parse7(serialize(base, options), options);
-        relative4 = parse7(serialize(relative4, options), options);
+        relative6 = parse7(serialize(relative6, options), options);
       }
       options = options || {};
-      if (!options.tolerant && relative4.scheme) {
-        target.scheme = relative4.scheme;
-        target.userinfo = relative4.userinfo;
-        target.host = relative4.host;
-        target.port = relative4.port;
-        target.path = removeDotSegments(relative4.path || "");
-        target.query = relative4.query;
+      if (!options.tolerant && relative6.scheme) {
+        target.scheme = relative6.scheme;
+        target.userinfo = relative6.userinfo;
+        target.host = relative6.host;
+        target.port = relative6.port;
+        target.path = removeDotSegments(relative6.path || "");
+        target.query = relative6.query;
       } else {
-        if (relative4.userinfo !== void 0 || relative4.host !== void 0 || relative4.port !== void 0) {
-          target.userinfo = relative4.userinfo;
-          target.host = relative4.host;
-          target.port = relative4.port;
-          target.path = removeDotSegments(relative4.path || "");
-          target.query = relative4.query;
+        if (relative6.userinfo !== void 0 || relative6.host !== void 0 || relative6.port !== void 0) {
+          target.userinfo = relative6.userinfo;
+          target.host = relative6.host;
+          target.port = relative6.port;
+          target.path = removeDotSegments(relative6.path || "");
+          target.query = relative6.query;
         } else {
-          if (!relative4.path) {
+          if (!relative6.path) {
             target.path = base.path;
-            if (relative4.query !== void 0) {
-              target.query = relative4.query;
+            if (relative6.query !== void 0) {
+              target.query = relative6.query;
             } else {
               target.query = base.query;
             }
           } else {
-            if (relative4.path[0] === "/") {
-              target.path = removeDotSegments(relative4.path);
+            if (relative6.path[0] === "/") {
+              target.path = removeDotSegments(relative6.path);
             } else {
               if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative4.path;
+                target.path = "/" + relative6.path;
               } else if (!base.path) {
-                target.path = relative4.path;
+                target.path = relative6.path;
               } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative4.path;
+                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative6.path;
               }
               target.path = removeDotSegments(target.path);
             }
-            target.query = relative4.query;
+            target.query = relative6.query;
           }
           target.userinfo = base.userinfo;
           target.host = base.host;
@@ -3695,7 +3695,7 @@ var require_fast_uri = __commonJS({
         }
         target.scheme = base.scheme;
       }
-      target.fragment = relative4.fragment;
+      target.fragment = relative6.fragment;
       return target;
     }
     function equal(uriA, uriB, options) {
@@ -3864,7 +3864,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve6,
+      resolve: resolve8,
       resolveComponent,
       equal,
       serialize,
@@ -8464,20 +8464,20 @@ var require_parse_async = __commonJS({
       const index = 0;
       const blocksize = opts.blocksize || 40960;
       const parser = new TOMLParser();
-      return new Promise((resolve6, reject) => {
-        setImmediate(parseAsyncNext, index, blocksize, resolve6, reject);
+      return new Promise((resolve8, reject) => {
+        setImmediate(parseAsyncNext, index, blocksize, resolve8, reject);
       });
-      function parseAsyncNext(index2, blocksize2, resolve6, reject) {
+      function parseAsyncNext(index2, blocksize2, resolve8, reject) {
         if (index2 >= str.length) {
           try {
-            return resolve6(parser.finish());
+            return resolve8(parser.finish());
           } catch (err) {
             return reject(prettyError(err, str));
           }
         }
         try {
           parser.parse(str.slice(index2, index2 + blocksize2));
-          setImmediate(parseAsyncNext, index2 + blocksize2, blocksize2, resolve6, reject);
+          setImmediate(parseAsyncNext, index2 + blocksize2, blocksize2, resolve8, reject);
         } catch (err) {
           reject(prettyError(err, str));
         }
@@ -8503,7 +8503,7 @@ var require_parse_stream = __commonJS({
     function parseReadable(stm) {
       const parser = new TOMLParser();
       stm.setEncoding("utf8");
-      return new Promise((resolve6, reject) => {
+      return new Promise((resolve8, reject) => {
         let readable;
         let ended = false;
         let errored = false;
@@ -8511,7 +8511,7 @@ var require_parse_stream = __commonJS({
           ended = true;
           if (readable) return;
           try {
-            resolve6(parser.finish());
+            resolve8(parser.finish());
           } catch (err) {
             reject(err);
           }
@@ -9074,16 +9074,16 @@ var init_values = __esm({
 var sleep;
 var init_sleep = __esm({
   "node_modules/@anthropic-ai/sdk/internal/utils/sleep.mjs"() {
-    sleep = (ms, signal) => new Promise((resolve6) => {
+    sleep = (ms, signal) => new Promise((resolve8) => {
       if (signal?.aborted)
-        return resolve6();
+        return resolve8();
       const onAbort = () => {
         clearTimeout(timer);
-        resolve6();
+        resolve8();
       };
       const timer = setTimeout(() => {
         signal?.removeEventListener("abort", onAbort);
-        resolve6();
+        resolve8();
       }, ms);
       signal?.addEventListener("abort", onAbort, { once: true });
     });
@@ -11184,8 +11184,8 @@ var init_api_promise = __esm({
     init_parse();
     APIPromise = class _APIPromise extends Promise {
       constructor(client, responsePromise, parseResponse = defaultParseResponse) {
-        super((resolve6) => {
-          resolve6(null);
+        super((resolve8) => {
+          resolve8(null);
         });
         this.responsePromise = responsePromise;
         this.parseResponse = parseResponse;
@@ -13497,16 +13497,16 @@ var init_async_queue = __esm({
         if (__classPrivateFieldGet(this, _AsyncQueue_closed, "f") || signal?.aborted) {
           return Promise.resolve({ done: true, value: void 0 });
         }
-        return new Promise((resolve6) => {
+        return new Promise((resolve8) => {
           const waiter = (r) => {
             signal?.removeEventListener("abort", onAbort);
-            resolve6(r);
+            resolve8(r);
           };
           const onAbort = () => {
             const idx = __classPrivateFieldGet(this, _AsyncQueue_waiters, "f").indexOf(waiter);
             if (idx >= 0)
               __classPrivateFieldGet(this, _AsyncQueue_waiters, "f").splice(idx, 1);
-            resolve6({ done: true, value: void 0 });
+            resolve8({ done: true, value: void 0 });
           };
           __classPrivateFieldGet(this, _AsyncQueue_waiters, "f").push(waiter);
           signal?.addEventListener("abort", onAbort, { once: true });
@@ -13936,13 +13936,13 @@ var init_json_schema = __esm({
 
 // node_modules/@anthropic-ai/sdk/internal/utils/promise.mjs
 function promiseWithResolvers() {
-  let resolve6;
+  let resolve8;
   let reject;
   const promise = new Promise((res, rej) => {
-    resolve6 = res;
+    resolve8 = res;
     reject = rej;
   });
-  return { promise, resolve: resolve6, reject };
+  return { promise, resolve: resolve8, reject };
 }
 var init_promise = __esm({
   "node_modules/@anthropic-ai/sdk/internal/utils/promise.mjs"() {
@@ -14081,10 +14081,10 @@ async function setupSkills(ctx) {
     try {
       const versionId = await resolveSkillVersion(client, skill.skill_id, skill.version);
       const version2 = await client.beta.skills.versions.retrieve(versionId, { skill_id: skill.skill_id });
-      let dirname9 = path6.basename(version2.name.trim());
-      if (dirname9 === "" || dirname9 === "." || dirname9 === "..")
-        dirname9 = skill.skill_id;
-      const dest = path6.resolve(skillsRoot, dirname9);
+      let dirname12 = path6.basename(version2.name.trim());
+      if (dirname12 === "" || dirname12 === "." || dirname12 === "..")
+        dirname12 = skill.skill_id;
+      const dest = path6.resolve(skillsRoot, dirname12);
       if (dest !== skillsRoot && !dest.startsWith(skillsRoot + path6.sep)) {
         log.warn("skill name escapes the skills dir; skipping", {
           component: "agent-tool-context",
@@ -14535,7 +14535,7 @@ function betaGrepTool(ctx) {
   });
 }
 function runRipgrep(rg, pattern, searchPath, signal) {
-  return new Promise((resolve6, reject) => {
+  return new Promise((resolve8, reject) => {
     const proc = cp.spawn(rg, ["-n", "--no-heading", "-e", pattern, "--", searchPath], {
       ...signal ? { signal } : {}
     });
@@ -14557,12 +14557,12 @@ function runRipgrep(rg, pattern, searchPath, signal) {
       if (signal?.aborted)
         return reject(new ToolError("grep: aborted"));
       if (truncated)
-        return resolve6(out + `
+        return resolve8(out + `
 [output truncated at ${GREP_OUTPUT_LIMIT} bytes]`);
       if (code === 0)
-        return resolve6(out);
+        return resolve8(out);
       if (code === 1)
-        return resolve6("no matches");
+        return resolve8("no matches");
       reject(new ToolError(`grep: rg failed: ${errOut || `exit ${code}`}`));
     });
     proc.on("error", (e) => {
@@ -14739,8 +14739,8 @@ var init_node = __esm({
 `;
         __classPrivateFieldGet(this, _BashSession_proc, "f").stdin.write(wrapped);
         if (__classPrivateFieldGet(this, _BashSession_buf, "f").indexOf(sentinel2) < 0) {
-          const { promise: sentinelSeen, resolve: resolve6 } = promiseWithResolvers();
-          __classPrivateFieldSet(this, _BashSession_waiting, { sentinel: sentinel2, resolve: resolve6 }, "f");
+          const { promise: sentinelSeen, resolve: resolve8 } = promiseWithResolvers();
+          __classPrivateFieldSet(this, _BashSession_waiting, { sentinel: sentinel2, resolve: resolve8 }, "f");
           let timer;
           let onAbort;
           try {
@@ -16446,12 +16446,12 @@ var init_BetaMessageStream = __esm({
           }
           return this._emit("error", new AnthropicError(String(error2)));
         });
-        __classPrivateFieldSet(this, _BetaMessageStream_connectedPromise, new Promise((resolve6, reject) => {
-          __classPrivateFieldSet(this, _BetaMessageStream_resolveConnectedPromise, resolve6, "f");
+        __classPrivateFieldSet(this, _BetaMessageStream_connectedPromise, new Promise((resolve8, reject) => {
+          __classPrivateFieldSet(this, _BetaMessageStream_resolveConnectedPromise, resolve8, "f");
           __classPrivateFieldSet(this, _BetaMessageStream_rejectConnectedPromise, reject, "f");
         }), "f");
-        __classPrivateFieldSet(this, _BetaMessageStream_endPromise, new Promise((resolve6, reject) => {
-          __classPrivateFieldSet(this, _BetaMessageStream_resolveEndPromise, resolve6, "f");
+        __classPrivateFieldSet(this, _BetaMessageStream_endPromise, new Promise((resolve8, reject) => {
+          __classPrivateFieldSet(this, _BetaMessageStream_resolveEndPromise, resolve8, "f");
           __classPrivateFieldSet(this, _BetaMessageStream_rejectEndPromise, reject, "f");
         }), "f");
         __classPrivateFieldGet(this, _BetaMessageStream_connectedPromise, "f").catch(() => {
@@ -16621,11 +16621,11 @@ var init_BetaMessageStream = __esm({
        *   const message = await stream.emitted('message') // rejects if the stream errors
        */
       emitted(event) {
-        return new Promise((resolve6, reject) => {
+        return new Promise((resolve8, reject) => {
           __classPrivateFieldSet(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
           if (event !== "error")
             this.once("error", reject);
-          this.once(event, resolve6);
+          this.once(event, resolve8);
         });
       }
       async done() {
@@ -16975,7 +16975,7 @@ var init_BetaMessageStream = __esm({
               if (done) {
                 return { value: void 0, done: true };
               }
-              return new Promise((resolve6, reject) => readQueue.push({ resolve: resolve6, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
+              return new Promise((resolve8, reject) => readQueue.push({ resolve: resolve8, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
             }
             const chunk = pushQueue.shift();
             return { value: chunk, done: false };
@@ -18863,12 +18863,12 @@ var init_MessageStream = __esm({
           }
           return this._emit("error", new AnthropicError(String(error2)));
         });
-        __classPrivateFieldSet(this, _MessageStream_connectedPromise, new Promise((resolve6, reject) => {
-          __classPrivateFieldSet(this, _MessageStream_resolveConnectedPromise, resolve6, "f");
+        __classPrivateFieldSet(this, _MessageStream_connectedPromise, new Promise((resolve8, reject) => {
+          __classPrivateFieldSet(this, _MessageStream_resolveConnectedPromise, resolve8, "f");
           __classPrivateFieldSet(this, _MessageStream_rejectConnectedPromise, reject, "f");
         }), "f");
-        __classPrivateFieldSet(this, _MessageStream_endPromise, new Promise((resolve6, reject) => {
-          __classPrivateFieldSet(this, _MessageStream_resolveEndPromise, resolve6, "f");
+        __classPrivateFieldSet(this, _MessageStream_endPromise, new Promise((resolve8, reject) => {
+          __classPrivateFieldSet(this, _MessageStream_resolveEndPromise, resolve8, "f");
           __classPrivateFieldSet(this, _MessageStream_rejectEndPromise, reject, "f");
         }), "f");
         __classPrivateFieldGet(this, _MessageStream_connectedPromise, "f").catch(() => {
@@ -19038,11 +19038,11 @@ var init_MessageStream = __esm({
        *   const message = await stream.emitted('message') // rejects if the stream errors
        */
       emitted(event) {
-        return new Promise((resolve6, reject) => {
+        return new Promise((resolve8, reject) => {
           __classPrivateFieldSet(this, _MessageStream_catchingPromiseCreated, true, "f");
           if (event !== "error")
             this.once("error", reject);
-          this.once(event, resolve6);
+          this.once(event, resolve8);
         });
       }
       async done() {
@@ -19363,7 +19363,7 @@ var init_MessageStream = __esm({
               if (done) {
                 return { value: void 0, done: true };
               }
-              return new Promise((resolve6, reject) => readQueue.push({ resolve: resolve6, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
+              return new Promise((resolve8, reject) => readQueue.push({ resolve: resolve8, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
             }
             const chunk = pushQueue.shift();
             return { value: chunk, done: false };
@@ -20526,8 +20526,8 @@ var init_sdk = __esm({
 });
 
 // src/server.ts
-import { existsSync as existsSync6 } from "node:fs";
-import { dirname as dirname8, resolve as resolvePath7 } from "node:path";
+import { existsSync as existsSync9 } from "node:fs";
+import { dirname as dirname11, resolve as resolvePath7 } from "node:path";
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -30416,7 +30416,7 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve6) => setTimeout(resolve6, pollInterval));
+        await new Promise((resolve8) => setTimeout(resolve8, pollInterval));
         options?.signal?.throwIfAborted();
       }
     } catch (error2) {
@@ -30433,7 +30433,7 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve6, reject) => {
+    return new Promise((resolve8, reject) => {
       const earlyReject = (error2) => {
         reject(error2);
       };
@@ -30511,7 +30511,7 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve6(parseResult.data);
+            resolve8(parseResult.data);
           }
         } catch (error2) {
           reject(error2);
@@ -30772,12 +30772,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve6, reject) => {
+    return new Promise((resolve8, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve6, interval);
+      const timeoutId = setTimeout(resolve8, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -31647,12 +31647,12 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve6) => {
+    return new Promise((resolve8) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve6();
+        resolve8();
       } else {
-        this._stdout.once("drain", resolve6);
+        this._stdout.once("drain", resolve8);
       }
     });
   }
@@ -31665,6 +31665,11 @@ import { resolve as resolvePath } from "node:path";
 // src/control-surface-contract.ts
 var CONTROL_SURFACE_SCHEMA_V1 = 1;
 var CONTROL_SURFACE_CONTRACT_VERSION_V1 = 1;
+var CONTROL_SURFACE_SCHEMA_V2 = 2;
+var CONTROL_SURFACE_CONTRACT_VERSION_V2 = 2;
+var MIN_CODEX_SKILL_HOST_VERSION = "0.145.0-alpha.2";
+var CANONICAL_CODEX_SKILL_ROOT = ".agents/skills";
+var LEGACY_CODEX_SKILL_ROOT = ".codex/skills";
 var CODEX_EFFORT_VALUES = [
   "",
   "minimal",
@@ -31693,6 +31698,161 @@ var PHASE1_TIER_SCOPES = [
   "codex-dispatch",
   "codex-default"
 ];
+var PHASE2_TIER_SCOPES = [
+  ...PHASE1_TIER_SCOPES,
+  "claude-implement"
+];
+var CONTROL_SURFACE_CONTRACT_V1 = {
+  schema_version: CONTROL_SURFACE_SCHEMA_V1,
+  contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+  actions: ["status", "stamp-schema-v1", "set-flow", "set-tier"],
+  mutation_gate: {
+    implicit: "read-only",
+    explicit: "tool-only",
+    shell_fallback: false,
+    manual_toml_fallback: false
+  },
+  flows: {
+    "claude+claude": {
+      entrypoint: "claude-command",
+      design_owner: "claude",
+      implement_owner: "claude",
+      codex_implement_enabled: false
+    },
+    "claude+codex": {
+      entrypoint: "claude-command",
+      design_owner: "claude",
+      implement_owner: "codex",
+      codex_implement_enabled: true
+    },
+    "codex+codex": {
+      entrypoint: "codex-skill",
+      design_owner: "codex",
+      implement_owner: "codex",
+      codex_implement_enabled: "unchanged"
+    },
+    "codex+claude": {
+      entrypoint: "codex-skill",
+      design_owner: "codex",
+      implement_owner: "claude",
+      codex_implement_enabled: "unchanged",
+      delivery: "manual relay"
+    }
+  },
+  tiers: {
+    "claude-review": {
+      section: "review.claude",
+      keys: ["backend", "model", "effort"],
+      effort_values: CLAUDE_EFFORT_VALUES
+    },
+    "codex-review": {
+      section: "review.codex",
+      keys: ["model", "effort"],
+      effort_values: CODEX_EFFORT_VALUES
+    },
+    "codex-dispatch": {
+      section: "implement",
+      keys: ["model", "effort"],
+      effort_values: CODEX_EFFORT_VALUES
+    },
+    "codex-default": {
+      section: "codex",
+      keys: ["default_model", "default_effort"],
+      effort_values: CODEX_EFFORT_VALUES
+    }
+  },
+  host_model_control: "/model",
+  skills: {
+    canonical_root: CANONICAL_CODEX_SKILL_ROOT,
+    legacy_root: LEGACY_CODEX_SKILL_ROOT,
+    minimum_codex_cli: MIN_CODEX_SKILL_HOST_VERSION,
+    names: ["project-sop", "handoff", "simplify", "sop-flow", "sop-tier"],
+    legacy_migration: "pristine-only",
+    rollback_flag: "--rollback-codex-skills"
+  }
+};
+var CLAUDE_IMPLEMENT_DEFAULTS_V2 = {
+  enabled: false,
+  backend: "cli",
+  model: "opus",
+  effort: "max",
+  cli_path: "",
+  timeout_seconds: 900,
+  max_output_bytes: 1048576,
+  max_budget_usd: 5,
+  supported_version_range: ">=2.1.220 <2.2.0",
+  allow_uncertified_version: false,
+  max_dispatches_per_design: 3,
+  max_cumulative_wall_seconds: 3600,
+  max_cumulative_budget_usd: 20,
+  max_daily_budget_usd: 50,
+  validation_commands: [],
+  validation_definition_paths: [],
+  validation_additive_test_globs: [],
+  allow_advisory_apply: false
+};
+var CLAUDE_IMPLEMENT_AGENT_MUTABLE_KEYS = [
+  "model",
+  "effort",
+  "timeout_seconds",
+  "max_output_bytes",
+  "max_budget_usd",
+  "max_dispatches_per_design",
+  "max_cumulative_wall_seconds",
+  "max_cumulative_budget_usd",
+  "max_daily_budget_usd"
+];
+var CLAUDE_IMPLEMENT_SHRINK_ONLY_KEYS = [
+  "timeout_seconds",
+  "max_output_bytes",
+  "max_budget_usd",
+  "max_dispatches_per_design",
+  "max_cumulative_wall_seconds",
+  "max_cumulative_budget_usd",
+  "max_daily_budget_usd"
+];
+var CONTROL_SURFACE_CONTRACT_V2 = {
+  ...CONTROL_SURFACE_CONTRACT_V1,
+  schema_version: CONTROL_SURFACE_SCHEMA_V2,
+  contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
+  actions: [
+    ...CONTROL_SURFACE_CONTRACT_V1.actions,
+    "migrate-schema-v2",
+    "rollback-schema-v1",
+    "disable-claude-implement"
+  ],
+  flows: {
+    ...CONTROL_SURFACE_CONTRACT_V1.flows,
+    "codex+claude": {
+      ...CONTROL_SURFACE_CONTRACT_V1.flows["codex+claude"],
+      delivery: "claude_implement proposal",
+      claude_implement_enable: "operator-only"
+    }
+  },
+  tiers: {
+    ...CONTROL_SURFACE_CONTRACT_V1.tiers,
+    "claude-implement": {
+      section: "implement.claude",
+      keys: CLAUDE_IMPLEMENT_AGENT_MUTABLE_KEYS,
+      shrink_only: CLAUDE_IMPLEMENT_SHRINK_ONLY_KEYS,
+      effort_values: CLAUDE_EFFORT_VALUES
+    }
+  },
+  claude_implement: {
+    tool: "claude_implement",
+    exact_gate: {
+      control_surface_schema: 2,
+      design_owner: "codex",
+      implement_owner: "claude",
+      enabled: true
+    },
+    enable: "operator-only",
+    disable_action: "disable-claude-implement",
+    backend: "cli",
+    tools: ["Read", "Edit", "Write"],
+    defaults: CLAUDE_IMPLEMENT_DEFAULTS_V2
+  }
+};
 
 // src/types.ts
 var ReviewStage = external_exports.enum(["design", "code", "fix"]);
@@ -32088,13 +32248,46 @@ var CollaborationSchema = external_exports.object({
   design_owner: OwnerSchema.optional(),
   implement_owner: OwnerSchema.optional()
 }).default({});
+var CLAUDE_IMPLEMENT_COMPILED_MAX = {
+  timeout_seconds: 900,
+  max_output_bytes: 1048576,
+  max_budget_usd: 5,
+  max_dispatches_per_design: 3,
+  max_cumulative_wall_seconds: 3600,
+  max_cumulative_budget_usd: 20,
+  max_daily_budget_usd: 50
+};
+var ValidationArgvSchema = external_exports.array(external_exports.string().min(1).max(4096)).min(1).max(32).refine((argv) => argv.every((part) => !part.includes("\0")), {
+  message: "validation argv must not contain NUL"
+});
+var ClaudeImplementConfigSchema = external_exports.object({
+  enabled: external_exports.boolean().default(false),
+  backend: external_exports.literal("cli").default("cli"),
+  model: external_exports.string().default("opus"),
+  effort: ClaudeEffortSchema.default("max"),
+  cli_path: external_exports.string().default(""),
+  timeout_seconds: external_exports.number().int().positive().max(CLAUDE_IMPLEMENT_COMPILED_MAX.timeout_seconds).default(CLAUDE_IMPLEMENT_COMPILED_MAX.timeout_seconds),
+  max_output_bytes: external_exports.number().int().positive().max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_output_bytes).default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_output_bytes),
+  max_budget_usd: external_exports.number().positive().max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_budget_usd).default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_budget_usd),
+  supported_version_range: external_exports.string().min(1).default(">=2.1.220 <2.2.0"),
+  allow_uncertified_version: external_exports.boolean().default(false),
+  max_dispatches_per_design: external_exports.number().int().positive().max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_dispatches_per_design).default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_dispatches_per_design),
+  max_cumulative_wall_seconds: external_exports.number().int().positive().max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_cumulative_wall_seconds).default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_cumulative_wall_seconds),
+  max_cumulative_budget_usd: external_exports.number().positive().max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_cumulative_budget_usd).default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_cumulative_budget_usd),
+  max_daily_budget_usd: external_exports.number().positive().max(CLAUDE_IMPLEMENT_COMPILED_MAX.max_daily_budget_usd).default(CLAUDE_IMPLEMENT_COMPILED_MAX.max_daily_budget_usd),
+  validation_commands: external_exports.array(ValidationArgvSchema).max(16).default([]),
+  validation_definition_paths: external_exports.array(external_exports.string().min(1).max(4096)).max(256).default([]),
+  validation_additive_test_globs: external_exports.array(external_exports.string().min(1).max(4096)).max(256).default([]),
+  allow_advisory_apply: external_exports.boolean().default(false)
+}).strict().default({});
 var ImplementConfig = external_exports.object({
   enabled: external_exports.boolean().default(false),
   model: external_exports.string().default(""),
   effort: EffortSchema.default(""),
   max_implement_rounds: external_exports.number().int().positive().default(3),
   // v1 text-only patch contract (design §4.2.D): per-file byte cap applied to BOTH delta sides.
-  max_file_bytes: external_exports.number().int().positive().default(2 * 1024 * 1024)
+  max_file_bytes: external_exports.number().int().positive().default(2 * 1024 * 1024),
+  claude: ClaudeImplementConfigSchema
 }).default({});
 var ConfigSchema = external_exports.object({
   meta: MetaSchema,
@@ -32539,9 +32732,9 @@ var CodexExec = class {
       });
     }
     const exitPromise = new Promise(
-      (resolve6) => {
+      (resolve8) => {
         child.once("exit", (code, signal) => {
-          resolve6({ code, signal });
+          resolve8({ code, signal });
         });
       }
     );
@@ -33165,6 +33358,35 @@ function buildClaudeCliArgs(input) {
   if (input.resumeSessionId) args.push("--resume", input.resumeSessionId);
   return args;
 }
+function buildClaudeImplementCliArgs(input) {
+  const args = [
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    input.model
+  ];
+  if (input.effort) args.push("--effort", input.effort);
+  args.push(
+    "--system-prompt",
+    input.systemPrompt,
+    "--safe-mode",
+    "--setting-sources",
+    "",
+    "--no-session-persistence",
+    "--no-chrome",
+    "--permission-mode",
+    "acceptEdits",
+    "--tools",
+    "Read,Edit,Write",
+    "--max-budget-usd",
+    String(input.maxBudgetUsd),
+    "--strict-mcp-config",
+    "--mcp-config",
+    '{"mcpServers":{}}'
+  );
+  return args;
+}
 function truncate(value, limit2 = 500) {
   const compact = value.trim().replace(/\s+/g, " ");
   return compact.length <= limit2 ? compact : `${compact.slice(0, limit2)}\u2026`;
@@ -33255,7 +33477,8 @@ function parseClaudeCliResult(stdout, input, stderr = "", exitCode = 0) {
     usage: { inputTokens, outputTokens },
     ...contextWindow === void 0 ? {} : { contextWindow },
     warnings,
-    ...totalCostUsd === void 0 ? {} : { totalCostUsd }
+    ...totalCostUsd === void 0 ? {} : { totalCostUsd },
+    ...Array.isArray(parsed.permission_denials) ? { permissionDenials: parsed.permission_denials } : {}
   };
 }
 var ClaudeCliClient = class {
@@ -33265,7 +33488,7 @@ var ClaudeCliClient = class {
   }
   resolution;
   runTurn(input) {
-    return new Promise((resolve6, reject) => {
+    return new Promise((resolve8, reject) => {
       const args = buildClaudeCliArgs(input);
       let child;
       try {
@@ -33304,7 +33527,7 @@ var ClaudeCliClient = class {
         if (settled) return;
         settled = true;
         try {
-          resolve6(parseClaudeCliResult(stdout, input, stderr, code ?? -1));
+          resolve8(parseClaudeCliResult(stdout, input, stderr, code ?? -1));
         } catch (error2) {
           reject(error2);
         }
@@ -35139,8 +35362,13 @@ async function handleFixReview(deps, rawInput) {
 }
 
 // src/run-implement-flow.ts
-import { readFileSync as readFileSync6 } from "node:fs";
-import { relative as relative3 } from "node:path";
+import {
+  lstatSync as lstatSync4,
+  mkdirSync as mkdirSync5,
+  readFileSync as readFileSync8,
+  realpathSync as realpathSync2
+} from "node:fs";
+import { dirname as dirname8, isAbsolute as isAbsolute6, join as join10, relative as relative4, resolve as resolve5 } from "node:path";
 
 // src/allowlist.ts
 var EXTRA_DENY = /* @__PURE__ */ new Set(["AGENTS.md", "scripts/sync-public.sh"]);
@@ -35923,21 +36151,25 @@ function listTrackedWithStage(repoRoot) {
   }
   return out;
 }
-function enumerateSnapshotDomain(repoRoot, allowlist) {
+function enumerateSnapshotDomain(repoRoot, allowlist, options) {
+  const excluded = (path8) => options?.excludePath?.(path8) ?? false;
   const tracked = listTrackedWithStage(repoRoot);
   const gitlinkPaths = /* @__PURE__ */ new Set();
   const unmerged = /* @__PURE__ */ new Set();
   const domain = /* @__PURE__ */ new Set();
   for (const e of tracked) {
+    if (excluded(e.path)) continue;
     domain.add(e.path);
     if (e.mode === "160000") gitlinkPaths.add(e.path);
     if (e.stage !== 0) unmerged.add(e.path);
   }
   const untracked = git(repoRoot, ["ls-files", "-zo", "--exclude-standard"]).toString("utf8");
   for (const p of untracked.split("\0")) {
-    if (p.length > 0) domain.add(p);
+    if (p.length > 0 && !excluded(p)) domain.add(p);
   }
-  for (const p of allowlist) domain.add(p);
+  for (const p of allowlist) {
+    if (!excluded(p)) domain.add(p);
+  }
   return { paths: [...domain].sort(), gitlinkPaths, unmergedPaths: [...unmerged].sort() };
 }
 function statPathToStore(root, path8, store, gitlinkPaths) {
@@ -35963,8 +36195,8 @@ function statPathToStore(root, path8, store, gitlinkPaths) {
 function isEqualOrBelow(path8, root) {
   return path8 === root || path8.startsWith(`${root}/`);
 }
-function buildSnapshot(repoRoot, allowlist, store) {
-  const domain = enumerateSnapshotDomain(repoRoot, allowlist);
+function buildSnapshot(repoRoot, allowlist, store, options) {
+  const domain = enumerateSnapshotDomain(repoRoot, allowlist, options);
   const rejections = [];
   for (const p of domain.unmergedPaths) {
     rejections.push({ reason: `unmerged index entry (nonzero stage): ${p}` });
@@ -35998,15 +36230,21 @@ function buildSnapshot(repoRoot, allowlist, store) {
   }
   return { snapshot: { inventory, store, opaqueRoots }, rejections };
 }
-function materializeScratch(snapshot, scratchRoot) {
+function materializeScratch(snapshot, scratchRoot, options) {
   const root = scratchRoot;
+  const excludedPaths = /* @__PURE__ */ new Set();
   for (const [path8, entry] of snapshot.inventory) {
     if (entry.state !== "present" || entry.kind !== "file") continue;
+    if (options?.excludePath?.(path8)) {
+      excludedPaths.add(path8);
+      continue;
+    }
     const target = join7(root, path8);
     mkdirSync3(dirname5(target), { recursive: true });
     snapshot.store.copyTo(entry.sha, target);
     chmodSync(target, entry.mode === "100755" ? 493 : 420);
   }
+  if (excludedPaths.size > 0) snapshot.excludedPaths = excludedPaths;
   const scratchEnv = {
     ...isolatedGitEnv(),
     GIT_AUTHOR_NAME: "ccsop-writer",
@@ -36071,6 +36309,14 @@ function validateCapture(snapshot, capture, allowlist, maxFileBytes) {
   for (const path8 of [...paths].sort()) {
     const before = snapshot.inventory.get(path8) ?? { state: "absent" };
     const after = capture.inventory.get(path8) ?? { state: "absent" };
+    if (snapshot.excludedPaths?.has(path8)) {
+      if (after.state === "present") {
+        violations.push(
+          `captured presence at provider-excluded baseline path: ${path8}`
+        );
+      }
+      continue;
+    }
     if (snapshot.opaqueRoots.has(path8)) {
       if (after.state === "present") {
         const kind = after.kind;
@@ -36214,7 +36460,15 @@ function computePayloadSha(fields) {
     len.writeUInt32BE(bytes.length);
     h.update(tagBytes).update(len).update(bytes);
   };
-  h.update(Buffer.from("ccsop-dispatch-v1", "utf8"));
+  h.update(
+    Buffer.from(
+      fields.writerKind ? "ccsop-dispatch-v2" : "ccsop-dispatch-v1",
+      "utf8"
+    )
+  );
+  if (fields.writerKind) {
+    put("writer", Buffer.from(fields.writerKind, "utf8"));
+  }
   put("allow", Buffer.from(JSON.stringify(fields.canonicalAllowlist), "utf8"));
   put("card", Buffer.from(fields.cardSha, "utf8"));
   put("order", Buffer.from(fields.workOrder, "utf8"));
@@ -36306,6 +36560,16 @@ var ImplementStore = class {
       throw err;
     }
     const parsed = JSON.parse(text);
+    if (parsed.schema_version !== void 0 && parsed.schema_version !== 2) {
+      throw new Error(
+        `state file ${path8} has unsupported schema_version=${String(parsed.schema_version)}`
+      );
+    }
+    if (parsed.writer_kind !== void 0 && parsed.writer_kind !== "codex" && parsed.writer_kind !== "claude") {
+      throw new Error(
+        `state file ${path8} has invalid writer_kind=${String(parsed.writer_kind)}`
+      );
+    }
     if (parsed.tool_class !== "implement") {
       throw new Error(
         `state file ${path8} is not an implement-class session (cross-class resume is prohibited)`
@@ -36319,18 +36583,73 @@ var ImplementStore = class {
     if (!Array.isArray(parsed.dispatches)) {
       throw new Error(`state file ${path8} has a non-array dispatches field`);
     }
+    for (const dispatch of parsed.dispatches) {
+      if (dispatch.writer_kind !== void 0 && dispatch.writer_kind !== "codex" && dispatch.writer_kind !== "claude") {
+        throw new Error(
+          `state file ${path8} has an invalid dispatch writer_kind`
+        );
+      }
+      if (dispatch.payload_schema_version !== void 0 && dispatch.payload_schema_version !== 1 && dispatch.payload_schema_version !== 2) {
+        throw new Error(
+          `state file ${path8} has an invalid dispatch payload_schema_version`
+        );
+      }
+    }
     return parsed;
   }
-  newState(designId) {
+  newState(designId, writerKind = "codex") {
     return {
+      schema_version: 2,
+      writer_kind: writerKind,
       design_id: designId,
       tool_class: "implement",
       rounds: 0,
       tokens_used_estimate_total: 0,
+      dispatch_count_total: 0,
+      wall_seconds_total: 0,
+      budget_usd_total: 0,
       codex_failure_streak: 0,
       parser_failure_streak: 0,
       dispatches: []
     };
+  }
+  /** Preserve exact legacy bytes before the first v2 mutation. Call under the design lock. */
+  archiveLegacyState(state) {
+    if (state.schema_version !== void 0) return void 0;
+    const sourcePath = this.statePath(state.design_id);
+    let bytes;
+    try {
+      bytes = readFileSync5(sourcePath);
+    } catch (err) {
+      if (err.code === "ENOENT") return void 0;
+      throw err;
+    }
+    const archiveDir = resolveControlDir(this.repoRoot, [
+      "implement-state-migration-archive"
+    ]);
+    const hash = sha256(bytes);
+    const archivePath = join7(archiveDir, `${hash}.implement-v1.json`);
+    try {
+      const fd = openSync3(archivePath, "wx", 384);
+      try {
+        writeFileSync3(fd, bytes);
+        fsyncSync(fd);
+      } finally {
+        closeSync3(fd);
+      }
+      const dirFd = openSync3(archiveDir, "r");
+      try {
+        fsyncSync(dirFd);
+      } finally {
+        closeSync3(dirFd);
+      }
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+      if (!readFileSync5(archivePath).equals(bytes)) {
+        throw new Error(`legacy implement-state archive collision: ${archivePath}`);
+      }
+    }
+    return archivePath;
   }
   /** Durable state transaction (design §4.2.E): exclusive-create recognizable `*.tmp.*` →
    * write → fsync(file) → rename → fsync(dir). Call while holding the design lock. */
@@ -36403,7 +36722,10 @@ var ImplementStore = class {
           dirty = true;
         }
       }
-      if (dirty) this.write(state);
+      if (dirty) {
+        this.archiveLegacyState(state);
+        this.write(state);
+      }
     }
     const all = this.readAllStates();
     this.gcResidue(all.states, all.complete);
@@ -36515,6 +36837,1152 @@ function buildWriterEnvironment(homeDir, model, effort) {
   };
 }
 
+// src/implement-ledger.ts
+import { createHash as createHash5, randomBytes as randomBytes4 } from "node:crypto";
+import {
+  closeSync as closeSync4,
+  existsSync as existsSync5,
+  fsyncSync as fsyncSync2,
+  lstatSync as lstatSync2,
+  openSync as openSync4,
+  readFileSync as readFileSync6,
+  renameSync as renameSync3,
+  writeFileSync as writeFileSync4
+} from "node:fs";
+import { dirname as dirname6, join as join8 } from "node:path";
+function blank(day) {
+  return {
+    schema_version: 1,
+    last_utc_day: day,
+    designs: /* @__PURE__ */ Object.create(null),
+    days: /* @__PURE__ */ Object.create(null)
+  };
+}
+function utcDay(now) {
+  return now.toISOString().slice(0, 10);
+}
+function assertFiniteNonnegative(value, field) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`implement ledger has invalid ${field}`);
+  }
+  return value;
+}
+function validateLedger(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("implement ledger root is not an object");
+  }
+  const ledger = value;
+  if (ledger.schema_version !== 1) {
+    throw new Error(
+      `implement ledger has unsupported schema_version=${String(ledger.schema_version)}`
+    );
+  }
+  if (typeof ledger.last_utc_day !== "string" || !ledger.designs || typeof ledger.designs !== "object" || !ledger.days || typeof ledger.days !== "object") {
+    throw new Error("implement ledger is missing required fields");
+  }
+  for (const [id, design] of Object.entries(ledger.designs)) {
+    if (!design || design.writer_kind !== "codex" && design.writer_kind !== "claude" || !design.reservations || typeof design.reservations !== "object") {
+      throw new Error(`implement ledger has invalid design bucket ${id}`);
+    }
+    assertFiniteNonnegative(design.dispatch_count, `${id}.dispatch_count`);
+    assertFiniteNonnegative(design.wall_seconds, `${id}.wall_seconds`);
+    assertFiniteNonnegative(design.budget_usd, `${id}.budget_usd`);
+  }
+  for (const [day, entry] of Object.entries(ledger.days)) {
+    assertFiniteNonnegative(entry.reserved_budget_usd, `${day}.reserved`);
+    assertFiniteNonnegative(entry.settled_budget_usd, `${day}.settled`);
+  }
+  return ledger;
+}
+function writeAtomic(path8, state) {
+  const tmp = `${path8}.tmp.${process.pid}.${randomBytes4(4).toString("hex")}`;
+  const fd = openSync4(tmp, "wx", 384);
+  try {
+    writeFileSync4(fd, `${JSON.stringify(state, null, 2)}
+`);
+    fsyncSync2(fd);
+  } finally {
+    closeSync4(fd);
+  }
+  renameSync3(tmp, path8);
+  const dirFd = openSync4(dirname6(path8), "r");
+  try {
+    fsyncSync2(dirFd);
+  } finally {
+    closeSync4(dirFd);
+  }
+}
+var ImplementLedger = class {
+  constructor(repoRoot, now = () => /* @__PURE__ */ new Date()) {
+    this.repoRoot = repoRoot;
+    this.now = now;
+  }
+  paths() {
+    const dir = resolveControlDir(this.repoRoot, []);
+    return {
+      ledger: join8(dir, "implement-ledger.json"),
+      lock: join8(dir, "implement-ledger.lock")
+    };
+  }
+  read(path8, allowCreate, day) {
+    if (!existsSync5(path8)) {
+      if (!allowCreate) {
+        throw new Error(
+          "implement ledger is absent while implement state already references a dispatch; manual recovery required"
+        );
+      }
+      return blank(day);
+    }
+    const stat2 = lstatSync2(path8);
+    if (!stat2.isFile() || stat2.isSymbolicLink()) {
+      throw new Error("implement ledger must be a regular non-symlink file");
+    }
+    const text = readFileSync6(path8, "utf8");
+    try {
+      return validateLedger(JSON.parse(text));
+    } catch (err) {
+      const sha = createHash5("sha256").update(text, "utf8").digest("hex");
+      const quarantine = `${path8}.corrupt.${sha}`;
+      if (!existsSync5(quarantine)) renameSync3(path8, quarantine);
+      throw new Error(
+        `implement ledger is corrupt and was quarantined as ${quarantine}: ${err.message}`
+      );
+    }
+  }
+  async reserve(input) {
+    const paths = this.paths();
+    const lock = await acquireFlock(
+      paths.lock,
+      acquisitionDeadline(input.lockTimeoutMs),
+      input.signal
+    );
+    try {
+      const observedDay = utcDay(this.now());
+      const state = this.read(paths.ledger, input.allowCreate, observedDay);
+      const effectiveDay = observedDay < state.last_utc_day ? state.last_utc_day : observedDay;
+      if (effectiveDay > state.last_utc_day) state.last_utc_day = effectiveDay;
+      const design = (Object.prototype.hasOwnProperty.call(state.designs, input.designId) ? state.designs[input.designId] : void 0) ?? {
+        writer_kind: input.writerKind,
+        dispatch_count: 0,
+        wall_seconds: 0,
+        budget_usd: 0,
+        reservations: /* @__PURE__ */ Object.create(null)
+      };
+      if (design.writer_kind !== input.writerKind) {
+        throw new Error(
+          `implement ledger design bucket is owned by writer_kind=${design.writer_kind}`
+        );
+      }
+      const prior = design.reservations[input.artifactId];
+      if (prior) {
+        return {
+          designId: input.designId,
+          artifactId: input.artifactId,
+          utcDay: prior.utc_day,
+          reservedBudgetUsd: prior.reserved_budget_usd,
+          reservedWallSeconds: prior.reserved_wall_seconds
+        };
+      }
+      const config2 = input.config;
+      if (design.dispatch_count + 1 > config2.max_dispatches_per_design) {
+        throw new Error(
+          `max_dispatches_per_design=${config2.max_dispatches_per_design} reached`
+        );
+      }
+      if (design.wall_seconds + config2.timeout_seconds > config2.max_cumulative_wall_seconds) {
+        throw new Error(
+          `per-design wall budget exhausted (${design.wall_seconds}+${config2.timeout_seconds}>${config2.max_cumulative_wall_seconds})`
+        );
+      }
+      if (design.budget_usd + config2.max_budget_usd > config2.max_cumulative_budget_usd) {
+        throw new Error(
+          `per-design USD budget exhausted (${design.budget_usd}+${config2.max_budget_usd}>${config2.max_cumulative_budget_usd})`
+        );
+      }
+      const daily = state.days[effectiveDay] ?? { reserved_budget_usd: 0, settled_budget_usd: 0 };
+      if (daily.reserved_budget_usd + config2.max_budget_usd > config2.max_daily_budget_usd) {
+        throw new Error(
+          `daily Claude implement USD budget exhausted for ${effectiveDay}`
+        );
+      }
+      design.dispatch_count += 1;
+      design.wall_seconds += config2.timeout_seconds;
+      design.budget_usd += config2.max_budget_usd;
+      design.reservations[input.artifactId] = {
+        utc_day: effectiveDay,
+        reserved_budget_usd: config2.max_budget_usd,
+        reserved_wall_seconds: config2.timeout_seconds,
+        settled: false
+      };
+      daily.reserved_budget_usd += config2.max_budget_usd;
+      Object.defineProperty(state.designs, input.designId, {
+        value: design,
+        enumerable: true,
+        configurable: true,
+        writable: true
+      });
+      state.days[effectiveDay] = daily;
+      writeAtomic(paths.ledger, state);
+      return {
+        designId: input.designId,
+        artifactId: input.artifactId,
+        utcDay: effectiveDay,
+        reservedBudgetUsd: config2.max_budget_usd,
+        reservedWallSeconds: config2.timeout_seconds
+      };
+    } finally {
+      lock.release();
+    }
+  }
+  async settle(reservation, actual, lockTimeoutMs, signal) {
+    const paths = this.paths();
+    const lock = await acquireFlock(
+      paths.lock,
+      acquisitionDeadline(lockTimeoutMs),
+      signal
+    );
+    try {
+      const state = this.read(paths.ledger, false, reservation.utcDay);
+      const design = Object.prototype.hasOwnProperty.call(
+        state.designs,
+        reservation.designId
+      ) ? state.designs[reservation.designId] : void 0;
+      const entry = design?.reservations[reservation.artifactId];
+      if (!design || !entry) {
+        throw new Error("implement ledger reservation disappeared before settlement");
+      }
+      if (entry.settled) return;
+      const wall = Math.min(
+        reservation.reservedWallSeconds,
+        assertFiniteNonnegative(actual.wallSeconds, "settlement wall_seconds")
+      );
+      const budget = Math.max(
+        0,
+        Math.min(
+          reservation.reservedBudgetUsd,
+          assertFiniteNonnegative(actual.budgetUsd, "settlement budget_usd")
+        )
+      );
+      design.wall_seconds -= reservation.reservedWallSeconds - wall;
+      design.budget_usd -= reservation.reservedBudgetUsd - budget;
+      entry.actual_wall_seconds = wall;
+      entry.actual_budget_usd = budget;
+      entry.settled = true;
+      const day = state.days[entry.utc_day];
+      if (!day) throw new Error("implement ledger daily bucket disappeared");
+      day.reserved_budget_usd -= reservation.reservedBudgetUsd - budget;
+      day.settled_budget_usd += budget;
+      writeAtomic(paths.ledger, state);
+    } finally {
+      lock.release();
+    }
+  }
+  readForTest() {
+    const path8 = this.paths().ledger;
+    if (!existsSync5(path8)) return null;
+    return validateLedger(JSON.parse(readFileSync6(path8, "utf8")));
+  }
+};
+
+// src/implement-sandbox.ts
+import { createHash as createHash6 } from "node:crypto";
+import { spawn as spawn5, spawnSync as spawnSync4 } from "node:child_process";
+import {
+  chmodSync as chmodSync2,
+  closeSync as closeSync5,
+  constants as fsConstants3,
+  existsSync as existsSync6,
+  lstatSync as lstatSync3,
+  mkdirSync as mkdirSync4,
+  openSync as openSync5,
+  readFileSync as readFileSync7,
+  readSync as readSync2,
+  realpathSync,
+  rmSync as rmSync3,
+  statSync as statSync3,
+  writeFileSync as writeFileSync5
+} from "node:fs";
+import { dirname as dirname7, isAbsolute as isAbsolute5, join as join9, relative as relative3, resolve as resolve4 } from "node:path";
+import { performance as performance2 } from "node:perf_hooks";
+var CLAUDE_IMPLEMENT_SYSTEM = `You are a bounded implementation writer.
+Work only in the current scratch repository and edit only the exact files listed by the task.
+You have Read, Edit, and Write only. Never request Bash, Web, MCP, child processes, git operations,
+credentials, host files, or paths outside the current workspace. Do not create notes or artifacts.
+At completion, return one JSON object with summary, files, tests_run, risks, and notes.`;
+var REQUIRED_HELP_FLAGS = [
+  "--output-format",
+  "--model",
+  "--effort",
+  "--system-prompt",
+  "--safe-mode",
+  "--setting-sources",
+  "--no-session-persistence",
+  "--no-chrome",
+  "--permission-mode",
+  "--tools",
+  "--max-budget-usd",
+  "--strict-mcp-config",
+  "--mcp-config"
+];
+var defaultDeps3 = {
+  findOnPath: findExecutableOnPath,
+  spawnProcess: spawn5,
+  spawnSyncProcess: spawnSync4,
+  now: () => performance2.now()
+};
+function hashFile(path8) {
+  const fd = openSync5(path8, fsConstants3.O_RDONLY | fsConstants3.O_NOFOLLOW);
+  const hash = createHash6("sha256");
+  const buffer = Buffer.alloc(64 * 1024);
+  try {
+    for (; ; ) {
+      const read = readSync2(fd, buffer, 0, buffer.length, null);
+      if (read === 0) break;
+      hash.update(buffer.subarray(0, read));
+    }
+  } finally {
+    closeSync5(fd);
+  }
+  return hash.digest("hex");
+}
+function assertSecureResolvedPath(path8) {
+  if (!isAbsolute5(path8)) throw new Error(`binary path must be absolute: ${path8}`);
+  let cursor = "/";
+  for (const part of path8.split("/").filter(Boolean)) {
+    cursor = join9(cursor, part);
+    const stat3 = lstatSync3(cursor);
+    if (stat3.isSymbolicLink()) {
+      throw new Error(`resolved binary path contains a symlink: ${cursor}`);
+    }
+    if ((stat3.mode & 18) !== 0) {
+      throw new Error(`binary path component is group/world writable: ${cursor}`);
+    }
+  }
+  const stat2 = statSync3(path8);
+  if (!stat2.isFile() || (stat2.mode & 73) === 0) {
+    throw new Error(`Claude CLI must resolve to an executable regular file: ${path8}`);
+  }
+}
+function canonicalExecutable(configured, deps) {
+  const requested = configured.trim();
+  if (requested && !isAbsolute5(requested)) {
+    throw new Error("[implement.claude].cli_path must be absolute when configured");
+  }
+  const source = requested ? "config" : "path";
+  const candidate = requested || deps.findOnPath("claude");
+  if (!candidate) {
+    throw new Error(
+      "claude_implement requires the Claude CLI; set an absolute implement.claude.cli_path or put claude on PATH"
+    );
+  }
+  const path8 = realpathSync(candidate);
+  assertSecureResolvedPath(path8);
+  return { path: path8, source };
+}
+function resolveHostTool(name, deps) {
+  const candidate = deps.findOnPath(name);
+  if (!candidate) throw new Error(`claude_implement requires ${name} on PATH`);
+  const path8 = realpathSync(candidate);
+  assertSecureResolvedPath(path8);
+  return path8;
+}
+function isInside(path8, root) {
+  const rel = relative3(root, path8);
+  return rel === "" || !rel.startsWith("../") && !isAbsolute5(rel);
+}
+function inspectClaudeImplementRuntime(config2, repoRoot, deps = defaultDeps3) {
+  if (process.platform !== "linux") {
+    throw new Error("claude_implement v1 requires Linux and bubblewrap");
+  }
+  const bwrapPath = resolveHostTool("bwrap", deps);
+  const prlimitPath = resolveHostTool("prlimit", deps);
+  for (const [command, path8] of [
+    ["bwrap", bwrapPath],
+    ["prlimit", prlimitPath]
+  ]) {
+    const probe = command === "bwrap" ? deps.spawnSyncProcess(path8, [
+      "--ro-bind",
+      "/",
+      "/",
+      "--unshare-pid",
+      "--die-with-parent",
+      "--",
+      "/bin/true"
+    ]) : deps.spawnSyncProcess(path8, ["--version"]);
+    if (probe.error || probe.status !== 0) {
+      throw new Error(`${command} capability probe failed`);
+    }
+  }
+  const resolved = canonicalExecutable(config2.implement.claude.cli_path, deps);
+  if (isInside(resolved.path, resolve4(repoRoot)) || isInside(resolved.path, "/tmp") || isInside(resolved.path, "/var/tmp")) {
+    throw new Error("Claude CLI binary must be outside the repository and temporary roots");
+  }
+  const stat2 = statSync3(resolved.path);
+  const credentialPath = resolve4(
+    process.env.CLAUDE_CONFIG_DIR || join9(process.env.HOME || "", ".claude"),
+    ".credentials.json"
+  );
+  if (!isAbsolute5(credentialPath) || !existsSync6(credentialPath)) {
+    throw new Error(
+      "Claude OAuth credential file is absent; run `claude` interactively and log in first"
+    );
+  }
+  const credentialStat = lstatSync3(credentialPath);
+  if (!credentialStat.isFile() || credentialStat.isSymbolicLink() || realpathSync(credentialPath) !== credentialPath || (credentialStat.mode & 63) !== 0) {
+    throw new Error(
+      "Claude credential source must be a mode-0600 regular non-symlink file"
+    );
+  }
+  const installRoot = resolve4(dirname7(resolved.path), "..");
+  return {
+    binaryPath: resolved.path,
+    binarySource: resolved.source,
+    binarySha256: hashFile(resolved.path),
+    binaryMtimeMs: stat2.mtimeMs,
+    binarySize: stat2.size,
+    installRoot,
+    credentialPath,
+    credentialSha256: hashFile(credentialPath),
+    bwrapPath,
+    bwrapSha256: hashFile(bwrapPath),
+    prlimitPath,
+    prlimitSha256: hashFile(prlimitPath)
+  };
+}
+function replacementEnv(home, installRoot) {
+  return {
+    HOME: home,
+    CLAUDE_CONFIG_DIR: join9(home, ".claude"),
+    // The writer binary is launched by absolute path. Keep host utilities (including Bash)
+    // outside the namespace instead of advertising paths that are intentionally not mounted.
+    PATH: join9(installRoot, "bin"),
+    LANG: "C.UTF-8",
+    LC_ALL: "C.UTF-8",
+    TMPDIR: "/tmp",
+    ...existsSync6("/etc/ssl/certs/ca-certificates.crt") ? { SSL_CERT_FILE: "/etc/ssl/certs/ca-certificates.crt" } : {}
+  };
+}
+function baseBwrapArgs(runtime, scratchRoot, home) {
+  const args = [
+    "--die-with-parent",
+    "--unshare-pid",
+    "--new-session",
+    "--proc",
+    "/proc",
+    "--dev",
+    "/dev",
+    "--tmpfs",
+    "/tmp"
+  ];
+  for (const source of [
+    "/lib",
+    "/lib64",
+    "/etc/ssl",
+    "/etc/resolv.conf",
+    "/etc/hosts"
+  ]) {
+    if (existsSync6(source)) args.push("--ro-bind", source, source);
+  }
+  args.push(
+    "--ro-bind",
+    runtime.installRoot,
+    runtime.installRoot,
+    "--bind",
+    scratchRoot,
+    scratchRoot,
+    "--bind",
+    home,
+    home,
+    "--ro-bind",
+    runtime.credentialPath,
+    join9(home, ".claude", ".credentials.json"),
+    "--chdir",
+    scratchRoot
+  );
+  for (const [key, value] of Object.entries(
+    replacementEnv(home, runtime.installRoot)
+  )) {
+    args.push("--setenv", key, value);
+  }
+  return args;
+}
+function killProcessGroup(pid) {
+  if (!pid) return;
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch (err) {
+    if (err.code !== "ESRCH") throw err;
+  }
+}
+async function runBoundedProcess(command, args, opts, deps = defaultDeps3) {
+  if (opts.signal?.aborted) throw new Error("Claude CLI dispatch cancelled");
+  const started = deps.now();
+  const child = deps.spawnProcess(command, [...args], {
+    cwd: opts.cwd,
+    env: opts.env,
+    stdio: ["pipe", "pipe", "pipe"],
+    detached: true
+  });
+  let stdout = Buffer.alloc(0);
+  let stderr = Buffer.alloc(0);
+  let outputBytes = 0;
+  let terminalError;
+  child.stdin.on("error", (err) => {
+    terminalError ??= new Error(`Claude CLI stdin failed: ${err.message}`);
+    killProcessGroup(child.pid);
+  });
+  const append = (current, chunk) => {
+    const remaining = Math.max(0, opts.maxOutputBytes - outputBytes);
+    outputBytes += chunk.length;
+    const accepted = chunk.subarray(0, remaining);
+    const combined = Buffer.concat([current, accepted]);
+    if (outputBytes > opts.maxOutputBytes) {
+      terminalError = new Error(
+        `Claude CLI output exceeded max_output_bytes=${opts.maxOutputBytes}`
+      );
+      killProcessGroup(child.pid);
+    }
+    return combined;
+  };
+  child.stdout.on("data", (chunk) => {
+    stdout = append(stdout, Buffer.from(chunk));
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr = append(stderr, Buffer.from(chunk));
+  });
+  const onAbort = () => {
+    terminalError = new Error("Claude CLI dispatch cancelled");
+    killProcessGroup(child.pid);
+  };
+  opts.signal?.addEventListener("abort", onAbort, { once: true });
+  const timer = setTimeout(() => {
+    terminalError = new Error(
+      `Claude CLI timed out after ${Math.round(opts.timeoutMs / 1e3)} seconds`
+    );
+    killProcessGroup(child.pid);
+  }, opts.timeoutMs);
+  const exit = await new Promise((resolveExit, rejectExit) => {
+    child.once("error", rejectExit);
+    child.once("close", (code, signal) => resolveExit({ code, signal }));
+    try {
+      child.stdin.end(opts.stdin);
+    } catch (err) {
+      terminalError = new Error(
+        `Claude CLI stdin failed: ${err.message}`
+      );
+      killProcessGroup(child.pid);
+    }
+  }).finally(() => {
+    clearTimeout(timer);
+    opts.signal?.removeEventListener("abort", onAbort);
+  });
+  if (terminalError) throw terminalError;
+  if (exit.signal) throw new Error(`Claude CLI terminated by ${exit.signal}`);
+  return {
+    stdout: stdout.toString("utf8"),
+    stderr: stderr.toString("utf8"),
+    exitCode: exit.code ?? -1,
+    wallSeconds: Math.max(0, (deps.now() - started) / 1e3)
+  };
+}
+function prlimitArgs(timeoutSeconds, bwrapPath, bwrapArgs) {
+  return [
+    "--nproc=256:256",
+    `--cpu=${timeoutSeconds + 30}:${timeoutSeconds + 30}`,
+    "--as=8589934592:8589934592",
+    "--nofile=1024:1024",
+    "--fsize=16777216:16777216",
+    "--",
+    bwrapPath,
+    ...bwrapArgs
+  ];
+}
+function parseVersion(text) {
+  const match = text.match(/\b(\d+)\.(\d+)\.(\d+)\b/);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : void 0;
+}
+function compareVersion(left, right) {
+  for (let index = 0; index < 3; index++) {
+    if (left[index] !== right[index]) {
+      return (left[index] ?? 0) < (right[index] ?? 0) ? -1 : 1;
+    }
+  }
+  return 0;
+}
+function versionSatisfiesRange(versionText, range) {
+  const version2 = parseVersion(versionText);
+  if (!version2) return false;
+  const clauses = range.trim().split(/\s+/);
+  if (clauses.length === 0) return false;
+  return clauses.every((clause) => {
+    const match = clause.match(/^(>=|>|<=|<|=)?(\d+\.\d+\.\d+)$/);
+    if (!match) return false;
+    const target = parseVersion(match[2]);
+    if (!target) return false;
+    const comparison = compareVersion(version2, target);
+    switch (match[1] || "=") {
+      case ">=":
+        return comparison >= 0;
+      case ">":
+        return comparison > 0;
+      case "<=":
+        return comparison <= 0;
+      case "<":
+        return comparison < 0;
+      default:
+        return comparison === 0;
+    }
+  });
+}
+async function runInSandbox(runtime, config2, scratchRoot, home, claudeArgs, stdin, signal, deps, deadlineAt) {
+  const timeoutMs = deadlineAt === void 0 ? config2.timeout_seconds * 1e3 : Math.floor(deadlineAt - deps.now());
+  if (timeoutMs <= 0) {
+    throw new Error(
+      `Claude CLI timed out after ${config2.timeout_seconds} seconds`
+    );
+  }
+  const bwrapArgs = [
+    ...baseBwrapArgs(runtime, scratchRoot, home),
+    "--",
+    runtime.binaryPath,
+    ...claudeArgs
+  ];
+  return runBoundedProcess(
+    runtime.prlimitPath,
+    prlimitArgs(config2.timeout_seconds, runtime.bwrapPath, bwrapArgs),
+    {
+      cwd: scratchRoot,
+      env: replacementEnv(home, runtime.installRoot),
+      stdin,
+      timeoutMs,
+      maxOutputBytes: config2.max_output_bytes,
+      ...signal ? { signal } : {}
+    },
+    deps
+  );
+}
+function preparePrivateHome(home) {
+  chmodSync2(home, 448);
+  const claudeDir = join9(home, ".claude");
+  mkdirSync4(claudeDir, { recursive: true, mode: 448 });
+  writeFileSync5(
+    join9(claudeDir, "settings.json"),
+    '{"permissions":{"allow":[],"deny":[]},"hooks":{}}\n',
+    { mode: 384 }
+  );
+  const placeholder = join9(claudeDir, ".credentials.json");
+  if (!existsSync6(placeholder)) writeFileSync5(placeholder, "", { mode: 384 });
+}
+async function preflight(runtime, config2, scratchRoot, home, signal, deps, deadlineAt) {
+  const versionResult = await runInSandbox(
+    runtime,
+    config2,
+    scratchRoot,
+    home,
+    ["--version"],
+    "",
+    signal,
+    deps,
+    deadlineAt
+  );
+  if (versionResult.exitCode !== 0) {
+    throw new Error(`Claude CLI version probe failed: ${versionResult.stderr}`);
+  }
+  const version2 = versionResult.stdout.trim();
+  const certified = versionSatisfiesRange(
+    version2,
+    config2.supported_version_range
+  );
+  if (!certified && !config2.allow_uncertified_version) {
+    throw new Error(
+      `Claude CLI ${version2} is outside supported_version_range=${config2.supported_version_range}`
+    );
+  }
+  const helpResult = await runInSandbox(
+    runtime,
+    config2,
+    scratchRoot,
+    home,
+    ["--help"],
+    "",
+    signal,
+    deps,
+    deadlineAt
+  );
+  if (helpResult.exitCode !== 0) {
+    throw new Error(`Claude CLI help probe failed: ${helpResult.stderr}`);
+  }
+  const missing = REQUIRED_HELP_FLAGS.filter(
+    (flag) => !helpResult.stdout.includes(flag)
+  );
+  if (missing.length > 0) {
+    throw new Error(`Claude CLI help is missing required flags: ${missing.join(", ")}`);
+  }
+  const probePath = join9(scratchRoot, ".ccsop-behavior-probe.txt");
+  rmSync3(probePath, { force: true });
+  const probeBudgetUsd = Math.min(config2.max_budget_usd * 0.25, 0.25);
+  const probeArgs = buildClaudeImplementCliArgs({
+    model: config2.model,
+    effort: config2.effort,
+    systemPrompt: "Capability probe. Use only Read/Edit/Write. Follow the request exactly and do not improvise.",
+    maxBudgetUsd: probeBudgetUsd
+  });
+  const probeResult = await runInSandbox(
+    runtime,
+    config2,
+    scratchRoot,
+    home,
+    probeArgs,
+    [
+      "Use Write to create .ccsop-behavior-probe.txt containing CCSOP_PROBE_.",
+      "Use Edit to append OK, then use Read to verify the final exact bytes are CCSOP_PROBE_OK.",
+      "Do not create or edit any other file.",
+      'Return exactly {"summary":"probe","files":[".ccsop-behavior-probe.txt"],"tests_run":[],"risks":[]}.'
+    ].join("\n"),
+    signal,
+    deps,
+    deadlineAt
+  );
+  const parsed = parseClaudeCliResult(
+    probeResult.stdout,
+    { model: config2.model },
+    probeResult.stderr,
+    probeResult.exitCode
+  );
+  let bytes;
+  try {
+    bytes = readFileSync7(probePath, "utf8");
+  } finally {
+    rmSync3(probePath, { force: true });
+  }
+  if (bytes !== "CCSOP_PROBE_OK") {
+    throw new Error("Claude behavior probe did not perform the exact in-scratch write/read");
+  }
+  return {
+    version: version2,
+    certified,
+    helpSha256: createHash6("sha256").update(helpResult.stdout, "utf8").digest("hex"),
+    probe: {
+      passed: true,
+      session_id: parsed.sessionId,
+      wall_seconds: probeResult.wallSeconds,
+      budget_limit_usd: probeBudgetUsd,
+      cost_usd: Math.min(
+        parsed.totalCostUsd ?? probeBudgetUsd,
+        probeBudgetUsd
+      ),
+      read_edit_write_passed: true,
+      bash_tool_exposed: false,
+      caller_repo_mounted: false,
+      boundary_attestation: "server-derived mount/tool policy"
+    }
+  };
+}
+async function runClaudeImplementWriter(config2, repoRoot, request, deps = defaultDeps3) {
+  if (!request.privateHome) {
+    throw new Error("claude_implement adapter requires a server-private home");
+  }
+  const runtime = inspectClaudeImplementRuntime(config2, repoRoot, deps);
+  const deadlineAt = deps.now() + config2.implement.claude.timeout_seconds * 1e3;
+  preparePrivateHome(request.privateHome);
+  const credentialBefore = hashFile(runtime.credentialPath);
+  const binaryBefore = hashFile(runtime.binaryPath);
+  const checked = await preflight(
+    runtime,
+    config2.implement.claude,
+    request.scratchRoot,
+    request.privateHome,
+    request.signal,
+    deps,
+    deadlineAt
+  );
+  const args = buildClaudeImplementCliArgs({
+    model: config2.implement.claude.model,
+    effort: config2.implement.claude.effort,
+    systemPrompt: CLAUDE_IMPLEMENT_SYSTEM,
+    maxBudgetUsd: config2.implement.claude.max_budget_usd - checked.probe.budget_limit_usd
+  });
+  const result = await runInSandbox(
+    runtime,
+    config2.implement.claude,
+    request.scratchRoot,
+    request.privateHome,
+    args,
+    request.prompt,
+    request.signal,
+    deps,
+    deadlineAt
+  );
+  const parsed = parseClaudeCliResult(
+    result.stdout,
+    { model: config2.implement.claude.model },
+    result.stderr,
+    result.exitCode
+  );
+  const deniedMutation = (parsed.permissionDenials ?? []).find(
+    (denial) => /(?:Edit|Write)/i.test(
+      typeof denial === "string" ? denial : JSON.stringify(denial)
+    )
+  );
+  if (deniedMutation !== void 0) {
+    throw new Error(
+      `Claude CLI denied a required mutation tool call: ${JSON.stringify(deniedMutation)}`
+    );
+  }
+  if (hashFile(runtime.credentialPath) !== credentialBefore || hashFile(runtime.binaryPath) !== binaryBefore) {
+    throw new Error(
+      "Claude runtime or credential integrity changed during dispatch; artifact quarantined"
+    );
+  }
+  return {
+    text: parsed.text,
+    threadId: parsed.sessionId,
+    tokensTotal: parsed.usage.inputTokens + parsed.usage.outputTokens,
+    wallSeconds: result.wallSeconds + checked.probe.wall_seconds,
+    costUsd: Math.min(
+      checked.probe.cost_usd + (parsed.totalCostUsd ?? config2.implement.claude.max_budget_usd - checked.probe.budget_limit_usd),
+      config2.implement.claude.max_budget_usd
+    ),
+    warnings: [
+      ...parsed.warnings,
+      ...parsed.permissionDenials?.length ? [
+        `Claude CLI reported ${parsed.permissionDenials.length} permission denial(s)`
+      ] : [],
+      "network egress destination is not restricted by bwrap; operator egress policy was not attested",
+      "Claude CLI total_cost_usd is subscription-equivalent budget accounting, not billed spend",
+      ...checked.certified ? [] : ["Claude CLI version was accepted under allow_uncertified_version=true"]
+    ],
+    writerAttestation: {
+      writer_kind: "claude",
+      backend: "cli",
+      binary_source: runtime.binarySource,
+      binary_realpath: runtime.binaryPath,
+      binary_sha256: runtime.binarySha256,
+      binary_mtime_ms: runtime.binaryMtimeMs,
+      binary_size: runtime.binarySize,
+      bwrap_realpath: runtime.bwrapPath,
+      bwrap_sha256: runtime.bwrapSha256,
+      prlimit_realpath: runtime.prlimitPath,
+      prlimit_sha256: runtime.prlimitSha256,
+      cli_version: checked.version,
+      supported_version_range: config2.implement.claude.supported_version_range,
+      version_certified: checked.certified,
+      help_sha256: checked.helpSha256,
+      behavioral_probe: checked.probe,
+      model: config2.implement.claude.model,
+      effort: config2.implement.claude.effort,
+      permission_mode: "acceptEdits",
+      tools: ["Read", "Edit", "Write"],
+      permission_denials: parsed.permissionDenials ?? [],
+      max_budget_usd: config2.implement.claude.max_budget_usd,
+      budget_accounting: "subscription-equivalent; not billed spend",
+      writer_budget_usd: config2.implement.claude.max_budget_usd - checked.probe.budget_limit_usd,
+      timeout_seconds: config2.implement.claude.timeout_seconds,
+      max_output_bytes: config2.implement.claude.max_output_bytes,
+      sandbox: "linux-bwrap-deny-by-default",
+      resource_limits: "prlimit",
+      credential: {
+        filename: ".credentials.json",
+        sha256: runtime.credentialSha256,
+        mount: "read-only"
+      },
+      egress: "provider-required; destination policy not configured"
+    }
+  };
+}
+function validRepoRelative(path8) {
+  return path8.length > 0 && !isAbsolute5(path8) && !path8.includes("\\") && path8.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+}
+function equalOrBelow(path8, root) {
+  return path8 === root || path8.startsWith(`${root}/`);
+}
+function globRegex(glob2) {
+  let source = "^";
+  for (let index = 0; index < glob2.length; index++) {
+    const char = glob2[index];
+    if (char === "*" && glob2[index + 1] === "*") {
+      if (glob2[index + 2] === "/") {
+        source += "(?:.*/)?";
+        index += 2;
+      } else {
+        source += ".*";
+        index++;
+      }
+    } else if (char === "*") {
+      source += "[^/]*";
+    } else if (char === "?") {
+      source += "[^/]";
+    } else {
+      source += char.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+    }
+  }
+  return new RegExp(`${source}$`);
+}
+var RESOLUTION_AFFECTING_SHARED_SOURCE = String.raw`(?:^|/)(?:package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|deno\.jsonc?|bun\.lockb?|pyproject\.toml|poetry\.lock|requirements[^/]*\.txt|cargo\.toml|cargo\.lock|go\.mod|go\.sum|makefile|vite\.config\.[^/]+|vitest\.config\.[^/]+|jest\.config\.[^/]+|tsconfig(?:\.[^/]+)?\.json)$`;
+var RESOLUTION_AFFECTING = new RegExp(
+  `${RESOLUTION_AFFECTING_SHARED_SOURCE}|(?:^|/)[^/]*(?:setup|config|lifecycle)[^/]*$`,
+  "i"
+);
+var RESOLUTION_AFFECTING_OUTSIDE_ROOTS = new RegExp(
+  `${RESOLUTION_AFFECTING_SHARED_SOURCE}|^(?:setup|lifecycle)\\.[^/]+$`,
+  "i"
+);
+function definitionHash(snapshot, roots) {
+  const facts = [];
+  for (const path8 of [...snapshot.inventory.keys()].sort()) {
+    if (!roots.some((root) => equalOrBelow(path8, root))) continue;
+    facts.push([path8, snapshot.inventory.get(path8)]);
+  }
+  return createHash6("sha256").update(JSON.stringify(facts), "utf8").digest("hex");
+}
+function restoreDefinitionRoots(snapshot, validationRoot, roots) {
+  for (const root of roots) {
+    rmSync3(join9(validationRoot, root), { recursive: true, force: true });
+  }
+  for (const [path8, entry] of snapshot.inventory) {
+    if (!roots.some((root) => equalOrBelow(path8, root))) continue;
+    if (entry.state !== "present" || entry.kind !== "file") continue;
+    const target = join9(validationRoot, path8);
+    mkdirSync4(dirname7(target), { recursive: true });
+    snapshot.store.copyTo(entry.sha, target);
+    chmodSync2(target, entry.mode === "100755" ? 493 : 420);
+  }
+}
+function validationDependencyMounts(repoRoot, validationRoot, definitionPaths) {
+  const packageDefinition = /(?:^|\/)(?:package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/i;
+  const candidates = /* @__PURE__ */ new Set();
+  for (const definitionPath of definitionPaths) {
+    const base = packageDefinition.test(definitionPath) ? dirname7(definitionPath) : definitionPath;
+    candidates.add(join9(repoRoot, base, "node_modules"));
+  }
+  const mounts = [];
+  for (const source of [...candidates].sort()) {
+    if (!existsSync6(source)) continue;
+    const stat2 = lstatSync3(source);
+    if (!stat2.isDirectory() || stat2.isSymbolicLink() || realpathSync(source) !== source || !isInside(source, repoRoot)) {
+      throw new Error(
+        `validation dependency mount must be a canonical real directory: ${source}`
+      );
+    }
+    const rel = relative3(repoRoot, source).replaceAll("\\", "/");
+    const target = join9(validationRoot, rel);
+    mkdirSync4(target, { recursive: true });
+    mounts.push({ source, target, relative: rel });
+  }
+  return mounts;
+}
+function validationBwrapArgs(validationRoot, dependencyMounts, argv) {
+  const args = [
+    "--die-with-parent",
+    "--unshare-pid",
+    "--unshare-net",
+    "--new-session",
+    "--proc",
+    "/proc",
+    "--dev",
+    "/dev",
+    "--tmpfs",
+    "/tmp"
+  ];
+  for (const path8 of ["/usr", "/bin", "/lib", "/lib64", "/etc/ssl"]) {
+    if (existsSync6(path8)) args.push("--ro-bind", path8, path8);
+  }
+  args.push("--bind", validationRoot, validationRoot);
+  for (const mount of dependencyMounts) {
+    args.push("--ro-bind", mount.source, mount.target);
+  }
+  args.push(
+    "--chdir",
+    validationRoot,
+    "--setenv",
+    "HOME",
+    "/tmp/ccsop-validation-home",
+    "--setenv",
+    "TMPDIR",
+    "/tmp",
+    "--setenv",
+    "PATH",
+    "/usr/bin:/bin",
+    "--setenv",
+    "LANG",
+    "C.UTF-8",
+    "--",
+    ...argv
+  );
+  return args;
+}
+async function validateClaudeProposal(input) {
+  const deps = input.deps ?? defaultDeps3;
+  const config2 = input.config;
+  const deadlineAt = deps.now() + config2.timeout_seconds * 1e3;
+  const roots = config2.validation_definition_paths;
+  const commands = config2.validation_commands;
+  const reasons = [];
+  const commandResults = [];
+  const affecting = [];
+  let dependencyMounts = [];
+  const invalidRoot = roots.find((root) => !validRepoRelative(root));
+  if (invalidRoot) reasons.push(`invalid validation definition path: ${invalidRoot}`);
+  const invalidGlob = config2.validation_additive_test_globs.find(
+    (glob2) => !validRepoRelative(glob2.replaceAll("*", "x").replaceAll("?", "x"))
+  );
+  if (invalidGlob) reasons.push(`invalid validation additive test glob: ${invalidGlob}`);
+  const invalidCommand = commands.find(
+    (argv) => argv.length === 0 || argv.some((part) => part.length === 0 || part.includes("\0"))
+  );
+  if (invalidCommand) reasons.push("invalid empty/NUL validation argv");
+  if (roots.length === 0 || commands.length === 0) {
+    reasons.push(
+      "operator validation_commands/validation_definition_paths are unconfigured"
+    );
+  }
+  const additiveMatchers = config2.validation_additive_test_globs.map(globRegex);
+  for (const delta of input.deltas) {
+    const underDefinitionRoot = roots.some(
+      (root) => equalOrBelow(delta.path, root)
+    );
+    const resolutionAffecting = (underDefinitionRoot ? RESOLUTION_AFFECTING : RESOLUTION_AFFECTING_OUTSIDE_ROOTS).test(delta.path);
+    if (!underDefinitionRoot && !resolutionAffecting) continue;
+    const additive = underDefinitionRoot && delta.op === "create" && !resolutionAffecting && additiveMatchers.some((matcher) => matcher.test(delta.path));
+    affecting.push({
+      path: delta.path,
+      classification: additive ? "additive-test-only" : "forced-advisory"
+    });
+    if (!additive) {
+      reasons.push(
+        `validation-affecting ${delta.op} forces advisory-only: ${delta.path}`
+      );
+    }
+  }
+  const definitionPreimageSha256 = definitionHash(input.snapshot, roots);
+  if (reasons.length === 0) {
+    const bwrapPath = resolveHostTool("bwrap", deps);
+    const prlimitPath = resolveHostTool("prlimit", deps);
+    const gitPath = resolveHostTool("git", deps);
+    mkdirSync4(input.validationRoot, { recursive: true, mode: 448 });
+    materializeScratch(input.snapshot, input.validationRoot);
+    const gitArgs = [
+      "-c",
+      "core.hooksPath=/dev/null",
+      "-c",
+      "core.fsmonitor=false"
+    ];
+    const gitEnv = {
+      PATH: dirname7(gitPath),
+      HOME: "/dev/null",
+      GIT_CONFIG_GLOBAL: "/dev/null",
+      GIT_CONFIG_SYSTEM: "/dev/null",
+      GIT_OPTIONAL_LOCKS: "0",
+      GIT_TERMINAL_PROMPT: "0"
+    };
+    const checked = deps.spawnSyncProcess(gitPath, [
+      ...gitArgs,
+      "apply",
+      "--check",
+      "-"
+    ], {
+      cwd: input.validationRoot,
+      input: input.patch,
+      env: gitEnv,
+      maxBuffer: config2.max_output_bytes,
+      timeout: Math.max(1, Math.floor(deadlineAt - deps.now()))
+    });
+    if (checked.error || checked.status !== 0) {
+      reasons.push(
+        `proposal patch failed git apply --check: ${String(checked.stderr || checked.error)}`
+      );
+    } else {
+      const applied = deps.spawnSyncProcess(gitPath, [
+        ...gitArgs,
+        "apply",
+        "-"
+      ], {
+        cwd: input.validationRoot,
+        input: input.patch,
+        env: gitEnv,
+        maxBuffer: config2.max_output_bytes,
+        timeout: Math.max(1, Math.floor(deadlineAt - deps.now()))
+      });
+      if (applied.error || applied.status !== 0) {
+        reasons.push(
+          `proposal patch failed validation apply: ${String(applied.stderr || applied.error)}`
+        );
+      }
+    }
+    if (reasons.length === 0) {
+      restoreDefinitionRoots(input.snapshot, input.validationRoot, roots);
+      dependencyMounts = validationDependencyMounts(
+        input.repoRoot,
+        input.validationRoot,
+        roots
+      );
+      for (const argv of commands) {
+        const remainingMs = Math.floor(deadlineAt - deps.now());
+        if (remainingMs <= 0) {
+          reasons.push(
+            `server validation exceeded the aggregate timeout_seconds=${config2.timeout_seconds}`
+          );
+          break;
+        }
+        const result = await runBoundedProcess(
+          prlimitPath,
+          prlimitArgs(
+            config2.timeout_seconds,
+            bwrapPath,
+            validationBwrapArgs(input.validationRoot, dependencyMounts, argv)
+          ),
+          {
+            cwd: input.validationRoot,
+            env: {
+              PATH: "/usr/bin:/bin",
+              HOME: "/tmp/ccsop-validation-home",
+              TMPDIR: "/tmp",
+              LANG: "C.UTF-8"
+            },
+            stdin: "",
+            timeoutMs: remainingMs,
+            maxOutputBytes: config2.max_output_bytes,
+            ...input.signal ? { signal: input.signal } : {}
+          },
+          deps
+        );
+        commandResults.push({
+          argv: [...argv],
+          exit_code: result.exitCode,
+          stdout_sha256: createHash6("sha256").update(result.stdout, "utf8").digest("hex"),
+          stderr_sha256: createHash6("sha256").update(result.stderr, "utf8").digest("hex"),
+          wall_seconds: result.wallSeconds
+        });
+        if (result.exitCode !== 0) {
+          reasons.push(
+            `validation command exited ${result.exitCode}: ${JSON.stringify(argv)}`
+          );
+          break;
+        }
+      }
+    }
+  }
+  const configured = roots.length > 0 && commands.length > 0;
+  const status = !configured ? "unconfigured" : reasons.length > 0 ? "fail" : "pass";
+  const forcedAdvisory = affecting.some(
+    (change) => change.classification === "forced-advisory"
+  );
+  const applicability = status === "pass" && !forcedAdvisory ? "applicable" : "advisory-only";
+  return {
+    status,
+    applicability,
+    apply_policy: applicability === "applicable" ? "normal-confirmation" : config2.allow_advisory_apply ? "advisory-opt-in" : "export-only",
+    reasons,
+    validation_affecting_changes: affecting,
+    definition_preimage_sha256: definitionPreimageSha256,
+    dependency_mounts: dependencyMounts.map((mount) => mount.relative),
+    commands: commandResults,
+    baseline_only: affecting.some(
+      (change) => change.classification === "additive-test-only"
+    )
+  };
+}
+
 // src/run-implement-flow.ts
 var SelfReportSchema = external_exports.object({
   summary: external_exports.string(),
@@ -36553,7 +38021,7 @@ Work in the current directory. It is a git checkout; you may read anything, but 
 function renderPrompt(config2, baseDir, vars) {
   let template = BUILTIN_PROMPT;
   try {
-    template = readFileSync6(
+    template = readFileSync8(
       resolveProjectPath(config2, baseDir, ".codex-review/templates/implement.md.tpl"),
       "utf8"
     );
@@ -36589,13 +38057,149 @@ function extractLastJsonObject(text) {
   }
   return null;
 }
+function readActiveTaskCard(config2, configBaseDir, repoRoot, taskCardPath) {
+  const parsedPath = parseAllowlist([taskCardPath]);
+  if (!parsedPath.ok || parsedPath.canonical[0] !== taskCardPath) {
+    throw new Error("task_card_path must be a repo-relative POSIX path");
+  }
+  const cardPath = resolve5(repoRoot, taskCardPath);
+  const activeRoot = resolveProjectPath(
+    config2,
+    configBaseDir,
+    config2.paths.plans_active
+  );
+  const rel = relative4(activeRoot, cardPath);
+  if (rel === "" || rel.startsWith("../") || isAbsolute6(rel)) {
+    throw new Error(
+      `task_card_path must name a file below ${config2.paths.plans_active}`
+    );
+  }
+  let cursor = repoRoot;
+  for (const segment of relative4(repoRoot, cardPath).split("/")) {
+    cursor = resolve5(cursor, segment);
+    const stat3 = lstatSync4(cursor);
+    if (stat3.isSymbolicLink()) {
+      throw new Error(`task card path must not contain symlinks: ${taskCardPath}`);
+    }
+  }
+  const stat2 = lstatSync4(cardPath);
+  if (!stat2.isFile() || stat2.isSymbolicLink()) {
+    throw new Error(`task card must be a regular non-symlink file: ${taskCardPath}`);
+  }
+  if (realpathSync2(cardPath) !== cardPath) {
+    throw new Error(`task card canonical path mismatch: ${taskCardPath}`);
+  }
+  const text = readFileSync8(cardPath, "utf8");
+  return { text, sha256: sha256(Buffer.from(text, "utf8")) };
+}
+var CLAUDE_SECRET_FILE = /^(?:\.npmrc|\.pypirc|\.netrc|\.git-credentials|credentials?(?:\.[^/]+)?|id_(?:rsa|dsa|ecdsa|ed25519)|secrets?(?:\.[^/]+)?|[^/]*\.(?:pem|key|p12|pfx|jks|keystore))$/i;
+var CLAUDE_SECRET_DIRS = /* @__PURE__ */ new Set([
+  ".ssh",
+  ".gnupg",
+  ".aws",
+  ".azure",
+  ".docker",
+  ".kube"
+]);
+function claudeSecretPath(path8) {
+  const segments = path8.split("/");
+  const base = segments.at(-1) ?? "";
+  if (/^\.env(?:\.|$)/i.test(base)) {
+    return !/^\.env\.(?:example|sample|template)$/i.test(base);
+  }
+  return segments.some((segment) => CLAUDE_SECRET_DIRS.has(segment.toLowerCase())) || CLAUDE_SECRET_FILE.test(base);
+}
+function claudeAllowlistError(paths, authorityPaths) {
+  if (paths.length > 256) {
+    return `claude_implement files_allowlist exceeds the 256-path hard cap (${paths.length})`;
+  }
+  const authorityPath = paths.find(
+    (path8) => path8 === authorityPaths.taskCardPath || path8 === authorityPaths.handoffPath || equalOrBelow2(path8, authorityPaths.designRoot) || authorityPaths.recordsRoot !== "." && equalOrBelow2(path8, authorityPaths.recordsRoot)
+  );
+  if (authorityPath) {
+    return `claude_implement authority path is hard-denied: ${JSON.stringify(authorityPath)}`;
+  }
+  const denied = paths.find(claudeSecretPath);
+  return denied ? `claude_implement hard secret denylist rejects ${JSON.stringify(denied)}` : void 0;
+}
+function claudeScratchExcluded(path8) {
+  const segments = path8.split("/");
+  if ([".codex-review", ".claude", ".agents", ".codex"].includes(
+    segments[0] ?? ""
+  )) {
+    return true;
+  }
+  if (segments.some(
+    (segment) => [
+      "node_modules",
+      ".venv",
+      "venv",
+      "__pycache__",
+      ".pytest_cache",
+      ".mypy_cache"
+    ].includes(segment)
+  )) {
+    return true;
+  }
+  return claudeSecretPath(path8);
+}
+function claudeSnapshotExcluded(path8) {
+  return path8 === ".codex-review" || path8.startsWith(".codex-review/");
+}
+function equalOrBelow2(path8, root) {
+  return path8 === root || path8.startsWith(`${root}/`);
+}
+function repoRelativePath(repoRoot, absolutePath) {
+  const rel = relative4(repoRoot, absolutePath).replaceAll("\\", "/");
+  if (rel === "" || rel.startsWith("../") || isAbsolute6(rel)) {
+    throw new Error(`configured authority path is outside the repository: ${absolutePath}`);
+  }
+  return rel;
+}
+function snapshotInventorySha(snapshot) {
+  const facts = [...snapshot.inventory.entries()].sort(
+    ([left], [right]) => Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"))
+  );
+  return sha256(
+    Buffer.from(
+      JSON.stringify({
+        inventory: facts,
+        opaque_roots: [...snapshot.opaqueRoots].sort()
+      }),
+      "utf8"
+    )
+  );
+}
 async function runImplementFlow(deps, input) {
   const { config: config2, configBaseDir, store, runWriterTurn } = deps;
-  if (!config2.implement.enabled) {
+  const writerKind = deps.writerKind ?? "codex";
+  const explicitOwners = config2.collaboration.design_owner !== void 0 || config2.collaboration.implement_owner !== void 0;
+  if (writerKind === "codex" && !config2.implement.enabled) {
     return {
       ok: false,
       error: "codex_implement is disabled ([implement] enabled=false). Enable it in .codex-review/config.toml only for the claude+codex preside flow (collaboration.md \xA71.D)."
     };
+  }
+  if (writerKind === "codex" && explicitOwners && config2.collaboration.implement_owner !== "codex") {
+    return {
+      ok: false,
+      error: "codex_implement requires implement_owner=codex when collaboration owners are explicit"
+    };
+  }
+  if (writerKind === "claude") {
+    const gateFailures = [
+      config2.meta.control_surface_schema === 2 ? "" : "meta.control_surface_schema must be 2",
+      config2.collaboration.design_owner === "codex" ? "" : "design_owner must be codex",
+      config2.collaboration.implement_owner === "claude" ? "" : "implement_owner must be claude",
+      config2.implement.claude.enabled ? "" : "[implement.claude] enabled must be true (operator opt-in)",
+      config2.implement.claude.backend === "cli" ? "" : "only backend=cli is supported"
+    ].filter(Boolean);
+    if (gateFailures.length > 0) {
+      return {
+        ok: false,
+        error: `claude_implement gate failed: ${gateFailures.join("; ")}`
+      };
+    }
   }
   if (input.designId.endsWith(".implement")) {
     return { ok: false, error: "design_id must not end with '.implement' (reserved namespace suffix)" };
@@ -36609,13 +38213,53 @@ async function runImplementFlow(deps, input) {
 ${inputList.errors.join("\n")}` };
   }
   const repoRoot = resolveProjectPath(config2, configBaseDir, ".");
-  let cardText;
+  let card;
   try {
-    cardText = readFileSync6(resolveProjectPath(config2, configBaseDir, input.taskCardPath), "utf8");
+    if (writerKind === "claude") {
+      card = readActiveTaskCard(
+        config2,
+        configBaseDir,
+        repoRoot,
+        input.taskCardPath
+      );
+      const handoffPath = repoRelativePath(
+        repoRoot,
+        resolveProjectPath(config2, configBaseDir, config2.paths.handoff)
+      );
+      const recordsRoot = dirname8(handoffPath).replaceAll("\\", "/");
+      const allowlistError = claudeAllowlistError(inputList.canonical, {
+        taskCardPath: input.taskCardPath,
+        handoffPath,
+        designRoot: join10(dirname8(recordsRoot), "design").replaceAll("\\", "/"),
+        recordsRoot
+      });
+      if (allowlistError) return { ok: false, error: allowlistError };
+    } else {
+      const text = readFileSync8(
+        resolveProjectPath(config2, configBaseDir, input.taskCardPath),
+        "utf8"
+      );
+      card = { text, sha256: sha256(Buffer.from(text, "utf8")) };
+    }
   } catch (err) {
     return { ok: false, error: `cannot read task card ${input.taskCardPath}: ${err.message}` };
   }
-  const cardSha = sha256(Buffer.from(cardText, "utf8"));
+  const cardText = card.text;
+  const cardSha = card.sha256;
+  if (writerKind === "claude") {
+    if (!input.taskCardSha256) {
+      return {
+        ok: false,
+        error: "claude_implement requires task_card_sha256"
+      };
+    }
+    if (input.taskCardSha256 !== cardSha) {
+      return {
+        ok: false,
+        error: `task card sha mismatch: expected=${input.taskCardSha256} actual=${cardSha}`
+      };
+    }
+  }
   const cardList = parseFilesBlockFromCard(cardText);
   if (!cardList.ok) {
     return { ok: false, error: `task card \`\`\`files block invalid:
@@ -36629,6 +38273,13 @@ ${cardList.errors.join("\n")}` };
   }
   const allowlist = inputList.canonical;
   const payloadSha = computePayloadSha({
+    workOrder: input.workOrder,
+    canonicalAllowlist: allowlist,
+    cardSha,
+    previousFindings: input.previousFindings,
+    writerKind
+  });
+  const legacyPayloadSha = computePayloadSha({
     workOrder: input.workOrder,
     canonicalAllowlist: allowlist,
     cardSha,
@@ -36650,9 +38301,23 @@ ${cardList.errors.join("\n")}` };
   try {
     let state;
     try {
-      state = await store.recoverAndGc(input.designId, entryDeadline, input.signal) ?? store.newState(input.designId);
+      state = await store.recoverAndGc(input.designId, entryDeadline, input.signal) ?? store.newState(input.designId, writerKind);
     } catch (err) {
       return { ok: false, error: `control-state unavailable: ${err.message}` };
+    }
+    const stateWriterKind = state.writer_kind ?? "codex";
+    if (stateWriterKind !== writerKind) {
+      return {
+        ok: false,
+        error: `design_id ${input.designId} is already owned by writer_kind=${stateWriterKind}; cross-writer reuse as ${writerKind} is prohibited`
+      };
+    }
+    const legacyState = state.schema_version === void 0;
+    if (legacyState && writerKind !== "codex") {
+      return {
+        ok: false,
+        error: "legacy implement state can only be migrated as writer_kind=codex"
+      };
     }
     const sessionFacts = () => ({
       rounds_used: state.rounds,
@@ -36662,7 +38327,16 @@ ${cardList.errors.join("\n")}` };
     });
     const existing = getDispatch(state, input.dispatchKey);
     if (existing) {
-      if (existing.payload_sha !== payloadSha) {
+      const existingKind = existing.writer_kind ?? "codex";
+      if (existingKind !== writerKind) {
+        return {
+          ok: false,
+          error: `dispatch_key belongs to writer_kind=${existingKind}; cross-writer replay is prohibited`,
+          session: sessionFacts()
+        };
+      }
+      const expectedPayload = existing.payload_schema_version === 2 ? payloadSha : legacyPayloadSha;
+      if (existing.payload_sha !== expectedPayload) {
         return {
           ok: false,
           error: `dispatch_key reuse with a DIFFERENT payload (recorded round ${existing.round}); use a fresh key for a new dispatch`,
@@ -36703,6 +38377,8 @@ ${cardList.errors.join("\n")}` };
     }
     const round = state.rounds + 1;
     const record3 = {
+      writer_kind: writerKind,
+      payload_schema_version: 2,
       dispatch_key: input.dispatchKey,
       payload_sha: payloadSha,
       artifact_id: newArtifactId(),
@@ -36712,9 +38388,41 @@ ${cardList.errors.join("\n")}` };
       epoch_started_at: PROCESS_EPOCH_STARTED_AT,
       ...PROCESS_EPOCH_START_TOKEN != null ? { epoch_start_token: PROCESS_EPOCH_START_TOKEN } : {}
     };
+    if (legacyState) store.archiveLegacyState(state);
     state.dispatches.push(record3);
+    state.schema_version = 2;
+    state.writer_kind = writerKind;
+    state.dispatch_count_total = (state.dispatch_count_total ?? 0) + 1;
     state.rounds = round;
     store.write(state);
+    let ledger;
+    let ledgerReservation;
+    if (writerKind === "claude") {
+      ledger = new ImplementLedger(repoRoot);
+      try {
+        ledgerReservation = await ledger.reserve({
+          designId: input.designId,
+          artifactId: record3.artifact_id,
+          writerKind,
+          config: config2.implement.claude,
+          allowCreate: state.dispatches.length === 1,
+          lockTimeoutMs,
+          ...input.signal ? { signal: input.signal } : {}
+        });
+      } catch (err) {
+        const failed = {
+          ok: false,
+          error: `Claude implement budget reservation failed: ${err.message}`,
+          round,
+          lifecycle: "failed"
+        };
+        record3.lifecycle = "failed";
+        record3.failure_reason = failed.error;
+        record3.result = failed;
+        store.write(state);
+        return failed;
+      }
+    }
     const finishFailed = (result) => {
       record3.lifecycle = "failed";
       record3.failure_reason = result.error ?? (result.violations ?? []).join("; ");
@@ -36732,22 +38440,33 @@ ${cardList.errors.join("\n")}` };
         const resources = allocateDispatchResources(repoRoot, record3.artifact_id);
         const snapshotStore = new BlobStore(resources.snapBlobs);
         const captureStore = new BlobStore(resources.capBlobs);
-        const { model: writerModel, effort: writerEffort } = resolveCodexTier(
-          config2,
-          "implement"
-        );
-        const writerEnv = (deps.buildWriterEnv ?? buildWriterEnvironment)(
+        const codexTier = writerKind === "codex" ? resolveCodexTier(config2, "implement") : void 0;
+        const writerModel = writerKind === "codex" ? codexTier?.model : config2.implement.claude.model;
+        const writerEffort = writerKind === "codex" ? codexTier?.effort : config2.implement.claude.effort || void 0;
+        const writerEnv = writerKind === "codex" ? (deps.buildWriterEnv ?? buildWriterEnvironment)(
           resources.home,
           writerModel,
           writerEffort
-        );
-        if (!writerEnv.attestation.excludeSlashTmp || !writerEnv.attestation.excludeTmpdirEnvVar) {
+        ) : {
+          env: {},
+          cliConfigOverrides: void 0,
+          attestation: {
+            writer_kind: "claude",
+            isolation: "delegated-to-claude-implement-adapter"
+          }
+        };
+        if (writerKind === "codex" && (!("excludeSlashTmp" in writerEnv.attestation) || !writerEnv.attestation.excludeSlashTmp || !writerEnv.attestation.excludeTmpdirEnvVar)) {
           return finishFailed({
             ok: false,
             error: "writer sandbox attestation failed: constructed config is missing sandbox_workspace_write tmp exclusions (Q19); dispatch refused pre-spawn"
           });
         }
-        const snapResult = buildSnapshot(repoRoot, allowlist, snapshotStore);
+        const snapResult = buildSnapshot(
+          repoRoot,
+          allowlist,
+          snapshotStore,
+          writerKind === "claude" ? { excludePath: claudeSnapshotExcluded } : void 0
+        );
         if (snapResult.rejections.length > 0) {
           return finishFailed({
             ok: false,
@@ -36756,7 +38475,12 @@ ${cardList.errors.join("\n")}` };
           });
         }
         const snapshot = snapResult.snapshot;
-        const scratch = materializeScratch(snapshot, resources.scratch);
+        const callerPreimageSha = snapshotInventorySha(snapshot);
+        const scratch = materializeScratch(
+          snapshot,
+          resources.scratch,
+          writerKind === "claude" ? { excludePath: claudeScratchExcluded } : void 0
+        );
         record3.lifecycle = "executing";
         store.write(state);
         const prompt = renderPrompt(config2, configBaseDir, {
@@ -36770,6 +38494,7 @@ ${cardList.errors.join("\n")}` };
         try {
           turn = await runWriterTurn({
             scratchRoot: scratch.root,
+            privateHome: resources.home,
             prompt,
             env: writerEnv.env,
             cliConfigOverrides: writerEnv.cliConfigOverrides,
@@ -36779,6 +38504,25 @@ ${cardList.errors.join("\n")}` };
           });
           state.codex_failure_streak = 0;
         } catch (err) {
+          if (ledger && ledgerReservation) {
+            try {
+              await ledger.settle(
+                ledgerReservation,
+                {
+                  wallSeconds: config2.implement.claude.timeout_seconds,
+                  budgetUsd: config2.implement.claude.max_budget_usd
+                },
+                lockTimeoutMs
+              );
+              state.wall_seconds_total = (state.wall_seconds_total ?? 0) + config2.implement.claude.timeout_seconds;
+              state.budget_usd_total = (state.budget_usd_total ?? 0) + config2.implement.claude.max_budget_usd;
+            } catch (ledgerError) {
+              return finishFailed({
+                ok: false,
+                error: `writer turn failed and budget settlement also failed: ${err.message}; ${ledgerError.message}`
+              });
+            }
+          }
           if (input.signal?.aborted) {
             return finishFailed(cancelledResult("during the writer turn"));
           }
@@ -36792,9 +38536,49 @@ ${cardList.errors.join("\n")}` };
         }
         record3.thread_id = turn.threadId ?? "";
         state.tokens_used_estimate_total += turn.tokensTotal ?? 0;
+        if (ledger && ledgerReservation) {
+          const wallSeconds = Math.min(
+            turn.wallSeconds ?? config2.implement.claude.timeout_seconds,
+            config2.implement.claude.timeout_seconds
+          );
+          const costUsd = Math.min(
+            turn.costUsd ?? config2.implement.claude.max_budget_usd,
+            config2.implement.claude.max_budget_usd
+          );
+          await ledger.settle(
+            ledgerReservation,
+            { wallSeconds, budgetUsd: costUsd },
+            lockTimeoutMs,
+            input.signal
+          );
+          state.wall_seconds_total = (state.wall_seconds_total ?? 0) + wallSeconds;
+          state.budget_usd_total = (state.budget_usd_total ?? 0) + costUsd;
+        }
         store.write(state);
         if (input.signal?.aborted) {
           return finishFailed(cancelledResult("after the writer turn"));
+        }
+        if (writerKind === "claude") {
+          const integrityBlobDir = join10(resources.base, "integrity-blobs");
+          mkdirSync5(integrityBlobDir, { mode: 448 });
+          const callerAfter = buildSnapshot(
+            repoRoot,
+            allowlist,
+            new BlobStore(integrityBlobDir),
+            { excludePath: claudeSnapshotExcluded }
+          );
+          if (callerAfter.rejections.length > 0 || snapshotInventorySha(callerAfter.snapshot) !== callerPreimageSha) {
+            return finishFailed({
+              ok: false,
+              error: "caller repository integrity changed during dispatch; proposal quarantined"
+            });
+          }
+          if (deps.configPath && deps.configSha256 && sha256(readFileSync8(deps.configPath)) !== deps.configSha256) {
+            return finishFailed({
+              ok: false,
+              error: "runtime config integrity changed during dispatch; proposal quarantined"
+            });
+          }
         }
         const capture = sealCapture(scratch.root, captureStore, snapshot.opaqueRoots);
         const validation = validateCapture(
@@ -36829,6 +38613,34 @@ ${cardList.errors.join("\n")}` };
             error: `scope breaker: ${diffLines} changed lines exceed scope_drift_lines_threshold=${scopeLimit}; dispatch discarded`
           });
         }
+        let proposalValidation;
+        if (writerKind === "claude") {
+          try {
+            proposalValidation = await validateClaudeProposal({
+              config: config2.implement.claude,
+              repoRoot,
+              snapshot,
+              deltas: validation.deltas,
+              patch: generated.patch,
+              validationRoot: join10(resources.base, "validation"),
+              ...input.signal ? { signal: input.signal } : {}
+            });
+          } catch (err) {
+            proposalValidation = {
+              status: "fail",
+              applicability: "advisory-only",
+              apply_policy: config2.implement.claude.allow_advisory_apply ? "advisory-opt-in" : "export-only",
+              reasons: [
+                `server validation infrastructure failed: ${err.message}`
+              ],
+              validation_affecting_changes: [],
+              definition_preimage_sha256: "",
+              dependency_mounts: [],
+              commands: [],
+              baseline_only: false
+            };
+          }
+        }
         const rawReport = extractLastJsonObject(turn.text);
         const parsedReport = SelfReportSchema.safeParse(rawReport);
         let selfReport = null;
@@ -36844,14 +38656,25 @@ ${cardList.errors.join("\n")}` };
           return finishFailed(cancelledResult("before publication"));
         }
         const report = {
+          schema_version: 2,
           design_id: input.designId,
+          writer_kind: writerKind,
           round,
           artifact_id: record3.artifact_id,
           files_changed: generated.filesChanged,
           diffstat: generated.diffstat,
           self_report: selfReport,
-          writer_attestation: writerEnv.attestation,
+          writer_attestation: {
+            ...writerEnv.attestation,
+            ...turn.writerAttestation ?? {}
+          },
           writer_thread_id: record3.thread_id,
+          warnings: turn.warnings ?? [],
+          ...proposalValidation ? {
+            validation: proposalValidation,
+            applicability: proposalValidation.applicability,
+            apply_policy: proposalValidation.apply_policy
+          } : {},
           generated_at: (/* @__PURE__ */ new Date()).toISOString()
         };
         let published;
@@ -36881,14 +38704,28 @@ ${cardList.errors.join("\n")}` };
         }
         const result = {
           ok: true,
+          writer_kind: writerKind,
           dispatch_summary: `round ${round}: ${generated.diffstat.files} file(s), +${generated.diffstat.added}/-${generated.diffstat.removed}; patch ready for driver review + git apply`,
-          patch_path: relative3(repoRoot, published.patchPath),
-          report_path: relative3(repoRoot, published.reportPath),
+          patch_path: relative4(repoRoot, published.patchPath),
+          report_path: relative4(repoRoot, published.reportPath),
+          patch_sha256: published.patchSha,
           files_changed: generated.filesChanged,
           diffstat: generated.diffstat,
           self_report: selfReport,
           ...rawExcerpt !== void 0 ? { self_report_raw_excerpt: rawExcerpt } : {},
           violations: [],
+          ...proposalValidation ? {
+            applicability: proposalValidation.applicability,
+            apply_policy: proposalValidation.apply_policy
+          } : {},
+          warnings: [
+            ...turn.warnings ?? [],
+            ...proposalValidation?.reasons ?? [],
+            ...proposalValidation?.baseline_only ? [
+              "validation is baseline-only for additive tests; full driver self-test is mandatory after apply"
+            ] : []
+          ],
+          ...proposalValidation ? { validation: proposalValidation } : {},
           round,
           lifecycle: "completed",
           session: sessionFacts()
@@ -36928,7 +38765,7 @@ function verifyArtifacts(repoRoot, record3) {
       [result.report_path, record3.report_sha, record3.report_size]
     ]) {
       if (!rel || !sha) return { ok: false, error: "completed record missing artifact facts" };
-      const bytes = readFileSync6(`${repoRoot}/${rel}`);
+      const bytes = readFileSync8(`${repoRoot}/${rel}`);
       if (bytes.length !== size || sha256(bytes) !== sha) {
         return { ok: false, error: `artifact ${rel} does not match recorded hash/size` };
       }
@@ -36978,49 +38815,117 @@ async function handleImplement(deps, rawInput, signal) {
   });
 }
 
+// src/tools/claude-implement.ts
+var claudeImplementToolName = "claude_implement";
+var claudeImplementToolSchema = {
+  name: claudeImplementToolName,
+  description: "Dispatch one bounded implementation proposal to the authenticated Claude CLI in a Linux bubblewrap scratch. Requires schema=2, exact codex+claude ownership, operator enabled=true, an active task-card SHA, and an exact <=256 path allowlist. The tool never writes or applies changes to the caller repository.",
+  inputSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      design_id: { type: "string" },
+      task_card_path: { type: "string" },
+      task_card_sha256: {
+        type: "string",
+        pattern: "^[a-f0-9]{64}$"
+      },
+      files_allowlist: {
+        type: "array",
+        maxItems: 256,
+        items: { type: "string" }
+      },
+      work_order: { type: "string" },
+      dispatch_key: { type: "string" },
+      previous_findings: {}
+    },
+    required: [
+      "design_id",
+      "task_card_path",
+      "task_card_sha256",
+      "files_allowlist",
+      "work_order",
+      "dispatch_key"
+    ]
+  }
+};
+var ClaudeImplementInput = external_exports.object({
+  design_id: external_exports.string().min(1),
+  task_card_path: external_exports.string().min(1),
+  task_card_sha256: external_exports.string().regex(/^[a-f0-9]{64}$/),
+  files_allowlist: external_exports.array(external_exports.string()).max(256),
+  work_order: external_exports.string().min(1),
+  dispatch_key: external_exports.string(),
+  previous_findings: external_exports.unknown().optional()
+}).strict();
+async function handleClaudeImplement(deps, rawInput, signal) {
+  if (deps.writerKind !== "claude") {
+    throw new Error("claude_implement was wired to a non-Claude writer adapter");
+  }
+  const input = ClaudeImplementInput.parse(rawInput);
+  return runImplementFlow(deps, {
+    designId: input.design_id,
+    taskCardPath: input.task_card_path,
+    taskCardSha256: input.task_card_sha256,
+    filesAllowlist: input.files_allowlist,
+    workOrder: input.work_order,
+    dispatchKey: input.dispatch_key,
+    previousFindings: input.previous_findings,
+    ...signal ? { signal } : {}
+  });
+}
+
 // src/tools/ccsop-configure.ts
-import { dirname as dirname7, resolve as resolve5 } from "node:path";
+import {
+  existsSync as existsSync8,
+  lstatSync as lstatSync7,
+  mkdirSync as mkdirSync7,
+  readdirSync as readdirSync2,
+  readFileSync as readFileSync11,
+  writeFileSync as writeFileSync7
+} from "node:fs";
+import { dirname as dirname10, join as join12, relative as relative5, resolve as resolve7 } from "node:path";
 
 // src/config-writer.ts
 var TOML3 = __toESM(require_toml(), 1);
 import {
-  closeSync as closeSync4,
-  existsSync as existsSync5,
-  fsyncSync as fsyncSync2,
-  lstatSync as lstatSync3,
-  mkdirSync as mkdirSync4,
-  openSync as openSync4,
-  readFileSync as readFileSync8,
-  renameSync as renameSync3,
+  closeSync as closeSync6,
+  existsSync as existsSync7,
+  fsyncSync as fsyncSync3,
+  lstatSync as lstatSync6,
+  mkdirSync as mkdirSync6,
+  openSync as openSync6,
+  readFileSync as readFileSync10,
+  renameSync as renameSync4,
   unlinkSync as unlinkSync3,
-  writeFileSync as writeFileSync4
+  writeFileSync as writeFileSync6
 } from "node:fs";
-import { dirname as dirname6, join as join8, resolve as resolve4 } from "node:path";
+import { dirname as dirname9, join as join11, resolve as resolve6 } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 // src/runtime-config-store.ts
 var TOML2 = __toESM(require_toml(), 1);
-import { createHash as createHash5 } from "node:crypto";
-import { lstatSync as lstatSync2, readFileSync as readFileSync7, realpathSync } from "node:fs";
+import { createHash as createHash7 } from "node:crypto";
+import { lstatSync as lstatSync5, readFileSync as readFileSync9, realpathSync as realpathSync3 } from "node:fs";
 function sha256Text(text) {
-  return createHash5("sha256").update(text, "utf8").digest("hex");
+  return createHash7("sha256").update(text, "utf8").digest("hex");
 }
 var RuntimeConfigStore = class {
   constructor(configPath) {
     this.configPath = configPath;
   }
   inspect() {
-    const stat2 = lstatSync2(this.configPath);
+    const stat2 = lstatSync5(this.configPath);
     if (!stat2.isFile() || stat2.isSymbolicLink()) {
       throw new Error(`config must be a regular non-symlink file: ${this.configPath}`);
     }
-    const text = readFileSync7(this.configPath, "utf8");
+    const text = readFileSync9(this.configPath, "utf8");
     const raw = TOML2.parse(text);
     const meta = typeof raw === "object" && raw !== null ? raw.meta : void 0;
     const observed = typeof meta === "object" && meta !== null ? meta.control_surface_schema : void 0;
     return {
       configPath: this.configPath,
-      realPath: realpathSync(this.configPath),
+      realPath: realpathSync3(this.configPath),
       text,
       sha256: sha256Text(text),
       raw,
@@ -37045,6 +38950,11 @@ function injectFault(options, point) {
   }
 }
 function scalar(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(
+      (entry) => Array.isArray(entry) ? `[${entry.map((part) => JSON.stringify(part)).join(", ")}]` : JSON.stringify(entry)
+    ).join(", ")}]`;
+  }
   if (typeof value === "string") return JSON.stringify(value);
   return String(value);
 }
@@ -37160,6 +39070,16 @@ function deleteParsedPath(root, section, key) {
   }
   if (cursor) delete cursor[key];
 }
+function pruneEmptyRecords(value) {
+  for (const [key, child] of Object.entries(value)) {
+    if (typeof child !== "object" || child === null || Array.isArray(child)) {
+      continue;
+    }
+    const record3 = child;
+    pruneEmptyRecords(record3);
+    if (Object.keys(record3).length === 0) delete value[key];
+  }
+}
 function applyTomlUpdates(text, updates) {
   const before = parsedRecord(text);
   let candidate = text;
@@ -37171,69 +39091,71 @@ function applyTomlUpdates(text, updates) {
     deleteParsedPath(beforeNonTargets, update.section, update.key);
     deleteParsedPath(afterNonTargets, update.section, update.key);
   }
+  pruneEmptyRecords(beforeNonTargets);
+  pruneEmptyRecords(afterNonTargets);
   if (!isDeepStrictEqual(beforeNonTargets, afterNonTargets)) {
     throw new Error("config writer changed non-target parsed values");
   }
   return candidate;
 }
 function fsyncDirectory(path8) {
-  const fd = openSync4(path8, "r");
+  const fd = openSync6(path8, "r");
   try {
-    fsyncSync2(fd);
+    fsyncSync3(fd);
   } finally {
-    closeSync4(fd);
+    closeSync6(fd);
   }
 }
 function writeExclusiveOrVerify(path8, text) {
-  if (existsSync5(path8)) {
-    const stat2 = lstatSync3(path8);
+  if (existsSync7(path8)) {
+    const stat2 = lstatSync6(path8);
     if (!stat2.isFile() || stat2.isSymbolicLink()) {
       throw new Error(`backup path is not a regular file: ${path8}`);
     }
-    if (readFileSync8(path8, "utf8") !== text) {
+    if (readFileSync10(path8, "utf8") !== text) {
       throw new Error(`backup hash collision/content mismatch: ${path8}`);
     }
     return;
   }
-  writeFileSync4(path8, text, { encoding: "utf8", flag: "wx", mode: 384 });
+  writeFileSync6(path8, text, { encoding: "utf8", flag: "wx", mode: 384 });
 }
 function ensureDirectory(path8, mode) {
-  if (!existsSync5(path8)) {
-    mkdirSync4(path8, { mode });
+  if (!existsSync7(path8)) {
+    mkdirSync6(path8, { mode });
     return;
   }
-  const stat2 = lstatSync3(path8);
+  const stat2 = lstatSync6(path8);
   if (!stat2.isDirectory() || stat2.isSymbolicLink()) {
     throw new Error(`config control directory must not be a symlink: ${path8}`);
   }
 }
 function restoreConfigAtomically(configPath, expectedCurrentText, restoreText, mode) {
-  const configDir = dirname6(configPath);
-  if (readFileSync8(configPath, "utf8") !== expectedCurrentText) {
+  const configDir = dirname9(configPath);
+  if (readFileSync10(configPath, "utf8") !== expectedCurrentText) {
     throw new Error("rollback refused: config changed concurrently after publish");
   }
-  const restorePath = join8(
+  const restorePath = join11(
     configDir,
     `.config.toml.ccsop-rollback-${process.pid}-${Date.now().toString(36)}.tmp`
   );
   let restoreExists = false;
   try {
-    writeFileSync4(restorePath, restoreText, {
+    writeFileSync6(restorePath, restoreText, {
       encoding: "utf8",
       flag: "wx",
       mode
     });
     restoreExists = true;
-    const fd = openSync4(restorePath, "r");
+    const fd = openSync6(restorePath, "r");
     try {
-      fsyncSync2(fd);
+      fsyncSync3(fd);
     } finally {
-      closeSync4(fd);
+      closeSync6(fd);
     }
-    renameSync3(restorePath, configPath);
+    renameSync4(restorePath, configPath);
     restoreExists = false;
     fsyncDirectory(configDir);
-    if (readFileSync8(configPath, "utf8") !== restoreText) {
+    if (readFileSync10(configPath, "utf8") !== restoreText) {
       throw new Error("rollback verification failed");
     }
   } finally {
@@ -37248,63 +39170,63 @@ function restoreConfigAtomically(configPath, expectedCurrentText, restoreText, m
 function writeConfigUnderLock(configPath, beforeText, candidateText, options) {
   const beforeSha256 = sha256Text(beforeText);
   const afterSha256 = sha256Text(candidateText);
-  const configDir = dirname6(configPath);
-  const configDirStat = lstatSync3(configDir);
+  const configDir = dirname9(configPath);
+  const configDirStat = lstatSync6(configDir);
   if (!configDirStat.isDirectory() || configDirStat.isSymbolicLink()) {
     throw new Error(`config directory must be a real directory: ${configDir}`);
   }
-  const initialStat = lstatSync3(configPath);
+  const initialStat = lstatSync6(configPath);
   if (!initialStat.isFile() || initialStat.isSymbolicLink()) {
     throw new Error(`config must be a regular non-symlink file: ${configPath}`);
   }
-  if (readFileSync8(configPath, "utf8") !== beforeText) {
+  if (readFileSync10(configPath, "utf8") !== beforeText) {
     throw new Error("config changed after snapshot; refusing stale write");
   }
   const configMode = initialStat.mode & 511;
-  const repoRoot = options?.repoRoot ? resolve4(options.repoRoot) : resolve4(configDir, "..");
-  const controlDir = join8(repoRoot, ".ccsop");
-  const backupsDir = join8(controlDir, "backups");
-  const backupDir = join8(backupsDir, "config");
+  const repoRoot = options?.repoRoot ? resolve6(options.repoRoot) : resolve6(configDir, "..");
+  const controlDir = join11(repoRoot, ".ccsop");
+  const backupsDir = join11(controlDir, "backups");
+  const backupDir = join11(backupsDir, "config");
   ensureDirectory(controlDir, 448);
   ensureDirectory(backupsDir, 448);
   ensureDirectory(backupDir, 448);
-  const backupPath = join8(backupDir, `${beforeSha256}.toml`);
+  const backupPath = join11(backupDir, `${beforeSha256}.toml`);
   writeExclusiveOrVerify(backupPath, beforeText);
   fsyncDirectory(backupDir);
   injectFault(options, "after-backup");
-  const tempPath = join8(
+  const tempPath = join11(
     configDir,
     `.config.toml.ccsop-${process.pid}-${Date.now().toString(36)}.tmp`
   );
   let tempExists = false;
   let published = false;
   try {
-    writeFileSync4(tempPath, candidateText, {
+    writeFileSync6(tempPath, candidateText, {
       encoding: "utf8",
       flag: "wx",
       mode: configMode
     });
     tempExists = true;
-    const fd = openSync4(tempPath, "r");
+    const fd = openSync6(tempPath, "r");
     try {
-      fsyncSync2(fd);
+      fsyncSync3(fd);
     } finally {
-      closeSync4(fd);
+      closeSync6(fd);
     }
     injectFault(options, "after-temp-fsync");
-    const publishStat = lstatSync3(configPath);
+    const publishStat = lstatSync6(configPath);
     if (!publishStat.isFile() || publishStat.isSymbolicLink()) {
       throw new Error(`config became a non-regular file before publish: ${configPath}`);
     }
-    if (readFileSync8(configPath, "utf8") !== beforeText) {
+    if (readFileSync10(configPath, "utf8") !== beforeText) {
       throw new Error("config changed concurrently before publish");
     }
-    renameSync3(tempPath, configPath);
+    renameSync4(tempPath, configPath);
     tempExists = false;
     published = true;
     injectFault(options, "after-rename");
     fsyncDirectory(configDir);
-    const persisted = readFileSync8(configPath, "utf8");
+    const persisted = readFileSync10(configPath, "utf8");
     if (persisted !== candidateText || sha256Text(persisted) !== afterSha256) {
       throw new Error("atomic config write verification failed");
     }
@@ -37337,21 +39259,21 @@ function writeConfigUnderLock(configPath, beforeText, candidateText, options) {
   }
 }
 function writeConfigAtomically(configPath, beforeText, candidateText, options) {
-  const configDir = dirname6(configPath);
-  const lockPath = join8(configDir, ".config.toml.ccsop.lock");
+  const configDir = dirname9(configPath);
+  const lockPath = join11(configDir, ".config.toml.ccsop.lock");
   let lockFd;
   for (let attempt = 0; ; attempt++) {
     try {
-      lockFd = openSync4(lockPath, "wx", 384);
+      lockFd = openSync6(lockPath, "wx", 384);
       break;
     } catch (err) {
       const code = err.code;
       if (code !== "EEXIST") throw err;
       let ownerPid;
       try {
-        const lockStat = lstatSync3(lockPath);
+        const lockStat = lstatSync6(lockPath);
         if (lockStat.isFile() && !lockStat.isSymbolicLink()) {
-          const parsed = Number(readFileSync8(lockPath, "utf8").trim());
+          const parsed = Number(readFileSync10(lockPath, "utf8").trim());
           if (Number.isSafeInteger(parsed) && parsed > 0) ownerPid = parsed;
         }
       } catch {
@@ -37379,9 +39301,9 @@ function writeConfigAtomically(configPath, beforeText, candidateText, options) {
   }
   let operationError;
   try {
-    writeFileSync4(lockFd, `${process.pid}
+    writeFileSync6(lockFd, `${process.pid}
 `, "utf8");
-    fsyncSync2(lockFd);
+    fsyncSync3(lockFd);
     return writeConfigUnderLock(
       configPath,
       beforeText,
@@ -37394,7 +39316,7 @@ function writeConfigAtomically(configPath, beforeText, candidateText, options) {
   } finally {
     let releaseError;
     try {
-      closeSync4(lockFd);
+      closeSync6(lockFd);
       unlinkSync3(lockPath);
     } catch (err) {
       releaseError = err;
@@ -37409,24 +39331,45 @@ function writeConfigAtomically(configPath, beforeText, candidateText, options) {
 
 // src/tools/ccsop-configure.ts
 var ExpectedSha = external_exports.string().regex(/^[a-f0-9]{64}$/);
+var ExpectedMutation = { expected_config_sha256: ExpectedSha };
 var ConfigureInput = external_exports.discriminatedUnion("action", [
   external_exports.object({ action: external_exports.literal("status") }).strict(),
   external_exports.object({
     action: external_exports.literal("stamp-schema-v1"),
-    expected_config_sha256: ExpectedSha
+    ...ExpectedMutation
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("migrate-schema-v2"),
+    ...ExpectedMutation
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("rollback-schema-v1"),
+    ...ExpectedMutation
+  }).strict(),
+  external_exports.object({
+    action: external_exports.literal("disable-claude-implement"),
+    ...ExpectedMutation,
+    enabled: external_exports.literal(false)
   }).strict(),
   external_exports.object({
     action: external_exports.literal("set-flow"),
-    expected_config_sha256: ExpectedSha,
+    ...ExpectedMutation,
     flow: external_exports.enum(FLOW_VALUES)
   }).strict(),
   external_exports.object({
     action: external_exports.literal("set-tier"),
-    expected_config_sha256: ExpectedSha,
+    ...ExpectedMutation,
     scope: external_exports.string(),
     model: external_exports.string().optional(),
     effort: external_exports.string().optional(),
-    backend: external_exports.enum(["api", "cli"]).optional()
+    backend: external_exports.enum(["api", "cli"]).optional(),
+    timeout_seconds: external_exports.number().int().positive().optional(),
+    max_output_bytes: external_exports.number().int().positive().optional(),
+    max_budget_usd: external_exports.number().positive().optional(),
+    max_dispatches_per_design: external_exports.number().int().positive().optional(),
+    max_cumulative_wall_seconds: external_exports.number().int().positive().optional(),
+    max_cumulative_budget_usd: external_exports.number().positive().optional(),
+    max_daily_budget_usd: external_exports.number().positive().optional()
   }).strict()
 ]);
 function record2(value) {
@@ -37449,7 +39392,7 @@ function desiredUpdates(raw, candidates) {
     (candidate) => get(raw, candidate.section, candidate.key) !== candidate.value
   );
 }
-function flowUpdates(raw, flow) {
+function flowUpdates(raw, flow, schema) {
   const [designOwner, implementOwner] = flow.split("+");
   const candidates = [
     { section: "collaboration", key: "design_owner", value: designOwner },
@@ -37460,11 +39403,78 @@ function flowUpdates(raw, flow) {
   } else if (flow === "claude+claude") {
     candidates.push({ section: "implement", key: "enabled", value: false });
   }
-  return desiredUpdates(raw, candidates);
+  const previousImplementOwner = get(raw, "collaboration", "implement_owner");
+  const safetyDisable = schema === CONTROL_SURFACE_SCHEMA_V2 && previousImplementOwner !== implementOwner;
+  if (safetyDisable) {
+    candidates.push({
+      section: "implement.claude",
+      key: "enabled",
+      value: false
+    });
+  }
+  return { updates: desiredUpdates(raw, candidates), safetyDisable };
 }
 function tierUpdates(raw, input, scope) {
-  if (input.model === void 0 && input.effort === void 0 && input.backend === void 0) {
-    throw new Error("set-tier requires at least one of model, effort, or backend");
+  const numericKeys = [
+    "timeout_seconds",
+    "max_output_bytes",
+    "max_budget_usd",
+    "max_dispatches_per_design",
+    "max_cumulative_wall_seconds",
+    "max_cumulative_budget_usd",
+    "max_daily_budget_usd"
+  ];
+  if (input.model === void 0 && input.effort === void 0 && input.backend === void 0 && numericKeys.every((key) => input[key] === void 0)) {
+    throw new Error("set-tier requires at least one mutable tier field");
+  }
+  if (scope === "claude-implement") {
+    if (input.backend !== void 0) {
+      throw new Error("implement.claude.backend is operator-only");
+    }
+    if (input.effort !== void 0 && !CLAUDE_EFFORT_VALUES.includes(
+      input.effort
+    )) {
+      throw new Error(`invalid Claude effort: ${input.effort}`);
+    }
+    const candidates2 = [];
+    if (input.model !== void 0) {
+      candidates2.push({
+        section: "implement.claude",
+        key: "model",
+        value: input.model
+      });
+    }
+    if (input.effort !== void 0) {
+      candidates2.push({
+        section: "implement.claude",
+        key: "effort",
+        value: input.effort
+      });
+    }
+    for (const key of numericKeys) {
+      const requested = input[key];
+      if (requested === void 0) continue;
+      const compiledMax = CLAUDE_IMPLEMENT_COMPILED_MAX[key];
+      const current = get(raw, "implement.claude", key);
+      const baseline = Math.min(
+        typeof current === "number" ? current : compiledMax,
+        compiledMax
+      );
+      if (requested > baseline) {
+        throw new Error(
+          `implement.claude.${key} is shrink-only: requested=${requested} baseline=${baseline}`
+        );
+      }
+      candidates2.push({
+        section: "implement.claude",
+        key,
+        value: requested
+      });
+    }
+    return desiredUpdates(raw, candidates2);
+  }
+  if (numericKeys.some((key) => input[key] !== void 0)) {
+    throw new Error(`Claude implement limits are not accepted for ${scope}`);
   }
   let section;
   let modelKey = "model";
@@ -37505,6 +39515,17 @@ function tierUpdates(raw, input, scope) {
   }
   return desiredUpdates(raw, candidates);
 }
+function claudeReadiness(snapshot) {
+  const claude = snapshot.config.implement.claude;
+  const validationConfigured = claude.validation_commands.length > 0 && claude.validation_definition_paths.length > 0;
+  return {
+    schema_ready: snapshot.observedSchema === CONTROL_SURFACE_SCHEMA_V2,
+    enabled: claude.enabled,
+    validation: validationConfigured ? "configured" : "unconfigured",
+    advisory_apply: claude.allow_advisory_apply ? "operator-opt-in" : "disabled",
+    apply_capability: validationConfigured ? "applicable-possible" : claude.allow_advisory_apply ? "advisory-only" : "export-only"
+  };
+}
 function statusResult(action, snapshot) {
   const config2 = snapshot.config;
   const flowIsExplicit = config2.collaboration.design_owner !== void 0 || config2.collaboration.implement_owner !== void 0;
@@ -37512,7 +39533,7 @@ function statusResult(action, snapshot) {
   return {
     ok: true,
     action,
-    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
     observed_schema: snapshot.observedSchema ?? null,
     before_sha256: snapshot.sha256,
     after_sha256: snapshot.sha256,
@@ -37525,6 +39546,8 @@ function statusResult(action, snapshot) {
       ...config2.collaboration.implement_owner ? { implement_owner: config2.collaboration.implement_owner } : {},
       review_provider: config2.review.provider,
       codex_implement_enabled: config2.implement.enabled,
+      claude_implement_enabled: config2.implement.claude.enabled,
+      claude_implement_readiness: claudeReadiness(snapshot),
       tiers: {
         "claude-review": {
           backend: config2.review.claude.backend,
@@ -37542,6 +39565,26 @@ function statusResult(action, snapshot) {
         "codex-default": {
           model: config2.codex.default_model,
           effort: config2.codex.default_effort
+        },
+        "claude-implement": {
+          backend: config2.implement.claude.backend,
+          model: config2.implement.claude.model,
+          effort: config2.implement.claude.effort,
+          timeout_seconds: String(config2.implement.claude.timeout_seconds),
+          max_output_bytes: String(config2.implement.claude.max_output_bytes),
+          max_budget_usd: String(config2.implement.claude.max_budget_usd),
+          max_dispatches_per_design: String(
+            config2.implement.claude.max_dispatches_per_design
+          ),
+          max_cumulative_wall_seconds: String(
+            config2.implement.claude.max_cumulative_wall_seconds
+          ),
+          max_cumulative_budget_usd: String(
+            config2.implement.claude.max_cumulative_budget_usd
+          ),
+          max_daily_budget_usd: String(
+            config2.implement.claude.max_daily_budget_usd
+          )
         }
       }
     }
@@ -37571,7 +39614,7 @@ function rawStatusResult(action, snapshot, validationError) {
   return {
     ok: true,
     action,
-    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
     observed_schema: snapshot.observedSchema ?? null,
     before_sha256: snapshot.sha256,
     after_sha256: snapshot.sha256,
@@ -37585,11 +39628,23 @@ function rawStatusResult(action, snapshot, validationError) {
       ...implementOwner !== void 0 ? { implement_owner: implementOwner } : {},
       ...rawString(snapshot.raw, "review", "provider") ? { review_provider: rawString(snapshot.raw, "review", "provider") } : {},
       ...typeof implementEnabled === "boolean" ? { codex_implement_enabled: implementEnabled } : {},
+      ...typeof get(snapshot.raw, "implement.claude", "enabled") === "boolean" ? {
+        claude_implement_enabled: get(
+          snapshot.raw,
+          "implement.claude",
+          "enabled"
+        )
+      } : {},
       tiers: {
         "claude-review": tier("review.claude", ["backend", "model", "effort"]),
         "codex-review": tier("review.codex", ["model", "effort"]),
         "codex-dispatch": tier("implement", ["model", "effort"]),
-        "codex-default": tier("codex", ["default_model", "default_effort"])
+        "codex-default": tier("codex", ["default_model", "default_effort"]),
+        "claude-implement": tier("implement.claude", [
+          "backend",
+          "model",
+          "effort"
+        ])
       }
     }
   };
@@ -37602,6 +39657,108 @@ function validateCandidate(candidate, configPath) {
       `candidate config failed validation before publish: ${err instanceof Error ? err.message : String(err)}`
     );
   }
+}
+var CLAUDE_IMPLEMENT_MIGRATION_KEYS = [
+  "enabled",
+  "backend",
+  "model",
+  "effort",
+  "cli_path",
+  "timeout_seconds",
+  "max_output_bytes",
+  "max_budget_usd",
+  "supported_version_range",
+  "allow_uncertified_version",
+  "max_dispatches_per_design",
+  "max_cumulative_wall_seconds",
+  "max_cumulative_budget_usd",
+  "max_daily_budget_usd",
+  "validation_commands",
+  "validation_definition_paths",
+  "validation_additive_test_globs",
+  "allow_advisory_apply"
+];
+function migrationUpdates() {
+  return [
+    {
+      section: "meta",
+      key: "control_surface_schema",
+      value: CONTROL_SURFACE_SCHEMA_V2
+    },
+    ...CLAUDE_IMPLEMENT_MIGRATION_KEYS.map((key) => ({
+      section: "implement.claude",
+      key,
+      value: CLAUDE_IMPLEMENT_DEFAULTS_V2[key]
+    }))
+  ];
+}
+function writeMigrationProvenance(repoRoot, written) {
+  const configBackupDir = join12(repoRoot, ".ccsop", "backups", "config");
+  mkdirSync7(configBackupDir, { recursive: true, mode: 448 });
+  const provenancePath = join12(
+    configBackupDir,
+    `${written.beforeSha256}.provenance.json`
+  );
+  const record3 = {
+    schema_version: 1,
+    migration: "control-surface-schema-1-to-2",
+    before_sha256: written.beforeSha256,
+    after_sha256: written.afterSha256,
+    backup_sha256: written.beforeSha256,
+    backup_path: relative5(repoRoot, written.backupPath).replaceAll("\\", "/")
+  };
+  const bytes = `${JSON.stringify(record3, null, 2)}
+`;
+  if (existsSync8(provenancePath)) {
+    const stat2 = lstatSync7(provenancePath);
+    if (!stat2.isFile() || stat2.isSymbolicLink()) {
+      throw new Error(`migration provenance is not a regular file: ${provenancePath}`);
+    }
+    if (readFileSync11(provenancePath, "utf8") !== bytes) {
+      throw new Error(`migration provenance collision: ${provenancePath}`);
+    }
+  } else {
+    writeFileSync7(provenancePath, bytes, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 384
+    });
+  }
+  return provenancePath;
+}
+function findRollbackProvenance(repoRoot, currentSha256) {
+  const backupDir = join12(repoRoot, ".ccsop", "backups", "config");
+  if (!existsSync8(backupDir)) {
+    throw new Error("rollback refused: config migration backup directory is absent");
+  }
+  const matches = [];
+  for (const name of readdirSync2(backupDir).sort()) {
+    if (!/^[a-f0-9]{64}\.provenance\.json$/.test(name)) continue;
+    const path8 = join12(backupDir, name);
+    const stat2 = lstatSync7(path8);
+    if (!stat2.isFile() || stat2.isSymbolicLink()) {
+      throw new Error(`rollback refused: invalid provenance path ${path8}`);
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(readFileSync11(path8, "utf8"));
+    } catch {
+      throw new Error(`rollback refused: corrupt provenance ${path8}`);
+    }
+    const value = record2(parsed);
+    if (value.schema_version === 1 && value.migration === "control-surface-schema-1-to-2" && value.after_sha256 === currentSha256 && typeof value.before_sha256 === "string" && typeof value.backup_sha256 === "string" && typeof value.backup_path === "string") {
+      matches.push({ path: path8, record: value });
+    }
+  }
+  if (matches.length !== 1) {
+    throw new Error(
+      `rollback refused: expected one canonical provenance for current config, found ${matches.length}`
+    );
+  }
+  return matches[0];
+}
+function configRepoRoot(configPath, loaded) {
+  return resolve7(dirname10(configPath), loaded.config.meta.repo_root);
 }
 function handleCcsopConfigure(configPath, rawInput) {
   const input = ConfigureInput.parse(rawInput);
@@ -37648,7 +39805,7 @@ function handleCcsopConfigure(configPath, rawInput) {
     const candidate2 = applyTomlUpdates(snapshot.text, updates2);
     const candidateLoaded2 = validateCandidate(candidate2, configPath);
     const written2 = writeConfigAtomically(configPath, snapshot.text, candidate2, {
-      repoRoot: resolve5(dirname7(configPath), candidateLoaded2.config.meta.repo_root)
+      repoRoot: resolve7(dirname10(configPath), candidateLoaded2.config.meta.repo_root)
     });
     const after2 = store.loadValidated();
     if (after2.observedSchema !== CONTROL_SURFACE_SCHEMA_V1) {
@@ -37657,7 +39814,7 @@ function handleCcsopConfigure(configPath, rawInput) {
     return {
       ok: true,
       action: input.action,
-      contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+      contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
       observed_schema: after2.observedSchema,
       before_sha256: written2.beforeSha256,
       after_sha256: written2.afterSha256,
@@ -37665,21 +39822,191 @@ function handleCcsopConfigure(configPath, rawInput) {
       backup_path: written2.backupPath
     };
   }
-  if (snapshot.observedSchema !== CONTROL_SURFACE_SCHEMA_V1) {
-    throw new Error(
-      `control_surface_schema must be 1 before ${input.action}; run /sop-update`
+  if (input.action === "migrate-schema-v2") {
+    if (snapshot.observedSchema === CONTROL_SURFACE_SCHEMA_V2) {
+      const loaded = validateCandidate(snapshot.text, configPath);
+      return statusResult(input.action, {
+        ...snapshot,
+        config: loaded.config,
+        loaded
+      });
+    }
+    if (snapshot.observedSchema !== CONTROL_SURFACE_SCHEMA_V1) {
+      throw new Error(
+        `control_surface_schema must be 1 before ${input.action}`
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(
+      record2(record2(snapshot.raw).implement).claude ?? {},
+      "enabled"
+    ) || Object.prototype.hasOwnProperty.call(record2(snapshot.raw), "implement") && Object.prototype.hasOwnProperty.call(
+      record2(record2(snapshot.raw).implement),
+      "claude"
+    )) {
+      throw new Error(
+        "migration refused: [implement.claude] already exists; manual reconciliation required"
+      );
+    }
+    const updates2 = migrationUpdates();
+    const candidate2 = applyTomlUpdates(snapshot.text, updates2);
+    const candidateLoaded2 = validateCandidate(candidate2, configPath);
+    const repoRoot = configRepoRoot(configPath, candidateLoaded2);
+    const written2 = writeConfigAtomically(configPath, snapshot.text, candidate2, {
+      repoRoot
+    });
+    let provenancePath;
+    try {
+      provenancePath = writeMigrationProvenance(repoRoot, written2);
+    } catch (err) {
+      writeConfigAtomically(configPath, candidate2, snapshot.text, { repoRoot });
+      throw err;
+    }
+    const after2 = store.loadValidated();
+    if (after2.observedSchema !== CONTROL_SURFACE_SCHEMA_V2) {
+      throw new Error("schema migration verification failed");
+    }
+    return {
+      ok: true,
+      action: input.action,
+      contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
+      observed_schema: after2.observedSchema,
+      before_sha256: written2.beforeSha256,
+      after_sha256: written2.afterSha256,
+      changed_keys: updates2.map((update) => `${update.section}.${update.key}`),
+      backup_path: written2.backupPath,
+      migration_provenance_path: provenancePath
+    };
+  }
+  if (input.action === "rollback-schema-v1") {
+    if (snapshot.observedSchema !== CONTROL_SURFACE_SCHEMA_V2) {
+      throw new Error(
+        "control_surface_schema must be 2 before rollback-schema-v1"
+      );
+    }
+    const loaded = validateCandidate(snapshot.text, configPath);
+    if (loaded.config.implement.claude.enabled) {
+      throw new Error(
+        "rollback refused: disable implement.claude before rollback"
+      );
+    }
+    const repoRoot = configRepoRoot(configPath, loaded);
+    const provenance = findRollbackProvenance(repoRoot, snapshot.sha256);
+    const backupPath = resolve7(repoRoot, provenance.record.backup_path);
+    const canonicalBackupDir = join12(repoRoot, ".ccsop", "backups", "config");
+    if (dirname10(backupPath) !== canonicalBackupDir || backupPath !== join12(canonicalBackupDir, `${provenance.record.before_sha256}.toml`)) {
+      throw new Error("rollback refused: provenance backup path is non-canonical");
+    }
+    if (!existsSync8(backupPath)) {
+      throw new Error("rollback refused: migration backup is absent");
+    }
+    const stat2 = lstatSync7(backupPath);
+    if (!stat2.isFile() || stat2.isSymbolicLink()) {
+      throw new Error("rollback refused: backup must be a regular non-symlink file");
+    }
+    const backupText = readFileSync11(backupPath, "utf8");
+    if (sha256Text(backupText) !== provenance.record.before_sha256 || provenance.record.backup_sha256 !== provenance.record.before_sha256) {
+      throw new Error("rollback refused: backup sha/provenance mismatch");
+    }
+    const rollbackLoaded = validateCandidate(backupText, configPath);
+    if (rollbackLoaded.config.meta.control_surface_schema !== CONTROL_SURFACE_SCHEMA_V1 || Object.prototype.hasOwnProperty.call(
+      record2(record2(rollbackLoaded.raw).implement),
+      "claude"
+    )) {
+      throw new Error("rollback refused: backup is not canonical schema=1");
+    }
+    const written2 = writeConfigAtomically(
+      configPath,
+      snapshot.text,
+      backupText,
+      { repoRoot }
     );
+    const after2 = store.loadValidated();
+    if (after2.observedSchema !== CONTROL_SURFACE_SCHEMA_V1) {
+      throw new Error("schema rollback verification failed");
+    }
+    return {
+      ok: true,
+      action: input.action,
+      contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
+      observed_schema: after2.observedSchema,
+      before_sha256: written2.beforeSha256,
+      after_sha256: written2.afterSha256,
+      changed_keys: [
+        "meta.control_surface_schema",
+        "implement.claude"
+      ],
+      backup_path: written2.backupPath,
+      migration_provenance_path: provenance.path
+    };
+  }
+  if (snapshot.observedSchema !== CONTROL_SURFACE_SCHEMA_V1 && snapshot.observedSchema !== CONTROL_SURFACE_SCHEMA_V2) {
+    throw new Error(
+      `control_surface_schema must be 1 or 2 before ${input.action}; run /sop-update`
+    );
+  }
+  if (input.action === "disable-claude-implement") {
+    if (snapshot.observedSchema !== CONTROL_SURFACE_SCHEMA_V2) {
+      throw new Error(
+        "control_surface_schema must be 2 before disable-claude-implement"
+      );
+    }
+    const updates2 = desiredUpdates(snapshot.raw, [
+      {
+        section: "implement.claude",
+        key: "enabled",
+        value: false
+      }
+    ]);
+    if (updates2.length === 0) {
+      const loaded = validateCandidate(snapshot.text, configPath);
+      return {
+        ...statusResult(input.action, {
+          ...snapshot,
+          config: loaded.config,
+          loaded
+        }),
+        safety_disable: true
+      };
+    }
+    const candidate2 = applyTomlUpdates(snapshot.text, updates2);
+    const candidateLoaded2 = validateCandidate(candidate2, configPath);
+    const written2 = writeConfigAtomically(configPath, snapshot.text, candidate2, {
+      repoRoot: configRepoRoot(configPath, candidateLoaded2)
+    });
+    return {
+      ok: true,
+      action: input.action,
+      contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
+      observed_schema: CONTROL_SURFACE_SCHEMA_V2,
+      before_sha256: written2.beforeSha256,
+      after_sha256: written2.afterSha256,
+      changed_keys: ["implement.claude.enabled"],
+      backup_path: written2.backupPath,
+      safety_disable: true
+    };
   }
   let updates;
   let selectedFlow;
+  let safetyDisable = false;
   if (input.action === "set-flow") {
     selectedFlow = input.flow;
-    updates = flowUpdates(snapshot.raw, input.flow);
+    const change = flowUpdates(
+      snapshot.raw,
+      input.flow,
+      snapshot.observedSchema
+    );
+    updates = change.updates;
+    safetyDisable = change.safetyDisable;
   } else {
-    if (!PHASE1_TIER_SCOPES.includes(
+    if (input.scope === "claude-implement" && snapshot.observedSchema !== CONTROL_SURFACE_SCHEMA_V2) {
+      throw new Error(
+        "claude-implement tier requires control_surface_schema=2 and the v2 bridge; run /sop-update and reconnect MCP"
+      );
+    }
+    if (!PHASE2_TIER_SCOPES.includes(
       input.scope
     )) {
-      throw new Error(`unsupported Phase 1 tier scope: ${input.scope}`);
+      throw new Error(`unsupported tier scope: ${input.scope}`);
     }
     updates = tierUpdates(snapshot.raw, input, input.scope);
   }
@@ -37692,35 +40019,41 @@ function handleCcsopConfigure(configPath, rawInput) {
         loaded
       }),
       ...selectedFlow ? { flow: selectedFlow } : {},
-      ...selectedFlow === "codex+claude" ? { delivery: "manual relay" } : {}
+      ...selectedFlow === "codex+claude" ? {
+        delivery: snapshot.observedSchema === CONTROL_SURFACE_SCHEMA_V2 ? "claude_implement proposal" : "manual relay"
+      } : {},
+      ...safetyDisable ? { safety_disable: true } : {}
     };
   }
   const candidate = applyTomlUpdates(snapshot.text, updates);
   const candidateLoaded = validateCandidate(candidate, configPath);
   const written = writeConfigAtomically(configPath, snapshot.text, candidate, {
-    repoRoot: resolve5(dirname7(configPath), candidateLoaded.config.meta.repo_root)
+    repoRoot: resolve7(dirname10(configPath), candidateLoaded.config.meta.repo_root)
   });
   const after = store.loadValidated();
-  if (after.observedSchema !== CONTROL_SURFACE_SCHEMA_V1) {
+  if (after.observedSchema !== snapshot.observedSchema) {
     throw new Error("post-write schema verification failed");
   }
   return {
     ok: true,
     action: input.action,
-    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V1,
+    contract_version: CONTROL_SURFACE_CONTRACT_VERSION_V2,
     observed_schema: after.observedSchema,
     before_sha256: written.beforeSha256,
     after_sha256: written.afterSha256,
     changed_keys: updates.map((update) => `${update.section}.${update.key}`),
     backup_path: written.backupPath,
     ...selectedFlow ? { flow: selectedFlow } : {},
-    ...selectedFlow === "codex+claude" ? { delivery: "manual relay" } : {}
+    ...selectedFlow === "codex+claude" ? {
+      delivery: snapshot.observedSchema === CONTROL_SURFACE_SCHEMA_V2 ? "claude_implement proposal" : "manual relay"
+    } : {},
+    ...safetyDisable ? { safety_disable: true } : {}
   };
 }
 var ccsopConfigureToolName = "ccsop_configure";
 var ccsopConfigureToolSchema = {
   name: ccsopConfigureToolName,
-  description: "Read or deterministically update the ccsop Phase 1 flow/tier control surface. Mutations require an expected config sha and preserve unrelated TOML bytes.",
+  description: "Read or deterministically update the ccsop flow/tier control surface, including server-fixed schema v2 migration/rollback and fail-safe Claude implement disable. Mutations require an expected config sha.",
   inputSchema: {
     type: "object",
     oneOf: [
@@ -37741,6 +40074,34 @@ var ccsopConfigureToolSchema = {
           }
         },
         required: ["action", "expected_config_sha256"]
+      },
+      ...[
+        "migrate-schema-v2",
+        "rollback-schema-v1"
+      ].map((action) => ({
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          action: { const: action },
+          expected_config_sha256: {
+            type: "string",
+            pattern: "^[a-f0-9]{64}$"
+          }
+        },
+        required: ["action", "expected_config_sha256"]
+      })),
+      {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          action: { const: "disable-claude-implement" },
+          expected_config_sha256: {
+            type: "string",
+            pattern: "^[a-f0-9]{64}$"
+          },
+          enabled: { const: false }
+        },
+        required: ["action", "expected_config_sha256", "enabled"]
       },
       {
         type: "object",
@@ -37764,10 +40125,23 @@ var ccsopConfigureToolSchema = {
             type: "string",
             pattern: "^[a-f0-9]{64}$"
           },
-          scope: { type: "string", enum: [...PHASE1_TIER_SCOPES] },
+          scope: { type: "string", enum: [...PHASE2_TIER_SCOPES] },
           model: { type: "string" },
           effort: { type: "string" },
-          backend: { type: "string", enum: ["api", "cli"] }
+          backend: { type: "string", enum: ["api", "cli"] },
+          timeout_seconds: { type: "integer", minimum: 1 },
+          max_output_bytes: { type: "integer", minimum: 1 },
+          max_budget_usd: { type: "number", exclusiveMinimum: 0 },
+          max_dispatches_per_design: { type: "integer", minimum: 1 },
+          max_cumulative_wall_seconds: { type: "integer", minimum: 1 },
+          max_cumulative_budget_usd: {
+            type: "number",
+            exclusiveMinimum: 0
+          },
+          max_daily_budget_usd: {
+            type: "number",
+            exclusiveMinimum: 0
+          }
         },
         required: ["action", "expected_config_sha256", "scope"]
       }
@@ -37825,16 +40199,18 @@ async function main() {
   const { configPath } = parseArgs(process.argv.slice(2));
   let deps = null;
   let implementDeps = null;
+  let claudeImplementDeps = null;
   let runtimeConfigSha = null;
   let configError = null;
   const runtimeConfigStore = new RuntimeConfigStore(configPath);
   const breakerState = initialBreakerState();
   const emittedWarnings = /* @__PURE__ */ new Set();
   const reloadRuntimeDependencies = () => {
-    if (!existsSync6(configPath)) {
+    if (!existsSync9(configPath)) {
       configError = `ccsop review bridge: config not found at ${configPath}. Run /sop-init to scaffold .codex-review/config.toml, then /reload-plugins.`;
       deps = null;
       implementDeps = null;
+      claudeImplementDeps = null;
       runtimeConfigSha = null;
       return;
     }
@@ -37850,7 +40226,7 @@ async function main() {
 `);
       }
       enforceMinSafetyPolicy(loaded.config, loaded.loaded.raw);
-      const baseDir = dirname8(configPath);
+      const baseDir = dirname11(configPath);
       const config2 = loaded.config;
       const projectRoot = resolveProjectPath(config2, baseDir, ".");
       const sessionsDir = resolveProjectPath(config2, baseDir, config2.paths.sessions_dir);
@@ -37887,6 +40263,9 @@ async function main() {
       implementDeps = {
         config: config2,
         configBaseDir: baseDir,
+        writerKind: "codex",
+        configPath,
+        configSha256: loaded.sha256,
         // State/locks anchor at the control root (.codex-review/implement-state, design
         // §4.2.E), no-follow-resolved per operation — the configured sessions_dir is
         // deliberately not honored here.
@@ -37913,11 +40292,21 @@ async function main() {
           };
         }
       };
+      claudeImplementDeps = {
+        config: config2,
+        configBaseDir: baseDir,
+        writerKind: "claude",
+        configPath,
+        configSha256: loaded.sha256,
+        store: new ImplementStore(projectRoot),
+        runWriterTurn: (request) => runClaudeImplementWriter(config2, projectRoot, request)
+      };
       runtimeConfigSha = loaded.sha256;
       configError = null;
     } catch (err) {
       deps = null;
       implementDeps = null;
+      claudeImplementDeps = null;
       runtimeConfigSha = null;
       configError = `ccsop review bridge: config load failed for ${configPath}: ${err.message}`;
     }
@@ -37944,6 +40333,9 @@ async function main() {
       // Listed even when [implement] enabled=false — a disabled call returns the actionable
       // enable-instructions error (design §4.3 default-off).
       implementToolSchema,
+      // Phase 2 provider adapter. It is listed while disabled so status/remediation remains
+      // discoverable; the exact schema/owner/operator-enable gate is enforced server-side.
+      claudeImplementToolSchema,
       // Deterministic flow/tier/schema writer. It is deliberately NOT in the shipped permission
       // baseline; host approval remains visible UX friction, not a server authorization proof.
       ccsopConfigureToolSchema
@@ -38016,6 +40408,40 @@ async function main() {
               type: "text",
               text: JSON.stringify(
                 { ok: false, error: err.message, stack: err.stack },
+                null,
+                2
+              )
+            }
+          ]
+        };
+      }
+    }
+    if (name === claudeImplementToolName) {
+      try {
+        const impl = claudeImplementDeps;
+        if (impl === null) throw new Error(configError ?? "bridge not initialized");
+        const result = await handleClaudeImplement(
+          impl,
+          args ?? {},
+          extra?.signal
+        );
+        assertInvocationConfigUnchanged();
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          ...result.ok ? {} : { isError: true }
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  ok: false,
+                  error: err.message,
+                  stack: err.stack
+                },
                 null,
                 2
               )

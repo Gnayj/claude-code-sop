@@ -25,12 +25,12 @@ Do not suggest direct TOML edits or a shell fallback.
 
 ## Step 1 — handshake and status
 
-Call `ccsop_configure` with `action=status`. Require `contract_version=1` and
-`observed_schema=1`.
+Call `ccsop_configure` with `action=status`. Require `contract_version=2`; accept
+`observed_schema=1|2` for Phase 1 flow actions.
 
 - `observed_schema=null`: make zero writes and ask the user to run `/sop-update`, which performs
   the server-fixed `stamp-schema-v1` migration.
-- any schema other than `1`, or any contract other than `1`: fail loud, show the observed and
+- any schema other than `1|2`, or any contract other than `2`: fail loud, show the observed and
   supported values, make zero writes, and ask for a compatible ccsop update.
 
 Use the returned owners, implement gate, tiers, and config sha as the only state snapshot. The
@@ -53,7 +53,8 @@ Trim whitespace.
   stop without writing.
 - `claude+claude` or `claude+codex`: continue.
 - `codex+codex` or `codex+claude`: reject without writing. Codex-driven flows are selected from
-  Codex with `$sop-flow`; `codex+claude` remains **manual relay** in Phase 1.
+  Codex with `$sop-flow`; schema 1 is manual relay, while schema 2 may expose the independently
+  operator-enabled `claude_implement` proposal adapter.
 - anything else: print `Usage: /sop-flow [claude+claude|claude+codex]` and stop.
 
 Status output:
@@ -64,6 +65,7 @@ Design review: <derived reviewer>
 Code review: <derived reviewer>
 Fix review: reviewer recorded for that review session
 codex_implement enabled: <true|false>
+claude_implement enabled/readiness: <enabled + validation/apply status>
 Per-session override: "这单走 <flow>" / "this one <flow>"
 Set standing default: /sop-flow claude+claude | /sop-flow claude+codex
 ```
@@ -87,6 +89,8 @@ The server owns the exact coupled mutation:
 
 - `claude+codex` enables the existing Codex implement dispatcher;
 - `claude+claude` disables that dispatcher;
+- any implement-owner change on schema 2 also forces `[implement.claude].enabled=false` and
+  returns `safety_disable=true`; this command never re-enables it;
 - the provider key and all unrelated bytes remain untouched.
 
 On sha mismatch, report the concurrent change, call read-only `status` again, and ask the user to

@@ -92,6 +92,9 @@
    - 改生产配置或服务；
    - 覆盖数据库数据、不可逆 DDL/DML；
    - 对生产环境 部署 / 重启 / 清空 / 批量写。
+5. proposal writer 不扩大这份授权。`codex_implement` / `claude_implement` 只能返回 server
+   校验的 patch 工件，从不 apply 到 caller repo。Claude proposal 在 operator 配好 validation
+   前默认 `advisory-only / export-only`，flow/tier 命令也永不 enable Claude writer。
 
 ## 5. 功能清单（执行时勾）
 

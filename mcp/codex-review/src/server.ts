@@ -15,6 +15,7 @@ import {
 import {
   claudeApiOnlyKeyWarnings,
   resolveProjectPath,
+  type CodexEffort,
 } from "./config.js";
 import { enforceMinSafetyPolicy } from "./safety.js";
 import { createReviewProvider } from "./providers/factory.js";
@@ -44,6 +45,11 @@ import {
   handleImplement,
 } from "./tools/implement.js";
 import {
+  claudeImplementToolName,
+  claudeImplementToolSchema,
+  handleClaudeImplement,
+} from "./tools/claude-implement.js";
+import {
   ccsopConfigureToolName,
   ccsopConfigureToolSchema,
   handleCcsopConfigure,
@@ -54,6 +60,7 @@ import type { ImplementFlowDependencies } from "./run-implement-flow.js";
 import { ImplementStore } from "./implement-workspace.js";
 import { OpenAICodexClient } from "./codex-client.js";
 import { RuntimeConfigStore } from "./runtime-config-store.js";
+import { runClaudeImplementWriter } from "./implement-sandbox.js";
 
 interface ParsedArgs {
   configPath: string;
@@ -100,6 +107,7 @@ async function main(): Promise<void> {
   // before /sop-init has written .codex-review/config.toml.
   let deps: FlowDependencies | null = null;
   let implementDeps: ImplementFlowDependencies | null = null;
+  let claudeImplementDeps: ImplementFlowDependencies | null = null;
   let runtimeConfigSha: string | null = null;
   let configError: string | null = null;
   const runtimeConfigStore = new RuntimeConfigStore(configPath);
@@ -113,6 +121,7 @@ async function main(): Promise<void> {
         `Run /sop-init to scaffold .codex-review/config.toml, then /reload-plugins.`;
       deps = null;
       implementDeps = null;
+      claudeImplementDeps = null;
       runtimeConfigSha = null;
       return;
     }
@@ -174,6 +183,9 @@ async function main(): Promise<void> {
       implementDeps = {
         config,
         configBaseDir: baseDir,
+        writerKind: "codex",
+        configPath,
+        configSha256: loaded.sha256,
         // State/locks anchor at the control root (.codex-review/implement-state, design
         // §4.2.E), no-follow-resolved per operation — the configured sessions_dir is
         // deliberately not honored here.
@@ -186,7 +198,9 @@ async function main(): Promise<void> {
           // overrides; cancellation rides TurnOptions.signal (design §4.4).
           const client = new OpenAICodexClient({
             ...(req.model ? { defaultModel: req.model } : {}),
-            ...(req.effort ? { defaultEffort: req.effort } : {}),
+            ...(req.effort
+              ? { defaultEffort: req.effort as CodexEffort }
+              : {}),
             env: req.env,
             ...(req.cliConfigOverrides ? { config: req.cliConfigOverrides } : {}),
             // Same codex-binary resolution chain as the review path (design §4.1); resolution is
@@ -205,6 +219,16 @@ async function main(): Promise<void> {
           };
         },
       };
+      claudeImplementDeps = {
+        config,
+        configBaseDir: baseDir,
+        writerKind: "claude",
+        configPath,
+        configSha256: loaded.sha256,
+        store: new ImplementStore(projectRoot),
+        runWriterTurn: (request) =>
+          runClaudeImplementWriter(config, projectRoot, request),
+      };
       runtimeConfigSha = loaded.sha256;
       configError = null;
     } catch (err) {
@@ -212,6 +236,7 @@ async function main(): Promise<void> {
       // specific reason rather than crashing the transport.
       deps = null;
       implementDeps = null;
+      claudeImplementDeps = null;
       runtimeConfigSha = null;
       configError =
         `ccsop review bridge: config load failed for ${configPath}: ` +
@@ -242,6 +267,9 @@ async function main(): Promise<void> {
       // Listed even when [implement] enabled=false — a disabled call returns the actionable
       // enable-instructions error (design §4.3 default-off).
       implementToolSchema,
+      // Phase 2 provider adapter. It is listed while disabled so status/remediation remains
+      // discoverable; the exact schema/owner/operator-enable gate is enforced server-side.
+      claudeImplementToolSchema,
       // Deterministic flow/tier/schema writer. It is deliberately NOT in the shipped permission
       // baseline; host approval remains visible UX friction, not a server authorization proof.
       ccsopConfigureToolSchema,
@@ -322,6 +350,40 @@ async function main(): Promise<void> {
               type: "text",
               text: JSON.stringify(
                 { ok: false, error: (err as Error).message, stack: (err as Error).stack },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+    }
+    if (name === claudeImplementToolName) {
+      try {
+        const impl = claudeImplementDeps;
+        if (impl === null) throw new Error(configError ?? "bridge not initialized");
+        const result = await handleClaudeImplement(
+          impl,
+          args ?? {},
+          extra?.signal,
+        );
+        assertInvocationConfigUnchanged();
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          ...(result.ok ? {} : { isError: true }),
+        };
+      } catch (err) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  ok: false,
+                  error: (err as Error).message,
+                  stack: (err as Error).stack,
+                },
                 null,
                 2,
               ),

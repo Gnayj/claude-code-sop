@@ -489,7 +489,8 @@ describe("shipped template + result schema pins", () => {
       expect(Object.keys(r).sort()).toEqual(
         [
           "diffstat", "dispatch_summary", "files_changed", "lifecycle", "ok",
-          "patch_path", "report_path", "round", "self_report", "session", "violations",
+          "patch_path", "patch_sha256", "report_path", "round", "self_report",
+          "session", "violations", "warnings", "writer_kind",
         ].sort(),
       );
       const fact = r.files_changed![0]!;

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Verify the codex-review MCP server end-to-end:
 //   1) starts via stdio transport
-//   2) lists the review, implement, and Phase 1 configure tools
-//   3) verifies the configure contract and per-invocation config reload
+//   2) lists the review, Codex/Claude implement, and configure tools
+//   3) verifies contract v2 migration and per-invocation config reload
 //   4) rejects an out-of-allowed_doc_roots tool call (allowed_doc_roots boundary)
 //
 // Spec source: codex review IM-1 + design §6.1.3 + implement task card §7.1.4
@@ -185,13 +185,14 @@ default_model = ""
       "codex_design_review",
       "codex_fix_review",
       "codex_implement",
+      "claude_implement",
     ].sort();
     if (JSON.stringify(names) !== JSON.stringify(expected)) {
       fail(`tool list mismatch. expected=${expected.join(",")} got=${names.join(",")}`);
     }
     info(`tools listed: ${names.join(", ")}`);
 
-    // 4) Phase 1 control contract status.
+    // 4) Contract-v2 bridge over a schema-1 consumer, then server-fixed migration.
     info("calling ccsop_configure status");
     const statusCall = await client.callTool({
       name: "ccsop_configure",
@@ -201,12 +202,31 @@ default_model = ""
     const status = JSON.parse(statusText);
     if (
       statusCall.isError === true ||
-      status.contract_version !== 1 ||
+      status.contract_version !== 2 ||
       status.observed_schema !== 1
     ) {
       fail(`configure status handshake failed: ${statusText.slice(0, 400)}`);
     }
-    info("configure schema=1 / contract=1 handshake confirmed");
+    info("configure schema=1 / contract=2 bridge handshake confirmed");
+    const migrateCall = await client.callTool({
+      name: "ccsop_configure",
+      arguments: {
+        action: "migrate-schema-v2",
+        expected_config_sha256: status.after_sha256,
+      },
+    });
+    const migrateText = (migrateCall.content ?? []).map((c) => c.text ?? "").join("\n");
+    const migrated = JSON.parse(migrateText);
+    const migratedBytes = readFileSync(cfgPath, "utf8");
+    if (
+      migrateCall.isError === true ||
+      migrated.observed_schema !== 2 ||
+      !migratedBytes.includes("[implement.claude]") ||
+      !migratedBytes.includes("enabled = false")
+    ) {
+      fail(`configure schema-2 migration failed: ${migrateText.slice(0, 400)}`);
+    }
+    info("server-fixed schema=1→2 migration and disabled Claude section confirmed");
 
     // 5) allowed_doc_roots reject — task_card_path outside docs/.
     info("calling codex_design_review with out-of-root path (must be rejected)");

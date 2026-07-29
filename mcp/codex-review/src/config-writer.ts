@@ -19,7 +19,12 @@ import { sha256Text } from "./runtime-config-store.js";
 export interface TomlUpdate {
   section: string;
   key: string;
-  value: string | boolean | number;
+  value:
+    | string
+    | boolean
+    | number
+    | readonly string[]
+    | readonly (readonly string[])[];
 }
 
 export interface AtomicConfigWriteResult {
@@ -51,6 +56,15 @@ function injectFault(
 }
 
 function scalar(value: TomlUpdate["value"]): string {
+  if (Array.isArray(value)) {
+    return `[${value
+      .map((entry) =>
+        Array.isArray(entry)
+          ? `[${entry.map((part) => JSON.stringify(part)).join(", ")}]`
+          : JSON.stringify(entry),
+      )
+      .join(", ")}]`;
+  }
   if (typeof value === "string") return JSON.stringify(value);
   return String(value);
 }
@@ -178,6 +192,17 @@ function deleteParsedPath(root: Record<string, unknown>, section: string, key: s
   if (cursor) delete cursor[key];
 }
 
+function pruneEmptyRecords(value: Record<string, unknown>): void {
+  for (const [key, child] of Object.entries(value)) {
+    if (typeof child !== "object" || child === null || Array.isArray(child)) {
+      continue;
+    }
+    const record = child as Record<string, unknown>;
+    pruneEmptyRecords(record);
+    if (Object.keys(record).length === 0) delete value[key];
+  }
+}
+
 export function applyTomlUpdates(text: string, updates: readonly TomlUpdate[]): string {
   // Parse before editing so malformed/duplicate TOML is a zero-write failure.
   const before = parsedRecord(text);
@@ -191,6 +216,8 @@ export function applyTomlUpdates(text: string, updates: readonly TomlUpdate[]): 
     deleteParsedPath(beforeNonTargets, update.section, update.key);
     deleteParsedPath(afterNonTargets, update.section, update.key);
   }
+  pruneEmptyRecords(beforeNonTargets);
+  pruneEmptyRecords(afterNonTargets);
   if (!isDeepStrictEqual(beforeNonTargets, afterNonTargets)) {
     throw new Error("config writer changed non-target parsed values");
   }
