@@ -9,6 +9,48 @@ export const MIN_CODEX_SKILL_HOST_VERSION = "0.145.0-alpha.2" as const;
 export const CANONICAL_CODEX_SKILL_ROOT = ".agents/skills" as const;
 export const LEGACY_CODEX_SKILL_ROOT = ".codex/skills" as const;
 
+export const MAINTAINED_LANGUAGE_ALIASES = {
+  "zh-CN": ["zh", "zh-CN", "zh_CN", "zh-Hans", "zh_Hans"],
+  "de-DE": ["de", "de-DE", "de_DE"],
+} as const;
+export type MaintainedLocale = keyof typeof MAINTAINED_LANGUAGE_ALIASES;
+export type RenderLocale = "en" | MaintainedLocale;
+export type LanguageResolution =
+  | { status: "valid"; canonical: string; maintained: boolean }
+  | { status: "invalid" };
+
+const LANGUAGE_TAG_PATTERN = /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/;
+const MAINTAINED_LANGUAGE_LOOKUP = new Map<string, MaintainedLocale>(
+  Object.entries(MAINTAINED_LANGUAGE_ALIASES).flatMap(
+    ([canonical, aliases]) =>
+      aliases.map((alias) => [
+        alias.replaceAll("_", "-").toLowerCase(),
+        canonical as MaintainedLocale,
+      ]),
+  ),
+);
+
+/**
+ * Single language-resolution authority for command contracts and lifecycle fixtures.
+ * Known aliases canonicalize; valid unmaintained tags preserve the caller's trimmed bytes.
+ */
+export function resolveLanguage(
+  value: string | undefined,
+): LanguageResolution {
+  const trimmed = value?.trim();
+  if (!trimmed) return { status: "invalid" };
+  const lookup = trimmed.replaceAll("_", "-").toLowerCase();
+  if (lookup === "en") {
+    return { status: "valid", canonical: "en", maintained: false };
+  }
+  const canonical = MAINTAINED_LANGUAGE_LOOKUP.get(lookup);
+  if (canonical) {
+    return { status: "valid", canonical, maintained: true };
+  }
+  if (!LANGUAGE_TAG_PATTERN.test(lookup)) return { status: "invalid" };
+  return { status: "valid", canonical: trimmed, maintained: false };
+}
+
 export const CODEX_EFFORT_VALUES = [
   "",
   "minimal",
@@ -239,24 +281,34 @@ export function renderSimplifyContract(): typeof SIMPLIFY_CONTRACT_V1 {
 }
 
 export function renderSimplifyReadableCriteria(
-  locale: "en" | "zh-CN",
+  locale: RenderLocale,
 ): string {
   const suffixes = SIMPLIFY_CONTRACT_V1.code_suffixes
     .map((suffix) => `\`${suffix}\``)
     .join(", ");
   const segments = SIMPLIFY_CONTRACT_V1.diff_segments.join(" + ");
-  if (locale === "zh-CN") {
-    return [
-      `- code 路径 allowlist：${suffixes}；`,
-      `- 相对 base ref \`${SIMPLIFY_CONTRACT_V1.base_ref}\` 的 ${segments} diff 中，allowlist code 的 add+del 合计达到 \`${SIMPLIFY_CONTRACT_V1.line_threshold}\` 行时触发；`,
-      `- 非 git 仓库、缺少 \`${SIMPLIFY_CONTRACT_V1.base_ref}\`、detached HEAD、纯文档/SOP/typo，或 allowlist code 未达阈值时豁免。`,
-    ].join("\n");
+  switch (locale) {
+    case "zh-CN":
+      return [
+        `- code 路径 allowlist：${suffixes}；`,
+        `- 相对 base ref \`${SIMPLIFY_CONTRACT_V1.base_ref}\` 的 ${segments} diff 中，allowlist code 的 add+del 合计达到 \`${SIMPLIFY_CONTRACT_V1.line_threshold}\` 行时触发；`,
+        `- 非 git 仓库、缺少 \`${SIMPLIFY_CONTRACT_V1.base_ref}\`、detached HEAD、纯文档/SOP/typo，或 allowlist code 未达阈值时豁免。`,
+      ].join("\n");
+    case "de-DE":
+      return [
+        `- Allowlist für Codepfade: ${suffixes}.`,
+        `- Auslösen, sobald die Summe aus hinzugefügten und entfernten Zeilen des erlaubten Codes im Diff aus ${segments} gegen die Basisreferenz \`${SIMPLIFY_CONTRACT_V1.base_ref}\` insgesamt \`${SIMPLIFY_CONTRACT_V1.line_threshold}\` erreicht.`,
+        `- Ausgenommen sind Nicht-Git-Repositories, eine fehlende Basisreferenz \`${SIMPLIFY_CONTRACT_V1.base_ref}\`, ein detached HEAD, reine Dokumentations-/SOP-/Tippfehleränderungen oder Fälle, in denen der erlaubte Code unterhalb des Schwellenwerts bleibt.`,
+      ].join("\n");
+    case "en":
+      return [
+        `- Code-path allowlist: ${suffixes}.`,
+        `- Trigger when allowlisted code reaches \`${SIMPLIFY_CONTRACT_V1.line_threshold}\` total add+del lines across the ${segments} diff against base ref \`${SIMPLIFY_CONTRACT_V1.base_ref}\`.`,
+        `- Exempt when this is not a git repository, \`${SIMPLIFY_CONTRACT_V1.base_ref}\` is absent, HEAD is detached, the change is docs/SOP/typo only, or allowlisted code stays below the threshold.`,
+      ].join("\n");
+    default:
+      return assertNeverLocale(locale);
   }
-  return [
-    `- Code-path allowlist: ${suffixes}.`,
-    `- Trigger when allowlisted code reaches \`${SIMPLIFY_CONTRACT_V1.line_threshold}\` total add+del lines across the ${segments} diff against base ref \`${SIMPLIFY_CONTRACT_V1.base_ref}\`.`,
-    `- Exempt when this is not a git repository, \`${SIMPLIFY_CONTRACT_V1.base_ref}\` is absent, HEAD is detached, the change is docs/SOP/typo only, or allowlisted code stays below the threshold.`,
-  ].join("\n");
 }
 
 interface ParsedSemver {
@@ -335,94 +387,149 @@ function renderLines(lines: readonly string[]): string {
   return `${lines.join("\n")}\n`;
 }
 
-export function renderFlowContract(locale: "en" | "zh-CN"): string {
-  if (locale === "zh-CN") {
-    return renderLines([
-      "# ccsop flow contract v2",
-      "",
-      "- Claude 命令入口只接受 `claude+claude` / `claude+codex`。",
-      "- Codex skill 入口只接受 `codex+codex` / `codex+claude`。",
-      "- 空参和隐式触发只读；显式 set 必须调用 `ccsop_configure`。",
-      "- tool 缺失、旧 bridge 或未重启：零写并提示 `/mcp` 重连/重启。",
-      "- invalid config 的 status 返回 error/raw owners；显式 set 仅在 whole-config 校验通过时修目标键，否则零写。",
-      "- schema=1 保持 Phase 1：`codex+claude` delivery 为 `manual relay`，flow/Codex tier 仍可用。",
-      "- schema=2 且 bridge catalog 含 `claude_implement` 时，`codex+claude` 可使用 proposal adapter；flow 永不自动 enable。",
-      "- implement owner 变化会原子强制 `[implement.claude].enabled=false`；重新 enable 只能由 operator 在 agent session 外完成。",
-      "- 禁止 shell 或手改 TOML fallback；schema 迁移/回滚只调用 server-fixed action。",
-    ]);
-  }
-  return renderLines([
-    "# ccsop flow contract v2",
-    "",
-    "- The Claude command accepts only `claude+claude` / `claude+codex`.",
-    "- The Codex skill accepts only `codex+codex` / `codex+claude`.",
-    "- Empty arguments and implicit triggers are read-only; explicit sets call `ccsop_configure`.",
-    "- A missing, old, or unrestarted bridge causes zero writes and `/mcp` reconnect guidance.",
-    "- Invalid-config status returns the error/raw owners; explicit set repairs target keys only when whole-config validation passes, otherwise zero writes.",
-    "- Schema 1 preserves Phase 1: `codex+claude` is manual relay and flow/Codex tiers remain usable.",
-    "- With schema 2 and `claude_implement` in the bridge catalog, `codex+claude` can use the proposal adapter; flow never auto-enables it.",
-    "- Changing implement owner atomically forces `[implement.claude].enabled=false`; only an operator outside the agent session may re-enable it.",
-    "- Shell/manual-TOML fallbacks are forbidden; schema migration and rollback use server-fixed actions only.",
-  ]);
+function assertNeverLocale(locale: never): never {
+  throw new Error(`unsupported render locale: ${String(locale)}`);
 }
 
-export function renderTierContract(locale: "en" | "zh-CN"): string {
-  if (locale === "zh-CN") {
-    return renderLines([
-      "# ccsop tier contract v2",
-      "",
-      "- `claude-review` → `[review.claude] backend/model/effort`。",
-      "- `codex-review` → `[review.codex] model/effort`。",
-      "- `codex-dispatch` → `[implement] model/effort`（只控制 `codex_implement`）。",
-      "- `codex-default` → `[codex] default_model/default_effort`。",
-      "- schema=2 新增 `claude-implement` → `[implement.claude]` model/effort 与 shrink-only timeout/output/budget/ledger cap。",
-      "- backend/cli_path/version override/validation/additive globs/advisory apply/enabled 全部 operator-only，tool 拒绝。",
-      "- 当前 Codex host session 的模型/effort 用内置 `/model`。",
-      "- 空参和隐式触发只读；显式 set 必须调用 `ccsop_configure`。",
-      "- invalid config 的 status 返回 error/raw tiers；显式 set 仅在 whole-config 校验通过时修目标键，否则零写。",
-      "- schema=1 继续拒绝 `claude-implement`；schema=2 还要求 catalog 中真实存在 `claude_implement`。",
-    ]);
+export function renderFlowContract(locale: RenderLocale): string {
+  switch (locale) {
+    case "zh-CN":
+      return renderLines([
+        "# ccsop flow contract v2",
+        "",
+        "- Claude 命令入口只接受 `claude+claude` / `claude+codex`。",
+        "- Codex skill 入口只接受 `codex+codex` / `codex+claude`。",
+        "- 空参和隐式触发只读；显式 set 必须调用 `ccsop_configure`。",
+        "- tool 缺失、旧 bridge 或未重启：零写并提示 `/mcp` 重连/重启。",
+        "- invalid config 的 status 返回 error/raw owners；显式 set 仅在 whole-config 校验通过时修目标键，否则零写。",
+        "- schema=1 保持 Phase 1：`codex+claude` delivery 为 `manual relay`，flow/Codex tier 仍可用。",
+        "- schema=2 且 bridge catalog 含 `claude_implement` 时，`codex+claude` 可使用 proposal adapter；flow 永不自动 enable。",
+        "- implement owner 变化会原子强制 `[implement.claude].enabled=false`；重新 enable 只能由 operator 在 agent session 外完成。",
+        "- 禁止 shell 或手改 TOML fallback；schema 迁移/回滚只调用 server-fixed action。",
+      ]);
+    case "de-DE":
+      return renderLines([
+        "# ccsop flow contract v2",
+        "",
+        "- Der Claude-Befehl akzeptiert nur `claude+claude` / `claude+codex`.",
+        "- Der Codex-Skill akzeptiert nur `codex+codex` / `codex+claude`.",
+        "- Leere Argumente und implizite Aufrufe sind schreibgeschützt; explizites Setzen ruft `ccsop_configure` auf.",
+        "- Eine fehlende, alte oder nicht neu gestartete Bridge führt zu null Schreibvorgängen und einem Hinweis zum erneuten Verbinden über `/mcp`.",
+        "- Der Status einer ungültigen Konfiguration liefert Fehler/Rohwerte der Owner; explizites Setzen repariert Zielschlüssel nur nach erfolgreicher Gesamtvalidierung, andernfalls gibt es null Schreibvorgänge.",
+        "- Schema 1 erhält Phase 1: `codex+claude` verwendet `manual relay`; Flow- und Codex-Tiers bleiben nutzbar.",
+        "- Mit Schema 2 und `claude_implement` im Bridge-Katalog kann `codex+claude` den Proposal-Adapter verwenden; der Flow aktiviert ihn nie automatisch.",
+        "- Ein Wechsel des Implementierungs-Owners erzwingt atomar `[implement.claude].enabled=false`; nur ein Operator außerhalb der Agent-Session darf ihn wieder aktivieren.",
+        "- Shell-/manuelle-TOML-Fallbacks sind verboten; Schema-Migration und Rollback verwenden ausschließlich serverseitig festgelegte Aktionen.",
+      ]);
+    case "en":
+      return renderLines([
+        "# ccsop flow contract v2",
+        "",
+        "- The Claude command accepts only `claude+claude` / `claude+codex`.",
+        "- The Codex skill accepts only `codex+codex` / `codex+claude`.",
+        "- Empty arguments and implicit triggers are read-only; explicit sets call `ccsop_configure`.",
+        "- A missing, old, or unrestarted bridge causes zero writes and `/mcp` reconnect guidance.",
+        "- Invalid-config status returns the error/raw owners; explicit set repairs target keys only when whole-config validation passes, otherwise zero writes.",
+        "- Schema 1 preserves Phase 1: `codex+claude` is manual relay and flow/Codex tiers remain usable.",
+        "- With schema 2 and `claude_implement` in the bridge catalog, `codex+claude` can use the proposal adapter; flow never auto-enables it.",
+        "- Changing implement owner atomically forces `[implement.claude].enabled=false`; only an operator outside the agent session may re-enable it.",
+        "- Shell/manual-TOML fallbacks are forbidden; schema migration and rollback use server-fixed actions only.",
+      ]);
+    default:
+      return assertNeverLocale(locale);
   }
-  return renderLines([
-    "# ccsop tier contract v2",
-    "",
-    "- `claude-review` → `[review.claude] backend/model/effort`.",
-    "- `codex-review` → `[review.codex] model/effort`.",
-    "- `codex-dispatch` → `[implement] model/effort` (`codex_implement` only).",
-    "- `codex-default` → `[codex] default_model/default_effort`.",
-    "- Schema 2 adds `claude-implement` → `[implement.claude]` model/effort and shrink-only timeout/output/budget/ledger caps.",
-    "- backend/cli_path/version overrides/validation/additive globs/advisory apply/enabled are operator-only and rejected by the tool.",
-    "- Use the built-in `/model` for the current Codex host session model/effort.",
-    "- Empty arguments and implicit triggers are read-only; explicit sets call `ccsop_configure`.",
-    "- Invalid-config status returns the error/raw tiers; explicit set repairs target keys only when whole-config validation passes, otherwise zero writes.",
-    "- Schema 1 still rejects `claude-implement`; schema 2 also requires a real `claude_implement` tool in the catalog.",
-  ]);
+}
+
+export function renderTierContract(locale: RenderLocale): string {
+  switch (locale) {
+    case "zh-CN":
+      return renderLines([
+        "# ccsop tier contract v2",
+        "",
+        "- `claude-review` → `[review.claude] backend/model/effort`。",
+        "- `codex-review` → `[review.codex] model/effort`。",
+        "- `codex-dispatch` → `[implement] model/effort`（只控制 `codex_implement`）。",
+        "- `codex-default` → `[codex] default_model/default_effort`。",
+        "- schema=2 新增 `claude-implement` → `[implement.claude]` model/effort 与 shrink-only timeout/output/budget/ledger cap。",
+        "- backend/cli_path/version override/validation/additive globs/advisory apply/enabled 全部 operator-only，tool 拒绝。",
+        "- 当前 Codex host session 的模型/effort 用内置 `/model`。",
+        "- 空参和隐式触发只读；显式 set 必须调用 `ccsop_configure`。",
+        "- invalid config 的 status 返回 error/raw tiers；显式 set 仅在 whole-config 校验通过时修目标键，否则零写。",
+        "- schema=1 继续拒绝 `claude-implement`；schema=2 还要求 catalog 中真实存在 `claude_implement`。",
+      ]);
+    case "de-DE":
+      return renderLines([
+        "# ccsop tier contract v2",
+        "",
+        "- `claude-review` → `[review.claude] backend/model/effort`.",
+        "- `codex-review` → `[review.codex] model/effort`.",
+        "- `codex-dispatch` → `[implement] model/effort` (steuert nur `codex_implement`).",
+        "- `codex-default` → `[codex] default_model/default_effort`.",
+        "- Schema 2 ergänzt `claude-implement` → model/effort in `[implement.claude]` sowie nur verkleinerbare timeout/output/budget/ledger-Grenzen.",
+        "- backend/cli_path/Versions-Overrides/Validierung/additive Globs/advisory apply/enabled sind operator-only und werden vom Tool abgelehnt.",
+        "- Für Modell/effort der aktuellen Codex-Host-Session ist das integrierte `/model` zu verwenden.",
+        "- Leere Argumente und implizite Aufrufe sind schreibgeschützt; explizites Setzen ruft `ccsop_configure` auf.",
+        "- Der Status einer ungültigen Konfiguration liefert Fehler/Rohwerte der Tiers; explizites Setzen repariert Zielschlüssel nur nach erfolgreicher Gesamtvalidierung, andernfalls gibt es null Schreibvorgänge.",
+        "- Schema 1 lehnt `claude-implement` weiterhin ab; Schema 2 verlangt zusätzlich ein echtes Tool `claude_implement` im Katalog.",
+      ]);
+    case "en":
+      return renderLines([
+        "# ccsop tier contract v2",
+        "",
+        "- `claude-review` → `[review.claude] backend/model/effort`.",
+        "- `codex-review` → `[review.codex] model/effort`.",
+        "- `codex-dispatch` → `[implement] model/effort` (`codex_implement` only).",
+        "- `codex-default` → `[codex] default_model/default_effort`.",
+        "- Schema 2 adds `claude-implement` → `[implement.claude]` model/effort and shrink-only timeout/output/budget/ledger caps.",
+        "- backend/cli_path/version overrides/validation/additive globs/advisory apply/enabled are operator-only and rejected by the tool.",
+        "- Use the built-in `/model` for the current Codex host session model/effort.",
+        "- Empty arguments and implicit triggers are read-only; explicit sets call `ccsop_configure`.",
+        "- Invalid-config status returns the error/raw tiers; explicit set repairs target keys only when whole-config validation passes, otherwise zero writes.",
+        "- Schema 1 still rejects `claude-implement`; schema 2 also requires a real `claude_implement` tool in the catalog.",
+      ]);
+    default:
+      return assertNeverLocale(locale);
+  }
 }
 
 export function renderCodexSkillHostContract(
-  locale: "en" | "zh-CN",
+  locale: RenderLocale,
 ): string {
   const names = CONTROL_SURFACE_CONTRACT_V1.skills.names
     .map((name) => `\`${name}\``)
     .join(", ");
-  if (locale === "zh-CN") {
-    return renderLines([
-      "# ccsop Codex skill host contract v1",
-      "",
-      `- 最低 Codex CLI：\`${MIN_CODEX_SKILL_HOST_VERSION}\`（按标准 semver prerelease 排序）。`,
-      `- canonical root：\`${CANONICAL_CODEX_SKILL_ROOT}\`；legacy root：\`${LEGACY_CODEX_SKILL_ROOT}\`。`,
-      `- 必须存在的五个 discoverable entries：${names}。`,
-      "- 低于最低版本、缺失或无法解析的 host：保留现有 bytes/pointer，禁止创建 canonical duplicate。",
-      `- legacy migration 仅限 pristine provenance；回滚入口：\`${CONTROL_SURFACE_CONTRACT_V1.skills.rollback_flag}\`。`,
-    ]);
+  switch (locale) {
+    case "zh-CN":
+      return renderLines([
+        "# ccsop Codex skill host contract v1",
+        "",
+        `- 最低 Codex CLI：\`${MIN_CODEX_SKILL_HOST_VERSION}\`（按标准 semver prerelease 排序）。`,
+        `- canonical root：\`${CANONICAL_CODEX_SKILL_ROOT}\`；legacy root：\`${LEGACY_CODEX_SKILL_ROOT}\`。`,
+        `- 必须存在的五个 discoverable entries：${names}。`,
+        "- 低于最低版本、缺失或无法解析的 host：保留现有 bytes/pointer，禁止创建 canonical duplicate。",
+        `- legacy migration 仅限 pristine provenance；回滚入口：\`${CONTROL_SURFACE_CONTRACT_V1.skills.rollback_flag}\`。`,
+      ]);
+    case "de-DE":
+      return renderLines([
+        "# ccsop Codex skill host contract v1",
+        "",
+        `- Minimale Codex CLI: \`${MIN_CODEX_SKILL_HOST_VERSION}\` nach standardmäßiger semver-Prerelease-Sortierung.`,
+        `- Kanonisches Root: \`${CANONICAL_CODEX_SKILL_ROOT}\`; Legacy-Root: \`${LEGACY_CODEX_SKILL_ROOT}\`.`,
+        `- Erforderliche fünf auffindbare Einträge: ${names}.`,
+        "- Ein zu alter, fehlender oder nicht auswertbarer Host bewahrt vorhandene Bytes/Pointer und erzeugt kein kanonisches Duplikat.",
+        `- Die Legacy-Migration ist auf pristine Provenance beschränkt; Rollback-Einstieg: \`${CONTROL_SURFACE_CONTRACT_V1.skills.rollback_flag}\`.`,
+      ]);
+    case "en":
+      return renderLines([
+        "# ccsop Codex skill host contract v1",
+        "",
+        `- Minimum Codex CLI: \`${MIN_CODEX_SKILL_HOST_VERSION}\` using standard semver prerelease ordering.`,
+        `- Canonical root: \`${CANONICAL_CODEX_SKILL_ROOT}\`; legacy root: \`${LEGACY_CODEX_SKILL_ROOT}\`.`,
+        `- Required five discoverable entries: ${names}.`,
+        "- A below-minimum, missing, or unparseable host preserves existing bytes/pointer and creates no canonical duplicate.",
+        `- Legacy migration is pristine-provenance only; rollback entry: \`${CONTROL_SURFACE_CONTRACT_V1.skills.rollback_flag}\`.`,
+      ]);
+    default:
+      return assertNeverLocale(locale);
   }
-  return renderLines([
-    "# ccsop Codex skill host contract v1",
-    "",
-    `- Minimum Codex CLI: \`${MIN_CODEX_SKILL_HOST_VERSION}\` using standard semver prerelease ordering.`,
-    `- Canonical root: \`${CANONICAL_CODEX_SKILL_ROOT}\`; legacy root: \`${LEGACY_CODEX_SKILL_ROOT}\`.`,
-    `- Required five discoverable entries: ${names}.`,
-    "- A below-minimum, missing, or unparseable host preserves existing bytes/pointer and creates no canonical duplicate.",
-    `- Legacy migration is pristine-provenance only; rollback entry: \`${CONTROL_SURFACE_CONTRACT_V1.skills.rollback_flag}\`.`,
-  ]);
 }

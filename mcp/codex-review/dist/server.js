@@ -31670,6 +31670,18 @@ var CONTROL_SURFACE_CONTRACT_VERSION_V2 = 2;
 var MIN_CODEX_SKILL_HOST_VERSION = "0.145.0-alpha.2";
 var CANONICAL_CODEX_SKILL_ROOT = ".agents/skills";
 var LEGACY_CODEX_SKILL_ROOT = ".codex/skills";
+var MAINTAINED_LANGUAGE_ALIASES = {
+  "zh-CN": ["zh", "zh-CN", "zh_CN", "zh-Hans", "zh_Hans"],
+  "de-DE": ["de", "de-DE", "de_DE"]
+};
+var MAINTAINED_LANGUAGE_LOOKUP = new Map(
+  Object.entries(MAINTAINED_LANGUAGE_ALIASES).flatMap(
+    ([canonical, aliases]) => aliases.map((alias) => [
+      alias.replaceAll("_", "-").toLowerCase(),
+      canonical
+    ])
+  )
+);
 var CODEX_EFFORT_VALUES = [
   "",
   "minimal",

@@ -5,7 +5,7 @@ description: Re-materialize the ccsop-owned docs in another language (e.g. /sop-
 # /sop-lang <lang> — re-materialize ccsop-owned docs in another language
 
 Translate-once, in place. Plugin root = `${CLAUDE_PLUGIN_ROOT}`; target = `${CLAUDE_PROJECT_DIR}`.
-`$ARGUMENTS` = target language (e.g. `zh`), or `--check <lang>` (drift report). The canonical source is always
+`$ARGUMENTS` = target language (e.g. `zh` or `de`), or `--check <lang>` (drift report). The canonical source is always
 the EN plugin template (via each manifest entry's `template_id`), not the currently-materialized file.
 
 **Host task-tool guard (whole command):** the steps below are the complete execution plan. Do not
@@ -23,9 +23,16 @@ canonical/legacy roots and five-entry set are authoritative.
 
 ## Mode & source resolution (maintained-first)
 
-See `docs/design/ccsop-framework/i18n-docs-design.md`. **First normalize the language alias to its canonical
-i18n dir** (`zh` / `zh_CN` / `zh-Hans` → **`zh-CN`**); use the canonical form for the manifest lookup, `--check`,
-the copied artifacts, and recorded `language` / `translation_source`.
+See `docs/design/ccsop-framework/i18n-docs-design.md`. The exported
+`MAINTAINED_LANGUAGE_ALIASES` table and `resolveLanguage` function in
+`${CLAUDE_PLUGIN_ROOT}/mcp/codex-review/src/control-surface-contract.ts` are the machine authority.
+Trim surrounding whitespace, use case-insensitive lookup with `_` converted to `-` for lookup only,
+and preserve the trimmed spelling of valid unmaintained locales. The exact maintained aliases are
+`zh` / `zh-CN` / `zh_CN` / `zh-Hans` / `zh_Hans` → **`zh-CN`** and
+`de` / `de-DE` / `de_DE` → **`de-DE`**. Values such as `de-AT`, `de-CH`, `zh-Hant`, `zh-TW`,
+`dee`, and `de-Latn` remain valid unmaintained locales; missing, empty, or grammar-invalid values
+are invalid. Use a maintained canonical form for the manifest lookup, `--check`, copied artifacts,
+and recorded `language` / `translation_source`.
 
 **Translate mode** (`/sop-lang <lang>`) — resolve the source first:
 - **Maintained language** — `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json` exists: **copy the
@@ -114,6 +121,11 @@ preserve-only.
 | L-RP10 | recognized legacy + any language preflight failure | command-wide pre-write abort; ID, targets, and manifest all unchanged |
 | L-RP11 | recognized legacy + preserved modified/deleted target | successful command changes only the ID; target and every non-ID baseline field unchanged |
 | L-RP12 | duplicate path/source or canonical/legacy collision | command-wide pre-write abort; all bytes unchanged |
+| L-DE3 | second successful `/sop-lang de` with pristine German Codex seeds | all maintained targets and manifest byte-identical; `canonical-language-up-to-date` |
+
+Shared German alias/update outcomes `L-DE1`, `L-DE2`, and `L-DE4` are normative in
+`/sop-update`'s lifecycle matrix. This command uses the same resolver; its maintained preflight
+retains the command-wide abort behavior defined by L-RP5.
 
 **`--check <lang>` mode** (drift report; **no writes**): for each entry in
 `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json`, recompute the EN `source_path`'s

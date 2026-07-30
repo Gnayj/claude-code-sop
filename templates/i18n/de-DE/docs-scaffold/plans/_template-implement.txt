@@ -1,0 +1,104 @@
+# <Module> <Feature> Implementieren – <design_id>
+
+> ⚠️ Diese Vorlage gilt NUR für Fälle mit mehreren Runden (N≥2) oder Relaisrundenschaltern – PLUS eins
+> Ausnahme: a `claude+codex` Preside-Flow-Versand (`codex_implement`, Zusammenarbeit.md §1.D)
+> Erfordert IMMER diese Karte, auch für N=1, da die Karte der Versandvertrag und dessen ist
+> §5.A ``Der Dateiblock ist die maschinell analysierte Schreibzulassungsliste.
+> Andere Single-Round-Geräte (ein design.md, in einer Runde erledigt + ein Closeout) benötigen KEINEN
+> Karte implementieren – Falten Sie die Restpostenzusammenfassung in design.md §14.
+> Kriterien: `docs/methodology/claude-code-sop-collaboration.md §4.1` + `workflow-overview.md`.
+
+design_id: <Design-ID>
+phase: <Phasenname>
+author: <Treiber>
+date: JJJJ-MM-TT
+state: implementieren (wartet auf Codeüberprüfung)
+zugehöriges Design: <docs/design/<module>/<id>-design.md>
+
+## 0. Kollaborationsmodus
+Je nach aktivem Modus (`docs/records/current.md §1 bullet 4`). Führen Sie nach der Implementierung und dem Selbsttest den Code aus
+Rezension; Melden Sie „bereit zum Testen“ bei Pass / Pass-after-fixes; Abschluss nach dem „Test bestanden“ des Benutzers.
+
+## 1. Zuerst lesen
+1. Das Designdokument dieser Karte (oben)
+2. `docs/methodology/project-delivery-sop.md` §4-§9
+3. `docs/methodology/claude-code-sop-collaboration.md` §4.6 (4 Bestätigungspunkte zum Zusammenführen von Main)
+4. `docs/methodology/workflow-overview.md` (Flow + Fehlermodi + Rollback)
+5. `docs/records/current.md` §1 + aktive Pausenpunkte
+6. <code/config Einstiegspunkte, die diese Aufgabe berührt>
+
+## 2. Hintergrund
+### 2.1 Referenzierter Trigger
+<einzeiliger Verweis auf den Auslöser des Designs, keine vollständige Wiederholung>
+### 2.2 Der Vertrag dieser Runde
+<welche Teilmenge des Designumfangs diese Runde liefert; warum ein separater runder Vertrag>
+
+## 3. Ziele
+Diese Runde liefert:
+- <überprüfbare Leistung 1>
+- Codeüberprüfung + Benutzerüberprüfung bestanden
+
+## 4. Geltungsbereich (Commit-Liste)
+Im Feature-Zweig `<branch-name>`, N Einzelsubjekt-Commits:
+1. **Commit 1 (<Unterelement>)**: <eine Zeile>
+2. **Commit 2**: <eine Zeile>
+Jedes Commit für ein einzelnes Subjekt; läuft seine relevanten build/test (siehe §8).
+
+## 5. Geänderte Dateiliste
+| Datei | Ändern | Commit |
+|---|---|---|
+| <Pfad> | <eine Zeile> | <Commit N> |
+
+### 5.A ```Dateien-Zulassungsliste (OBLIGATORISCH für einen codex_implement-Versand; andernfalls diesen Abschnitt löschen)
+Von der Bridge maschinell analysiert (Grammatik: exakte Repository-relative reguläre Datei-POSIX-Pfade, einer pro Zeile;
+Nein globs/dirs/dot-root Pfade). Die Werkzeugeingabe muss danach Byte für Byte diesem Block entsprechen
+Kanonisierung. Für Umbenennungen müssen beide Pfade aufgeführt werden. Für Löschvorgänge muss der gelöschte Pfad aufgelistet werden.
+
+```files
+<path/one.ext>
+<path/two.ext>
+```
+
+## 6. Nicht-Ziele/Grenze
+- ❌ nichts außerhalb des Gestaltungsrahmens
+- ❌ keine nicht überprüften Designänderungen beigemischt
+- ❌ kein Cross-Sub-Item-Commit
+
+## 7. /simplify Entscheidung auslösen
+- geändertes Suffix in der Code-Zulassungsliste UND 4-Segment-Numstat (festgeschrieben + bereitgestellt + nicht bereitgestellt + nicht verfolgt) ≥ 30 → ausgeführt /simplify, Selbstreparatur, dann Codeüberprüfung
+- sonst ausgenommen (Grund im Selbsttestnachweis vermerken)
+
+## 8. Akzeptanz
+### 8.1 Selbsttest
+- ✅ Build-Pässe (`${BUILD_CMD}`)
+- ✅ Tests bestehen (`${TEST_CMD}`)
+- ✅ /simplify Entscheidung ausgeführt (ausführen / ausnehmen, protokollieren)
+- ✅ inkrementelles Protokollfenster + Schlüsselpfad/Skriptdurchlauf überprüfen (SOP §6.4)
+### 8.2 Benutzerüberprüfung
+- Befehl zur Überprüfung kopieren und einfügen:
+  ```bash
+  <verify command>
+  ```
+- Bestehenskriterien: <Protokollschlüsselwort> / <Schnittstellenverhalten> / <Leistung oder Cache-Metrik>
+### 8.3 Codeüberprüfung
+- ✅ Urteil ∈ {Pass, Pass-after-fixes (≤ 1 Fix-Runde)}
+- ✅ 0 kritisch; Wichtige Feststellungen vor Ort fixiert oder nachträglich übernommen
+
+## 9. Grenzen der Zusammenarbeit
+- Feature-Zweig `<branch-name>` (vom Haupt- oder vom Schluss-Sha der vorherigen Phase)
+- Einzelsubjekt-Commits (SOP §9.1)
+- kein einseitiges Pushen / Zusammenführen / Zweiglöschen (Zusammenarbeit §4.6 4 Bestätigungspunkte)
+- keine Zusammenführung mit der Hauptseite vor der Schließung; Closeout Single Commit = Übergabe Closeout + Kartenarchiv + `code-home:` Hinterfüllung
+- Schließung erst nach bestandenem „Test“ des Benutzers
+
+## 10. Closeout-Zusammenfassung (Backfill)
+- Designreferenz: <Pfad>
+- Überprüfungskette: Runde 1 <Urteil / C+I> → Runde 2 (falls vorhanden) <Urteil>
+- Ergebnis überprüfen: <ERGEBNIS: PASS / Schlüsselprotokollauszug>
+- Wichtigste Ergebnisse: <list>
+- bekannte Reste / Rückstand: <list>
+
+## 11. (optional) neue Entscheidungen während der Implementierung
+(bei neuen Entscheidungen Q1-QN hier sperren; sonst leer)
+
+code-home: <Wert wird bei Abschluss aufgefüllt; gesetzliche Werte gemäß SOP §3.4>

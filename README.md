@@ -1,6 +1,6 @@
 # ccsop
 
-**English** · [简体中文](README.zh-CN.md)
+**English** · [简体中文](README.zh-CN.md) · [Deutsch](README.de-DE.md)
 
 > **Claude Code SOP framework** — an installable Claude Code plugin that packages a
 > document-driven delivery workflow so any repository can adopt it in one step.

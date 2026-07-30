@@ -8,7 +8,10 @@ import {
   CODEX_SKILL_LIFECYCLE_FIXTURE_BINDINGS,
   CONTROL_SURFACE_CONTRACT_V1,
   LEGACY_CODEX_SKILL_ROOT,
+  MAINTAINED_LANGUAGE_ALIASES,
   MIN_CODEX_SKILL_HOST_VERSION,
+  type MaintainedLocale,
+  type RenderLocale,
   classifyCodexSkillHostVersion,
   renderCodexSkillHostContract,
   renderFlowContract,
@@ -18,6 +21,9 @@ import {
 } from "../src/control-surface-contract.js";
 
 const root = resolve(import.meta.dirname, "../../..");
+const maintainedLocales = Object.keys(
+  MAINTAINED_LANGUAGE_ALIASES,
+) as MaintainedLocale[];
 
 function read(path: string): string {
   return readFileSync(resolve(root, path), "utf8");
@@ -37,9 +43,19 @@ function filesBelow(path: string): string[] {
 describe("Codex control-surface scaffold", () => {
   it("ships five canonical repo skills with valid discoverable frontmatter", () => {
     for (const name of ["project-sop", "handoff", "simplify", "sop-flow", "sop-tier"]) {
-      const text = read(`templates/codex-scaffold/skills/${name}/SKILL.md`);
-      expect(text).toMatch(/^---\nname: [a-z0-9-]+\ndescription: .+\n---\n/);
-      expect(text).toContain(`name: ${name}`);
+      for (const skillRoot of [
+        "templates/codex-scaffold",
+        ...maintainedLocales.map(
+          (locale) => `templates/i18n/${locale}/codex-scaffold`,
+        ),
+      ]) {
+        const path = `${skillRoot}/skills/${name}/SKILL.md`;
+        const text = read(path);
+        expect(text, path).toMatch(
+          /^---\nname: [a-z0-9-]+\ndescription: .+\n---\n/,
+        );
+        expect(text, path).toContain(`name: ${name}`);
+      }
     }
   });
 
@@ -55,28 +71,62 @@ describe("Codex control-surface scaffold", () => {
     expect(
       read("templates/codex-scaffold/skills/sop-tier/references/contract.md"),
     ).toBe(renderTierContract("en"));
-    expect(read("templates/i18n/zh-CN/control-surface/flow-contract.md")).toBe(
-      renderFlowContract("zh-CN"),
-    );
-    expect(read("templates/i18n/zh-CN/control-surface/tier-contract.md")).toBe(
-      renderTierContract("zh-CN"),
-    );
     expect(
       read("templates/codex-scaffold/skills/project-sop/references/host-contract.md"),
     ).toBe(renderCodexSkillHostContract("en"));
-    expect(
-      read(
-        "templates/i18n/zh-CN/codex-scaffold/skills/project-sop/references/host-contract.md",
-      ),
-    ).toBe(renderCodexSkillHostContract("zh-CN"));
-    expect(
-      read("templates/i18n/zh-CN/control-surface/codex-skill-host-contract.md"),
-    ).toBe(renderCodexSkillHostContract("zh-CN"));
+    for (const locale of maintainedLocales) {
+      expect(
+        read(`templates/i18n/${locale}/control-surface/flow-contract.md`),
+      ).toBe(renderFlowContract(locale));
+      expect(
+        read(`templates/i18n/${locale}/control-surface/tier-contract.md`),
+      ).toBe(renderTierContract(locale));
+      expect(
+        read(
+          `templates/i18n/${locale}/codex-scaffold/skills/project-sop/references/host-contract.md`,
+        ),
+      ).toBe(renderCodexSkillHostContract(locale));
+      expect(
+        read(
+          `templates/i18n/${locale}/control-surface/codex-skill-host-contract.md`,
+        ),
+      ).toBe(renderCodexSkillHostContract(locale));
+    }
     expect(
       JSON.parse(
         read("templates/codex-scaffold/skills/simplify/references/contract.json"),
       ),
     ).toEqual(renderSimplifyContract());
+    for (const renderer of [
+      renderFlowContract,
+      renderTierContract,
+      renderCodexSkillHostContract,
+    ]) {
+      expect(renderer("de-DE")).not.toBe(renderer("en"));
+      expect(() => renderer("fr" as RenderLocale)).toThrow(
+        "unsupported render locale: fr",
+      );
+    }
+    expect(renderSimplifyReadableCriteria("de-DE")).not.toBe(
+      renderSimplifyReadableCriteria("en"),
+    );
+    const simplifyAllowlistScopes: Record<RenderLocale, string> = {
+      en: "allowlisted code",
+      "zh-CN": "allowlist code",
+      "de-DE": "des erlaubten Codes",
+    };
+    for (const locale of [
+      "en",
+      ...maintainedLocales,
+    ] satisfies RenderLocale[]) {
+      const triggerLine = renderSimplifyReadableCriteria(locale).split("\n")[1];
+      expect(triggerLine, `${locale} simplify trigger`).toContain(
+        simplifyAllowlistScopes[locale],
+      );
+    }
+    expect(() =>
+      renderSimplifyReadableCriteria("fr" as RenderLocale),
+    ).toThrow("unsupported render locale: fr");
   });
 
   it("activates Claude implement UX only with the real Phase 2 contract", () => {
@@ -89,8 +139,10 @@ describe("Codex control-surface scaffold", () => {
       "templates/control-surface/tier-contract.md",
       "templates/control-surface/codex-skill-host-contract.md",
       "templates/codex-scaffold/skills/project-sop/references/host-contract.md",
-      "templates/i18n/zh-CN/control-surface/codex-skill-host-contract.md",
-      "templates/i18n/zh-CN/codex-scaffold/skills/project-sop/references/host-contract.md",
+      ...maintainedLocales.flatMap((locale) => [
+        `templates/i18n/${locale}/control-surface/codex-skill-host-contract.md`,
+        `templates/i18n/${locale}/codex-scaffold/skills/project-sop/references/host-contract.md`,
+      ]),
     ];
     const corpus = paths.map(read).join("\n");
     expect(corpus).toContain("[implement.claude]");
@@ -99,13 +151,17 @@ describe("Codex control-surface scaffold", () => {
     expect(JSON.stringify(CONTROL_SURFACE_CONTRACT_V1)).not.toContain("claude-implement");
   });
 
-  it("uses one canonical simplify JSON for both languages", () => {
-    const zhSkill = read(
-      "templates/i18n/zh-CN/codex-scaffold/skills/simplify/SKILL.md",
-    );
-    expect(zhSkill).toContain("references/contract.json");
-    const manifest = read("templates/i18n/zh-CN/i18n-manifest.json");
-    expect(manifest).not.toContain("simplify/references/contract.json");
+  it("uses one canonical simplify JSON for every language", () => {
+    for (const locale of maintainedLocales) {
+      const skill = read(
+        `templates/i18n/${locale}/codex-scaffold/skills/simplify/SKILL.md`,
+      );
+      expect(skill).toContain("references/contract.json");
+      const manifest = read(
+        `templates/i18n/${locale}/i18n-manifest.json`,
+      );
+      expect(manifest).not.toContain("simplify/references/contract.json");
+    }
     const simplifyJsonFiles = filesBelow(resolve(root, "templates")).filter(
       (path) => path.endsWith("simplify/references/contract.json"),
     );
@@ -115,7 +171,10 @@ describe("Codex control-surface scaffold", () => {
   it("points AGENTS at the canonical .agents skill path", () => {
     for (const path of [
       "templates/codex-scaffold/AGENTS-snippet.md",
-      "templates/i18n/zh-CN/codex-scaffold/AGENTS-snippet.md",
+      ...maintainedLocales.map(
+        (locale) =>
+          `templates/i18n/${locale}/codex-scaffold/AGENTS-snippet.md`,
+      ),
     ]) {
       expect(read(path)).toContain(".agents/skills/project-sop/SKILL.md");
       expect(read(path)).not.toContain(".codex/skills/project-sop/SKILL.md");
@@ -173,7 +232,9 @@ describe("Codex control-surface scaffold", () => {
     const legacyPointer = `${LEGACY_CODEX_SKILL_ROOT}/project-sop/SKILL.md`;
     for (const scanRoot of [
       "templates/codex-scaffold",
-      "templates/i18n/zh-CN/codex-scaffold",
+      ...maintainedLocales.map(
+        (locale) => `templates/i18n/${locale}/codex-scaffold`,
+      ),
     ]) {
       for (const path of filesBelow(resolve(root, scanRoot))) {
         const relative = path.slice(root.length + 1);
@@ -202,7 +263,10 @@ describe("Codex control-surface scaffold", () => {
     expect(config).toContain("validation_commands = []");
     for (const path of [
       "templates/docs-scaffold/methodology/project-delivery-sop.md",
-      "templates/i18n/zh-CN/docs-scaffold/methodology/project-delivery-sop.md",
+      ...maintainedLocales.map(
+        (locale) =>
+          `templates/i18n/${locale}/docs-scaffold/methodology/project-delivery-sop.md`,
+      ),
     ]) {
       const text = read(path);
       expect(text).toContain("/simplify");
@@ -217,32 +281,36 @@ describe("Codex control-surface scaffold", () => {
     expect(
       read("templates/docs-scaffold/methodology/workflow-overview.md"),
     ).toContain(renderSimplifyReadableCriteria("en"));
-    expect(
-      read(
-        "templates/i18n/zh-CN/docs-scaffold/methodology/project-delivery-sop.md",
-      ),
-    ).toContain(renderSimplifyReadableCriteria("zh-CN"));
-    expect(
-      read(
-        "templates/i18n/zh-CN/docs-scaffold/methodology/workflow-overview.md",
-      ),
-    ).toContain(renderSimplifyReadableCriteria("zh-CN"));
+    for (const locale of maintainedLocales) {
+      expect(
+        read(
+          `templates/i18n/${locale}/docs-scaffold/methodology/project-delivery-sop.md`,
+        ),
+      ).toContain(renderSimplifyReadableCriteria(locale));
+      expect(
+        read(
+          `templates/i18n/${locale}/docs-scaffold/methodology/workflow-overview.md`,
+        ),
+      ).toContain(renderSimplifyReadableCriteria(locale));
+    }
   });
 
   it("has complete, sha-valid maintained-language mappings", () => {
-    const manifest = JSON.parse(
-      read("templates/i18n/zh-CN/i18n-manifest.json"),
-    ) as {
-      files: Array<{
-        source_path: string;
-        source_sha: string;
-        target_rel: string;
-      }>;
-    };
-    for (const entry of manifest.files) {
-      expect(existsSync(resolve(root, entry.source_path))).toBe(true);
-      expect(existsSync(resolve(root, entry.target_rel))).toBe(true);
-      expect(sha256(read(entry.source_path))).toBe(entry.source_sha);
+    for (const locale of maintainedLocales) {
+      const manifest = JSON.parse(
+        read(`templates/i18n/${locale}/i18n-manifest.json`),
+      ) as {
+        files: Array<{
+          source_path: string;
+          source_sha: string;
+          target_rel: string;
+        }>;
+      };
+      for (const entry of manifest.files) {
+        expect(existsSync(resolve(root, entry.source_path))).toBe(true);
+        expect(existsSync(resolve(root, entry.target_rel))).toBe(true);
+        expect(sha256(read(entry.source_path))).toBe(entry.source_sha);
+      }
     }
   });
 });

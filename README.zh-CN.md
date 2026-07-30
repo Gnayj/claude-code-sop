@@ -1,6 +1,6 @@
 # ccsop
 
-[English](README.md) · **简体中文**
+[English](README.md) · **简体中文** · [Deutsch](README.de-DE.md)
 
 > **Claude Code SOP 框架** —— 一个可安装的 Claude Code 插件，把文档驱动的交付工作流打包，使任何
 > 仓库一步即可采用。

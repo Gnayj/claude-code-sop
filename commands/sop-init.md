@@ -7,7 +7,7 @@ description: Scaffold the ccsop delivery workflow into the current repo — inte
 You are scaffolding the **ccsop** delivery workflow into the user's repository. The plugin root is
 `${CLAUDE_PLUGIN_ROOT}`; the target repo is `${CLAUDE_PROJECT_DIR}` (cwd). Work only in the target repo.
 
-Argument `$ARGUMENTS` may contain flags: `--project-name <name>`, `--lang <en|zh|...>`,
+Argument `$ARGUMENTS` may contain flags: `--project-name <name>`, `--lang <en|zh|de|...>`,
 `--provider <codex|claude|manual>`, `--force`. If absent, resolve/ask as specified in Step 2.
 
 **Host task-tool guard (whole command):** the numbered steps below are the complete execution plan.
@@ -78,7 +78,8 @@ decision already supplied by a flag.
      deterministically: lowercase; collapse runs outside `[a-z0-9._-]` to `-`; trim leading/trailing
      punctuation; cap at 64 chars; if empty, use
      `project-<first-8-hex-of-sha256(abs-target-path)>`.
-2. **language** for materialized docs (`en` canonical, or `zh`/other → translated once via the §4.3 pipeline; see `/sop-lang`).
+2. **language** for materialized docs (`en` canonical; maintained `zh` and `de` aliases; or another
+   valid locale translated once via the §4.3 pipeline; see `/sop-lang`).
 3. **review.provider** (`codex` default | `claude` | `manual`) — note the codex heterogeneity
    advantage. For Claude, `backend="cli"` uses the logged-in subscription without an API key;
    `backend="api"` uses API credits and requires `ANTHROPIC_API_KEY`.
@@ -126,8 +127,15 @@ Copy `${CLAUDE_PLUGIN_ROOT}/templates/docs-scaffold/` into the target `docs/`:
 - `records/current.md` — **only if absent**; fill `<PROJECT_NAME>` / `<YYYY-MM-DD>`; mark `owner=overlay`.
 
 If language ≠ en, resolve the translation **source** (see `docs/design/ccsop-framework/i18n-docs-design.md`).
-**First normalize the language alias to its canonical i18n dir** (`zh` / `zh_CN` / `zh-Hans` → **`zh-CN`**);
-use the canonical form for the manifest lookup, the copied artifacts, and the recorded `language` / `translation_source`:
+The exported `MAINTAINED_LANGUAGE_ALIASES` table and `resolveLanguage` function in
+`${CLAUDE_PLUGIN_ROOT}/mcp/codex-review/src/control-surface-contract.ts` are the machine authority.
+Trim surrounding whitespace, use case-insensitive lookup with `_` converted to `-` for lookup only,
+and preserve the trimmed spelling of valid unmaintained locales. The exact maintained aliases are
+`zh` / `zh-CN` / `zh_CN` / `zh-Hans` / `zh_Hans` → **`zh-CN`** and
+`de` / `de-DE` / `de_DE` → **`de-DE`**. Values such as `de-AT`, `de-CH`, `zh-Hant`, `zh-TW`,
+`dee`, and `de-Latn` remain valid unmaintained locales; missing, empty, or grammar-invalid values
+are invalid. Use a maintained canonical form for the manifest lookup, copied artifacts, and
+recorded `language` / `translation_source`:
 - **Maintained language** — `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json` exists:
   **copy the vetted translated artifacts** for every translatable in-scope target (provenance
   `translation_source=maintained`), plus the exact language-neutral simplify JSON described above.
@@ -136,7 +144,9 @@ use the canonical form for the manifest lookup, the copied artifacts, and the re
 - **Unmaintained language** — no such manifest: run each file through the placeholder-protection translation
   pipeline (see `/sop-lang` Step "Pipeline") before writing — never translate machine-stable surfaces
   (`translation_source=on-the-fly`).
-- Verify: `/sop-init --lang zh` resolves to `templates/i18n/zh-CN/` (maintained) and records `translation_source=maintained`, not fallback.
+- Verify: `/sop-init --lang zh` resolves to `templates/i18n/zh-CN/`, and
+  `/sop-init --lang de` resolves to `templates/i18n/de-DE/`; both are maintained and record
+  `translation_source=maintained`, not fallback.
 
 **Idempotency & write policy by file class** (classify each target before writing):
 - **overlay** (`records/current.md`): create only if absent; never overwrite, even with `--force`.

@@ -7,7 +7,7 @@ description: 查看或显式设置 Codex 主推工作的 ccsop standing flow：c
 
 读取 `references/contract.md`。
 
-- 空参或隐式触发只读：调用 `ccsop_configure action=status`，展示当前 owners/reviewers 与
+- 空参或隐式触发只读：调用 `ccsop_configure`，参数为 `action=status`，展示当前 owners/reviewers 与
   两个合法 Codex flow。
 - 只有显式 `$sop-flow codex+codex` / `$sop-flow codex+claude` 才可写。
 - 写前先 status，要求 `contract_version=2` 且 `observed_schema=1|2`；再以 status sha 调

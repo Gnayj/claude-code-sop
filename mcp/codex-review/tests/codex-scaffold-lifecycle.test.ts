@@ -25,6 +25,10 @@ const zhTemplateRoot = resolve(
   import.meta.dirname,
   "../../../templates/i18n/zh-CN/codex-scaffold/skills",
 );
+const deTemplateRoot = resolve(
+  import.meta.dirname,
+  "../../../templates/i18n/de-DE/codex-scaffold/skills",
+);
 const roots: string[] = [];
 const legacyRel = ".codex/skills/project-sop/SKILL.md";
 const canonicalRel = ".agents/skills/project-sop/SKILL.md";
@@ -260,13 +264,16 @@ function runLifecycle(root: string, options: LifecycleOptions): string {
   return outcome.C10;
 }
 
-function runLanguageRematerialization(root: string): string[] {
+function runLanguageRematerialization(
+  root: string,
+  languageTemplateRoot = zhTemplateRoot,
+): string[] {
   if (!existsSync(path(root, ".agents/skills"))) return [outcome.C12];
   const currentManifest = manifest(root);
   let changed = false;
   let preserved = false;
-  for (const source of treeFiles(zhTemplateRoot)) {
-    const rel = relative(zhTemplateRoot, source);
+  for (const source of treeFiles(languageTemplateRoot)) {
+    const rel = relative(languageTemplateRoot, source);
     const targetRel = `.agents/skills/${rel}`;
     const target = path(root, targetRel);
     const entry = currentManifest.files.find(
@@ -567,6 +574,29 @@ describe("Codex scaffold lifecycle normative fixtures C1-C15", () => {
     const modified = fixture({ canonical: "modified" });
     const before = read(modified, canonicalRel);
     expect(runLanguageRematerialization(modified)).toEqual([
+      outcome.C13,
+      outcome.C14,
+    ]);
+    expect(read(modified, canonicalRel)).toBe(before);
+  });
+
+  it("L-DE3 updates, preserves, and stays idempotent with the maintained German skill tree", () => {
+    const pristine = fixture({ canonical: "pristine" });
+    expect(runLanguageRematerialization(pristine, deTemplateRoot)).toEqual([
+      outcome.C13,
+    ]);
+    expect(read(pristine, canonicalRel)).toBe(
+      readFileSync(join(deTemplateRoot, "project-sop/SKILL.md"), "utf8"),
+    );
+    const postimage = snapshot(pristine);
+    expect(runLanguageRematerialization(pristine, deTemplateRoot)).toEqual([
+      outcome.C15,
+    ]);
+    expect(snapshot(pristine)).toEqual(postimage);
+
+    const modified = fixture({ canonical: "modified" });
+    const before = read(modified, canonicalRel);
+    expect(runLanguageRematerialization(modified, deTemplateRoot)).toEqual([
       outcome.C13,
       outcome.C14,
     ]);

@@ -11,6 +11,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import {
+  MAINTAINED_LANGUAGE_ALIASES,
+  resolveLanguage,
+} from "../src/control-surface-contract.js";
+
 const repoRoot = resolve(import.meta.dirname, "../../..");
 const SOURCE_ID = "templates/review-prompts/implement.md.tpl";
 const TARGET_PATH = ".codex-review/templates/implement.md.tpl";
@@ -334,15 +339,6 @@ function promptClassification(manifest: Manifest): PromptClassification {
   return { candidates, canonical, legacy, invalid, ambiguous };
 }
 
-function canonicalizeLanguage(value: string | undefined): string | null {
-  const normalized = value?.trim().replaceAll("_", "-");
-  if (!normalized) return null;
-  if (/^zh(?:-cn|-hans)?$/i.test(normalized)) return "zh-CN";
-  if (/^en$/i.test(normalized)) return "en";
-  if (!/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/i.test(normalized)) return null;
-  return normalized.toLowerCase();
-}
-
 function isTranslatable(entry: Entry): boolean {
   return !new Set([
     "templates/docs-scaffold/records/current.md",
@@ -417,12 +413,18 @@ function reconcile(target: string, options: ReconcileOptions): string {
     return `${abortPrefix}error (noncanonical prompt template_id)`;
   }
 
-  const language = canonicalizeLanguage(
+  const languageResolution = resolveLanguage(
     options.mode === "lang"
       ? (options.requestedLanguage ?? "zh-CN")
       : options.configLanguage,
   );
-  const maintained = options.maintained ?? language !== "en";
+  const language =
+    languageResolution.status === "valid"
+      ? languageResolution.canonical
+      : null;
+  const maintained =
+    options.maintained ??
+    (languageResolution.status === "valid" && languageResolution.maintained);
 
   if (options.mode === "lang") {
     if (!language) return `${abortPrefix}error (unknown repository language)`;
@@ -624,8 +626,17 @@ describe("sop-init and review-prompt command contracts", () => {
       "L-RP10": ["command-wide pre-write abort", "all unchanged"],
       "L-RP11": ["changes only the ID", "non-ID baseline field unchanged"],
       "L-RP12": ["command-wide pre-write abort", "all bytes unchanged"],
+      "L-DE3": ["byte-identical", "canonical-language-up-to-date"],
+    };
+    const germanUpdateRows: Record<string, string[]> = {
+      "L-DE1": ["canonical `de-DE`", "translation_source=maintained"],
+      "L-DE2": ["preserve trimmed valid locale", "never a maintained-prefix match"],
+      "L-DE4": ["that seed zero-write", "unrelated update entries continue"],
     };
     for (const [id, tokens] of Object.entries(updateRows)) {
+      expectMatrixRow(update, id, tokens);
+    }
+    for (const [id, tokens] of Object.entries(germanUpdateRows)) {
       expectMatrixRow(update, id, tokens);
     }
     expect(update).toMatch(
@@ -636,6 +647,9 @@ describe("sop-init and review-prompt command contracts", () => {
     }
     expect(lang).toMatch(
       /recognized-legacy `template_id`\s+normalization published with a successful command-wide transaction/,
+    );
+    expect(lang).toMatch(
+      /Shared German alias\/update outcomes `L-DE1`, `L-DE2`, and `L-DE4` are normative in\s+`\/sop-update`'s lifecycle matrix[^\n]*(?:\n[^\n]*){0,2}command-wide abort behavior defined by L-RP5/,
     );
 
     const init = command("commands/sop-init.md");
@@ -795,6 +809,113 @@ describe("sop-init and review-prompt command contracts", () => {
     expect(
       reconcile(neutral, { mode: "update", configLanguage: "zh-CN" }),
     ).toBe("new-seed-added");
+  });
+
+  it("L-DE1 resolves EN and exact zh/de aliases from the machine authority", () => {
+    expect(MAINTAINED_LANGUAGE_ALIASES).toEqual({
+      "zh-CN": ["zh", "zh-CN", "zh_CN", "zh-Hans", "zh_Hans"],
+      "de-DE": ["de", "de-DE", "de_DE"],
+    });
+    for (const alias of [
+      "zh",
+      "ZH-cn",
+      "zh_CN",
+      "ZH-HANS",
+      "zh_Hans",
+    ]) {
+      expect(resolveLanguage(alias)).toEqual({
+        status: "valid",
+        canonical: "zh-CN",
+        maintained: true,
+      });
+    }
+    for (const alias of ["de", "DE-de", "de_DE"]) {
+      expect(resolveLanguage(alias)).toEqual({
+        status: "valid",
+        canonical: "de-DE",
+        maintained: true,
+      });
+    }
+    expect(resolveLanguage(" EN ")).toEqual({
+      status: "valid",
+      canonical: "en",
+      maintained: false,
+    });
+
+    const target = fixture();
+    expect(reconcile(target, { mode: "update", configLanguage: "de" })).toBe(
+      "new-seed-added",
+    );
+    expect(readManifest(target).files[0]).toMatchObject({
+      language: "de-DE",
+      translation_source: "maintained",
+      translation_source_sha: sha(renderFor("implement.md.tpl", "de-DE")),
+    });
+  });
+
+  it("L-DE2 preserves valid unmaintained tags and rejects only invalid values", () => {
+    for (const language of [
+      "de-AT",
+      "de-CH",
+      "zh-Hant",
+      "zh-TW",
+      "dee",
+      "de-Latn",
+    ]) {
+      expect(resolveLanguage(language)).toEqual({
+        status: "valid",
+        canonical: language,
+        maintained: false,
+      });
+    }
+    expect(resolveLanguage("de/AT")).toEqual({ status: "invalid" });
+
+    const onTheFly = fixture();
+    expect(
+      reconcile(onTheFly, {
+        mode: "lang",
+        requestedLanguage: "de-AT",
+        providerAvailable: true,
+      }),
+    ).toBe("new-seed-added");
+    expect(readManifest(onTheFly).files[0]).toMatchObject({
+      language: "de-AT",
+      translation_source: "on-the-fly",
+    });
+
+    const noProvider = fixture();
+    const noProviderPreimage = snapshot(noProvider);
+    expect(
+      reconcile(noProvider, {
+        mode: "lang",
+        requestedLanguage: "de-CH",
+        providerAvailable: false,
+      }),
+    ).toBe("command-abort: error (no translation provider)");
+    expect(snapshot(noProvider)).toEqual(noProviderPreimage);
+
+    const invalid = fixture();
+    const invalidPreimage = snapshot(invalid);
+    expect(
+      reconcile(invalid, {
+        mode: "update",
+        configLanguage: "de/AT",
+      }),
+    ).toBe("error (unknown repository language)");
+    expect(snapshot(invalid)).toEqual(invalidPreimage);
+  });
+
+  it("L-DE4 preserves consumer bytes when the maintained German mapping is unavailable", () => {
+    const target = fixture();
+    const preimage = snapshot(target);
+    expect(
+      reconcile(target, {
+        mode: "update",
+        configLanguage: "de-DE",
+        mappingAvailable: false,
+      }),
+    ).toBe("error (unresolvable maintained mapping)");
+    expect(snapshot(target)).toEqual(preimage);
   });
 
   it("U-RP11 migrates a real v0.1.0 field shape, updates pristine prompts, adds the seed, and stays idempotent", () => {

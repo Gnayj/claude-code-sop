@@ -1,0 +1,119 @@
+# <Module> <Feature> Design – <design_id>
+
+design_id: <design_id>
+author: <Treiber>
+date: JJJJ-MM-TT
+state: Entwurfsentwurf (wartet auf Entwurfsüberprüfung)
+related: <Commits / Upstream-Design / vorheriger Abschluss>
+
+## 0. Kollaborationsmodus
+
+Erweitert je nach aktivem Kollaborationsmodus (siehe `docs/records/current.md §1 bullet 4`). Wenn die
+Design stößt auf einen SOP §4.5-Auslöser (siehe §9) → Designüberprüfung durchführen (`codex_design_review`).
+
+## 1. Zuerst lesen
+
+1. relevante Abschnitte von `docs/methodology/project-delivery-sop.md`
+2. `docs/methodology/claude-code-sop-collaboration.md` §2 + §4 + §4.5
+3. `docs/methodology/workflow-overview.md` (Flow + Fehlermodi + Rollback)
+4. `docs/records/current.md` §1 + aktive Pausenpunkte
+5. <Themendesigndokument dieses Moduls>
+6. <zugehörige vorherige Aufgabenkarten/Abschlussdokumente>
+
+## 2. Hintergrund
+
+### 2.1 Auslöser
+<Welches Ereignis/welche Anforderung/welcher Defekt/welcher Sondenbefund/welche vorgelagerte Entscheidung hat diesen Entwurf ausgelöst>
+
+### 2.2 Aktuelle Grundlinie
+<der tatsächliche Zustand vor der Änderung: Schnittstellen / Datenvertrag / Fluss / Leistungsbasislinie / bekannte Einschränkungen>
+
+### 2.3 Invariante harte Einschränkungen
+<Grenzen, die dieses Design nicht verletzen darf: Qualität nicht verringern / Vertrag X nicht ändern / Überprüfung nicht umgehen / ...>
+
+## 3. Ziele
+Beim Zusammenführen:
+- (A) <quantifizierte Metrik 1>
+- (B) <quantifizierte Metrik 2>
+- Kein neues <Klassen>-Risiko einführen
+
+## 4. Geltungsbereich (Unterpunkte)
+
+### 4.1 Unterpunkt <Name>
+**Verhaltensänderung**: <eine Zeile>
+**Schlüsselentscheidung** (F* – siehe §11): <gesperrtes Element>
+**Dateien** (siehe §5): <Dateien>
+
+(weitere Unterpunkte als 4.2 / 4.3 / ...)
+
+## 5. Neue/geänderte Dateiliste
+
+| Datei | Geben Sie | ein Ändern | Unterpunkt |
+|---|---|---|---|
+| <Pfad> | bearbeiten / neu / löschen | <eine Zeile> | <4.X> |
+
+Commit-Reihenfolge implementieren: <commit 1> → <commit 2> → ...
+
+**Entscheidung zur Implementierung der Karte** (`claude-code-sop-collaboration.md §4.1`):
+- §4 Geltungsbereich ist einrundig (N=1) → **keine Gerätekarte**; Falten Sie die Restpostenzusammenfassung hier in §14.
+- §4 Umfangsaufteilung in Phasen / Staffel / Halbrundenpause (N≥2) → **eine Gerätekarte pro Phase** (ab `_template-implement.txt`).
+
+## 6. Nicht-Ziele/Grenze
+- ❌ nicht <...>
+- ❌ nicht <...>
+
+## 7. Risiko + Rollback
+
+| Risiko | Auswirkungen | Schadensbegrenzung |
+|---|---|---|
+| <Risiko> | <Bereich> | <Mitigation> |
+
+**Rollback**: <path; siehe Workflow-Overview.md Rollback-Playbook>
+
+## 8. Akzeptanz
+
+### 8.1 <Unterpunkt 1>
+- ✅ <beobachtbarer Zustand>
+
+### 8,3 Insgesamt
+- ✅ Designüberprüfung → Go / Go-after-fixes (Design-Enumeration: {Go, Go-after-fixes, Rereview-after-fixes, No-Go})
+- ✅ Codeüberprüfung → Pass / Pass-after-fixes (≤ 1 Fixrunde)
+- ✅ Benutzer führt Verifizierung aus + antwortet „Test bestanden“
+
+## 9. Auslöserentscheidung für die Vorprüfung des Designs
+- **Trigger N (<Name>)**: <Warum getroffen>
+- Netz: **muss/sollte/muss nicht** eine Designüberprüfung durchführen.
+
+## 10. Grenzen der Zusammenarbeit
+- Keine Implementierung vor bestandener Designprüfung (Go / Go-after-fixes)
+- Führen Sie nach der Implementierung und dem Selbsttest eine Codeüberprüfung durch. Melden Sie „Bereit zum Testen“ bei Pass / Pass-after-fixes
+- Nachdem der „Test bestanden“ des Benutzers abgeschlossen wurde, wird der Treiber geschlossen (Einzelsubjekt-Dokumenten-Commit + Kartenarchiv + `code-home:` Linie)
+- keine Zusammenführung mit der Hauptseite vor der Schließung; Feature → Haupt-FF-nur über die §4.6 4 Bestätigungspunkte
+
+## 11. Gesperrte Entscheidungen
+### F1: <Frage>
+**A gesperrt**: <Antwort>
+(Q2-QN gleiches Format; Entscheidungs-Trace-Kette beibehalten)
+
+## 12. Explizite Fragen zur Designprüfung
+- **<Punkt 1>**: <Frage> (zitieren Sie §X.Y oder eine Sperrentscheidungs-ID)
+
+## 13. Verwandte
+- Upstream-Design/Karten: <Pfad/Commit>
+- Problem/Rückstand: <Link>
+
+## 14. Implementierungsdatensatz (Auffüllung bei Abschluss)
+- N=1: Fügen Sie hier die Restpostenzusammenfassung hinzu (keine separate Gerätekarte).
+- N≥2: Zusammenfassung auf hoher Ebene, die den Gerätekartenabschluss jeder Phase verknüpft.
+Vorlage:
+- Design-Selbstabschluss: `docs(methodology): close out <design-id> design` (verpflichten `<sha>`)
+- Überprüfungskette: Runde 1 <Urteil / C+I-Zählung> → Runde 2 (falls vorhanden) <Urteil>
+- /simplify Entscheidung: <TRIGGER/EXEMPT-Grund>
+- Selbsttest/Ergebnis überprüfen: <ERGEBNIS: PASS/Schlüsselprotokollauszug>
+- Benutzerüberprüfung: <"Test bestanden" / Schlüsselantwort>
+- Wichtigste Ergebnisse: <list>
+- bekannte Reste / Rückstand: <list>
+
+## 15. Code-Home
+(Nachfüllung bei Abschluss; gesetzliche Werte gemäß SOP §3.4: `merged-to-main@<sha>` / `branch=<name>@<sha>(unmerged)` / `deployed@<sha>` / `doc-only` / `superseded-by@<sha>` / `reverted@<sha>`)
+code-home: <Wert>

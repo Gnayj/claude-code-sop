@@ -102,9 +102,16 @@ correct the entry to the exact canonical ID, or remove the bogus manifest entry 
 namespace ambiguity.
 
 Resolve repository language only from the parsed
-`.codex-review/config.toml [meta].language`, then canonicalize aliases. Missing/invalid config or
-language produces `error (unknown repository language)` and zero writes for the new seed; never
-guess from a manifest that legitimately contains language-neutral entries. If translatable
+`.codex-review/config.toml [meta].language`. The exported `MAINTAINED_LANGUAGE_ALIASES` table and
+`resolveLanguage` function in
+`${CLAUDE_PLUGIN_ROOT}/mcp/codex-review/src/control-surface-contract.ts` are the machine authority:
+trim surrounding whitespace; use case-insensitive lookup with `_` converted to `-` for lookup
+only; map `zh` / `zh-CN` / `zh_CN` / `zh-Hans` / `zh_Hans` to `zh-CN` and
+`de` / `de-DE` / `de_DE` to `de-DE`; preserve the trimmed spelling of valid unmaintained locales.
+Do not treat prefixes such as `de-AT`, `de-CH`, `zh-Hant`, `zh-TW`, `dee`, or `de-Latn` as
+maintained aliases. Missing/invalid config or missing, empty, or grammar-invalid language produces
+`error (unknown repository language)` and zero writes for the new seed; never guess from a
+manifest that legitimately contains language-neutral entries. If translatable
 entries disagree with a valid config language, use the config language only for the new seed's
 render; existing prompt entries keep their own recorded `language` through Step 2 / U-RP4. Report
 `mixed-language-manifest` and recommend `/sop-lang` after this update.
@@ -155,6 +162,9 @@ may be created. All other seed ownership rules remain unchanged.
 | U-RP12 | recognized legacy + U-RP5/U-RP6/U-RP9 prerequisite failure | Transaction A commits; new seed target/entry zero-write; preserve the original per-seed error |
 | U-RP13 | recognized legacy + modified/deleted target | ID-only migration; target and every non-ID baseline field unchanged |
 | U-RP14 | duplicate path/source or canonical/legacy collision | whole stable-prompt reconciliation zero-write; unrelated entries continue; `error (noncanonical prompt template_id)` with ambiguity reason |
+| L-DE1 | config language `de` / `de-DE` / `de_DE` (including case variants) | resolve to canonical `de-DE`; maintained manifest path; `translation_source=maintained` |
+| L-DE2 | config language `de-AT` / `de-CH` / `zh-Hant` / `zh-TW` / `dee` / `de-Latn` | preserve trimmed valid locale; use the unmaintained provider path, never a maintained-prefix match; invalid grammar alone reports unknown language |
+| L-DE4 | maintained German mapping missing/ambiguous or artifact absent for the new seed | that seed zero-write; `error (unresolvable maintained mapping)`; unrelated update entries continue |
 
 ## Step 2 — Per managed entry, detect local edits
 

@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -17,6 +17,7 @@ const root = resolve(import.meta.dirname, "../../..");
 const checkerPath = resolve(root, "scripts/check-i18n-manifest.mjs");
 const checkerAvailable = existsSync(checkerPath);
 const temporaryRoots: string[] = [];
+const proseExtensions = new Set([".md", ".txt", ".tpl"]);
 
 type CheckerModule = {
   checkI18nManifests(repoRoot: string): {
@@ -43,27 +44,86 @@ type Manifest = {
   files: ManifestEntry[];
 };
 
+function maintainedLanguages(repoRoot = root): string[] {
+  return readdirSync(resolve(repoRoot, "templates/i18n"), {
+    withFileTypes: true,
+  })
+    .filter(
+      (entry) =>
+        entry.isDirectory() &&
+        !entry.isSymbolicLink() &&
+        existsSync(
+          resolve(
+            repoRoot,
+            "templates/i18n",
+            entry.name,
+            "i18n-manifest.json",
+          ),
+        ),
+    )
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function regularProseBelow(repoRoot: string, relativeRoot: string): string[] {
+  const directory = resolve(repoRoot, relativeRoot);
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const child = resolve(directory, entry.name);
+    if (entry.isSymbolicLink()) return [];
+    if (entry.isDirectory()) {
+      return regularProseBelow(
+        repoRoot,
+        relative(repoRoot, child).split(sep).join("/"),
+      );
+    }
+    if (
+      !entry.isFile() ||
+      !proseExtensions.has(extname(entry.name))
+    ) {
+      return [];
+    }
+    return [relative(repoRoot, child).split(sep).join("/")];
+  });
+}
+
 function fixture(): string {
   const target = mkdtempSync(join(tmpdir(), "ccsop-i18n-manifest-"));
   temporaryRoots.push(target);
   cpSync(resolve(root, "README.md"), resolve(target, "README.md"));
-  cpSync(resolve(root, "README.zh-CN.md"), resolve(target, "README.zh-CN.md"));
+  for (const language of maintainedLanguages()) {
+    cpSync(
+      resolve(root, `README.${language}.md`),
+      resolve(target, `README.${language}.md`),
+    );
+  }
   cpSync(resolve(root, "templates"), resolve(target, "templates"), {
     recursive: true,
   });
   return target;
 }
 
-function manifestPath(fixtureRoot: string): string {
-  return resolve(fixtureRoot, "templates/i18n/zh-CN/i18n-manifest.json");
+function manifestPath(fixtureRoot: string, language: string): string {
+  return resolve(
+    fixtureRoot,
+    `templates/i18n/${language}/i18n-manifest.json`,
+  );
 }
 
-function readManifest(fixtureRoot: string): Manifest {
-  return JSON.parse(readFileSync(manifestPath(fixtureRoot), "utf8")) as Manifest;
+function readManifest(fixtureRoot: string, language: string): Manifest {
+  return JSON.parse(
+    readFileSync(manifestPath(fixtureRoot, language), "utf8"),
+  ) as Manifest;
 }
 
-function writeManifest(fixtureRoot: string, manifest: Manifest): void {
-  writeFileSync(manifestPath(fixtureRoot), `${JSON.stringify(manifest, null, 2)}\n`);
+function writeManifest(
+  fixtureRoot: string,
+  language: string,
+  manifest: Manifest,
+): void {
+  writeFileSync(
+    manifestPath(fixtureRoot, language),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
 }
 
 function checker(): CheckerModule {
@@ -78,7 +138,7 @@ function errorsFor(fixtureRoot: string): string {
 }
 
 function extractPlaceholders(text: string): string[] {
-  return [...new Set(text.match(/\{\{[^{}]+\}\}/g) ?? [])].sort();
+  return [...new Set(text.match(/\{\{[^{}\n]+\}\}/g) ?? [])].sort();
 }
 
 function parseJsonObjects(text: string): Record<string, unknown>[] {
@@ -129,6 +189,39 @@ function valueShape(value: unknown): string {
   return typeof value;
 }
 
+function jsonContracts(text: string): Array<Record<string, string>> {
+  return parseJsonObjects(text)
+    .map((object) =>
+      Object.fromEntries(
+        Object.entries(object)
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(([key, value]) => [key, valueShape(value)]),
+      ),
+    )
+    .sort((left, right) =>
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
+    );
+}
+
+function protectedTokens(text: string): string[] {
+  const tokens = new Set<string>();
+  const patterns = [
+    /\{\{[^{}\n]+\}\}/g,
+    /\$\{[^{}\n]+\}/g,
+    /§\d+(?:\.[A-Za-z0-9]+)*/g,
+    /\b9\.[A-E](?:\.\d+)?\b/g,
+    /`\/(?:ccsop:)?[a-z][a-z0-9-]*`/g,
+    /`\$[a-z][a-z0-9-]*`/g,
+    /`[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+:?`/g,
+    /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g,
+    /\b(?:Go-after-fixes|Go|Rereview-after-fixes|No-Go|Pass-after-fixes|Pass|All-fixed|Partial|New-issues)\b/g,
+  ];
+  for (const pattern of patterns) {
+    for (const token of text.match(pattern) ?? []) tokens.add(token);
+  }
+  return [...tokens].sort();
+}
+
 afterEach(() => {
   for (const target of temporaryRoots.splice(0)) {
     rmSync(target, { recursive: true, force: true });
@@ -136,134 +229,272 @@ afterEach(() => {
 });
 
 describe.skipIf(!checkerAvailable)("maintained i18n manifest closure", () => {
-  it("discovers the consumer prose set without language-neutral or internal-only files", () => {
+  it("discovers the exact current consumer prose set", () => {
     const required = checker().discoverRequiredSources(root);
+    const expected = [
+      "README.md",
+      ...regularProseBelow(root, "templates/docs-scaffold").filter(
+        (source) => source !== "templates/docs-scaffold/records/current.md",
+      ),
+      ...regularProseBelow(root, "templates/review-prompts"),
+      ...regularProseBelow(root, "templates/codex-scaffold"),
+    ].sort();
+    expect(required).toEqual(expected);
+    expect(required).toHaveLength(25);
+    expect(
+      required.filter((source) => source === "README.md"),
+    ).toHaveLength(1);
+    expect(
+      required.filter((source) =>
+        source.startsWith("templates/docs-scaffold/"),
+      ),
+    ).toHaveLength(11);
+    expect(
+      required.filter((source) =>
+        source.startsWith("templates/review-prompts/"),
+      ),
+    ).toHaveLength(4);
+    expect(
+      required.filter((source) =>
+        source.startsWith("templates/codex-scaffold/"),
+      ),
+    ).toHaveLength(9);
     expect(required).toContain("templates/review-prompts/implement.md.tpl");
-    expect(required).toContain("templates/codex-scaffold/skills/simplify/SKILL.md");
-    expect(required).not.toContain("templates/docs-scaffold/records/current.md");
+    expect(required).toContain(
+      "templates/codex-scaffold/skills/simplify/SKILL.md",
+    );
+    expect(required).not.toContain(
+      "templates/docs-scaffold/records/current.md",
+    );
     expect(required).not.toContain(
       "templates/codex-scaffold/skills/simplify/references/contract.json",
     );
     expect(required).not.toContain(
       "templates/control-surface/codex-skill-host-contract.md",
     );
-    const expectedReviewPrompts = readdirSync(
-      resolve(root, "templates/review-prompts"),
-      { withFileTypes: true },
-    )
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".tpl"))
-      .map((entry) => `templates/review-prompts/${entry.name}`)
-      .sort();
-    expect(
-      required.filter((source) =>
-        source.startsWith("templates/review-prompts/"),
-      ),
-    ).toEqual(expectedReviewPrompts);
   });
 
-  it("accepts complete mappings and does not require every permitted derived mapping", () => {
+  it("accepts complete mappings for every maintained language", () => {
     expect(checker().checkI18nManifests(root)).toMatchObject({
       ok: true,
       errors: [],
     });
+    for (const language of maintainedLanguages()) {
+      const manifest = readManifest(root, language);
+      expect(manifest.files).toHaveLength(28);
+      expect(
+        manifest.files.filter((entry) =>
+          entry.source_path.startsWith("templates/control-surface/"),
+        ),
+      ).toHaveLength(3);
+    }
+  });
 
-    const target = fixture();
-    const manifest = readManifest(target);
+  it.each(maintainedLanguages())(
+    "does not require every permitted derived %s mapping",
+    (language) => {
+      const target = fixture();
+      const manifest = readManifest(target, language);
+      manifest.files = manifest.files.filter(
+        (entry) =>
+          entry.source_path !==
+          "templates/control-surface/codex-skill-host-contract.md",
+      );
+      writeManifest(target, language, manifest);
+      expect(checker().checkI18nManifests(target)).toMatchObject({
+        ok: true,
+        errors: [],
+      });
+    },
+  );
+
+  it.each(maintainedLanguages())(
+    "rejects a missing required %s source mapping",
+    (language) => {
+      const target = fixture();
+      const manifest = readManifest(target, language);
+      manifest.files = manifest.files.filter(
+        (entry) =>
+          entry.source_path !==
+          "templates/review-prompts/implement.md.tpl",
+      );
+      writeManifest(target, language, manifest);
+      expect(errorsFor(target)).toContain(
+        `${language}: missing required source mapping templates/review-prompts/implement.md.tpl`,
+      );
+    },
+  );
+
+  it.each(maintainedLanguages())(
+    "rejects duplicate and unexpected %s mappings",
+    (language) => {
+      const target = fixture();
+      const manifest = readManifest(target, language);
+      manifest.files.push({ ...manifest.files[0]! });
+      manifest.files.push({
+        source_path: "templates/config.toml.tpl",
+        source_sha: "0".repeat(64),
+        target_rel: `templates/i18n/${language}/unexpected-config.toml.tpl`,
+      });
+      mkdirSync(dirname(resolve(target, manifest.files.at(-1)!.target_rel)), {
+        recursive: true,
+      });
+      writeFileSync(
+        resolve(target, manifest.files.at(-1)!.target_rel),
+        "unexpected\n",
+      );
+      writeManifest(target, language, manifest);
+
+      const errors = errorsFor(target);
+      expect(errors).toContain(
+        `${language}: duplicate source_path ${manifest.files[0]!.source_path}`,
+      );
+      expect(errors).toContain(
+        `${language}: duplicate target_rel ${manifest.files[0]!.target_rel}`,
+      );
+      expect(errors).toContain(
+        `${language}: unexpected source mapping templates/config.toml.tpl`,
+      );
+    },
+  );
+
+  it.each(maintainedLanguages())(
+    "reports %s drift, missing target, and unexpected target together",
+    (language) => {
+      const target = fixture();
+      const manifest = readManifest(target, language);
+      const implement = manifest.files.find(
+        (entry) =>
+          entry.source_path ===
+          "templates/review-prompts/implement.md.tpl",
+      )!;
+      const design = manifest.files.find(
+        (entry) =>
+          entry.source_path ===
+          "templates/review-prompts/design-review.md.tpl",
+      )!;
+      implement.source_sha = "f".repeat(64);
+      rmSync(resolve(target, implement.target_rel));
+      design.target_rel = design.source_path;
+      writeManifest(target, language, manifest);
+
+      const errors = errorsFor(target);
+      expect(errors).toContain(`${language}: DRIFTED ${implement.target_rel}`);
+      expect(errors).toContain(
+        `${language}: missing or non-regular translated target ${implement.target_rel}`,
+      );
+      expect(errors).toContain(
+        `${language}: unexpected target location ${design.target_rel}`,
+      );
+    },
+  );
+
+  it("I-DE1 keeps checker errors distinct from consumer update errors", () => {
+    const missingMapping = fixture();
+    const manifest = readManifest(missingMapping, "de-DE");
     manifest.files = manifest.files.filter(
-      (entry) =>
-        entry.source_path !==
-        "templates/control-surface/codex-skill-host-contract.md",
+      (entry) => entry.source_path !== "README.md",
     );
-    writeManifest(target, manifest);
-    expect(checker().checkI18nManifests(target)).toMatchObject({
-      ok: true,
-      errors: [],
-    });
-  });
-
-  it("rejects a missing required source mapping", () => {
-    const target = fixture();
-    const manifest = readManifest(target);
-    manifest.files = manifest.files.filter(
-      (entry) => entry.source_path !== "templates/review-prompts/implement.md.tpl",
+    writeManifest(missingMapping, "de-DE", manifest);
+    const manifestPreimage = readFileSync(
+      manifestPath(missingMapping, "de-DE"),
+      "utf8",
     );
-    writeManifest(target, manifest);
-    expect(errorsFor(target)).toContain(
-      "missing required source mapping templates/review-prompts/implement.md.tpl",
+    expect(errorsFor(missingMapping)).toContain(
+      "de-DE: missing required source mapping README.md",
     );
-  });
+    expect(
+      readFileSync(manifestPath(missingMapping, "de-DE"), "utf8"),
+    ).toBe(manifestPreimage);
 
-  it("rejects duplicate and unexpected mappings", () => {
-    const target = fixture();
-    const manifest = readManifest(target);
-    manifest.files.push({ ...manifest.files[0]! });
-    manifest.files.push({
-      source_path: "templates/config.toml.tpl",
-      source_sha: "0".repeat(64),
-      target_rel: "templates/i18n/zh-CN/unexpected-config.toml.tpl",
-    });
-    mkdirSync(dirname(resolve(target, manifest.files.at(-1)!.target_rel)), {
-      recursive: true,
-    });
-    writeFileSync(resolve(target, manifest.files.at(-1)!.target_rel), "unexpected\n");
-    writeManifest(target, manifest);
-
-    const errors = errorsFor(target);
-    expect(errors).toContain(`duplicate source_path ${manifest.files[0]!.source_path}`);
-    expect(errors).toContain(`duplicate target_rel ${manifest.files[0]!.target_rel}`);
-    expect(errors).toContain("unexpected source mapping templates/config.toml.tpl");
-  });
-
-  it("reports source drift, missing target, and unexpected target location together", () => {
-    const target = fixture();
-    const manifest = readManifest(target);
-    const implement = manifest.files.find(
-      (entry) => entry.source_path === "templates/review-prompts/implement.md.tpl",
-    )!;
-    const design = manifest.files.find(
-      (entry) => entry.source_path === "templates/review-prompts/design-review.md.tpl",
-    )!;
-    implement.source_sha = "f".repeat(64);
-    rmSync(resolve(target, implement.target_rel));
-    design.target_rel = design.source_path;
-    writeManifest(target, manifest);
-
-    const errors = errorsFor(target);
-    expect(errors).toContain(`DRIFTED ${implement.target_rel}`);
-    expect(errors).toContain(`missing or non-regular translated target ${implement.target_rel}`);
-    expect(errors).toContain(`unexpected target location ${design.target_rel}`);
+    const missingTarget = fixture();
+    rmSync(resolve(missingTarget, "README.de-DE.md"));
+    expect(errorsFor(missingTarget)).toContain(
+      "de-DE: missing or non-regular translated target README.de-DE.md",
+    );
   });
 });
 
-describe("maintained implement prompt machine parity", () => {
-  it("derives implement-prompt placeholders and final JSON shape from EN and zh", () => {
-    const en = readFileSync(
-      resolve(root, "templates/review-prompts/implement.md.tpl"),
-      "utf8",
-    );
-    const zh = readFileSync(
-      resolve(root, "templates/i18n/zh-CN/review-prompts/implement.md.tpl"),
-      "utf8",
-    );
-    expect(extractPlaceholders(zh)).toEqual(extractPlaceholders(en));
+describe("maintained-language machine parity", () => {
+  // The three review-stage templates contain placeholders but no literal JSON
+  // object; implement.md.tpl deliberately carries the sole concrete object.
+  const promptObjectFloors: Record<string, Array<Record<string, string>>> = {
+    "code-review.md.tpl": [],
+    "design-review.md.tpl": [],
+    "fix-review.md.tpl": [],
+    "implement.md.tpl": [
+      {
+        files: "array",
+        notes: "string",
+        risks: "array",
+        summary: "string",
+        tests_run: "array",
+      },
+    ],
+  };
 
-    const enObjects = parseJsonObjects(en);
-    const zhObjects = parseJsonObjects(zh);
-    expect(enObjects.length).toBeGreaterThan(0);
-    expect(zhObjects.length).toBeGreaterThan(0);
-    const enSchema = enObjects.at(-1)!;
-    const zhSchema = zhObjects.at(-1)!;
-    expect(Object.keys(enSchema).length).toBeGreaterThan(0);
-    expect(Object.keys(zhSchema).length).toBeGreaterThan(0);
-    expect(Object.keys(zhSchema).sort()).toEqual(Object.keys(enSchema).sort());
-    expect(
-      Object.fromEntries(
-        Object.entries(zhSchema).map(([key, value]) => [key, valueShape(value)]),
-      ),
-    ).toEqual(
-      Object.fromEntries(
-        Object.entries(enSchema).map(([key, value]) => [key, valueShape(value)]),
-      ),
-    );
+  it("enumerates the exact maintained-language set", () => {
+    expect(maintainedLanguages()).toEqual(["de-DE", "zh-CN"]);
+  });
+
+  it("checks every review prompt without a vacuous last-object heuristic", () => {
+    const promptBasenames = readdirSync(
+      resolve(root, "templates/review-prompts"),
+      { withFileTypes: true },
+    )
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".tpl"))
+      .map((entry) => entry.name)
+      .sort();
+    expect(Object.keys(promptObjectFloors).sort()).toEqual(promptBasenames);
+    for (const basename of promptBasenames) {
+      const en = readFileSync(
+        resolve(root, "templates/review-prompts", basename),
+        "utf8",
+      );
+      const enContracts = jsonContracts(en);
+      expect(
+        extractPlaceholders(en).length,
+        `${basename} placeholder floor`,
+      ).toBeGreaterThan(0);
+      expect(enContracts, `${basename} EN JSON floor`).toEqual(
+        promptObjectFloors[basename],
+      );
+      for (const language of maintainedLanguages()) {
+        const translated = readFileSync(
+          resolve(
+            root,
+            `templates/i18n/${language}/review-prompts/${basename}`,
+          ),
+          "utf8",
+        );
+        expect(
+          extractPlaceholders(translated),
+          `${language}/${basename} placeholders`,
+        ).toEqual(extractPlaceholders(en));
+        expect(
+          jsonContracts(translated),
+          `${language}/${basename} JSON contracts`,
+        ).toEqual(enContracts);
+      }
+    }
+  });
+
+  it("preserves protected token spellings across every manifest mapping", () => {
+    for (const language of maintainedLanguages()) {
+      const manifest = readManifest(root, language);
+      expect(manifest.files).toHaveLength(28);
+      for (const entry of manifest.files) {
+        const source = readFileSync(resolve(root, entry.source_path), "utf8");
+        const translated = readFileSync(resolve(root, entry.target_rel), "utf8");
+        expect(
+          translated,
+          `${language}: ${entry.target_rel} must differ from EN`,
+        ).not.toBe(source);
+        expect(
+          protectedTokens(translated),
+          `${language}: ${entry.target_rel}`,
+        ).toEqual(protectedTokens(source));
+      }
+    }
   });
 });
