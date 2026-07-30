@@ -8,6 +8,13 @@ Translate-once, in place. Plugin root = `${CLAUDE_PLUGIN_ROOT}`; target = `${CLA
 `$ARGUMENTS` = target language (e.g. `zh`), or `--check <lang>` (drift report). The canonical source is always
 the EN plugin template (via each manifest entry's `template_id`), not the currently-materialized file.
 
+**Host task-tool guard (whole command):** the steps below are the complete execution plan. Do not
+call any host task/todo-tracking tool, including but not limited to `TaskCreate`, `TaskUpdate`,
+`TaskList`, `TaskGet`, and `TodoWrite`, and do not discover such a tool just to mirror this plan.
+These tools are not required for language materialization and may be absent from the live
+discovered-tool set. This command has no interactive decision point: do not call a user-question
+tool. If the target-language argument is missing or invalid, report the usage/error and stop.
+
 **Step 0 — orphaned-root guard**: if `${CLAUDE_PLUGIN_ROOT}/.orphaned_at` exists, abort (stale
 cache snapshot; restart the session / reload plugins first). Never auto-resolve to a sibling dir.
 Before resolving any Codex skill path/set, read
@@ -37,11 +44,65 @@ the copied artifacts, and recorded `language` / `translation_source`.
 - **Unmaintained language** — no such manifest: run the on-the-fly placeholder **Pipeline** below
   (`translation_source=on-the-fly`).
 
+### Stable review-prompt seed reconciliation
+
+Before any target write, enumerate the complete flow-independent set
+`templates/review-prompts/*.tpl` and map it to
+`.codex-review/templates/<same basename>`. All of them participate in a maintained language's
+command-wide preflight; collaboration flow, owner, or implement enablement may not prune one.
+
+Match existing entries on the exact full-path `template_id`
+`templates/review-prompts/<basename>`. Identify prompt siblings independently from a possibly
+broken ID: any manifest entry whose normalized `path` is a direct child
+`.codex-review/templates/<basename>` ending in `.tpl` is a review-prompt entry and must have
+`template_id="templates/review-prompts/<basename>"`. If any such sibling is noncanonical, abort
+the whole language command before any write with
+`error (noncanonical prompt template_id)`. Handle each stable path once here and exclude it from
+the later generic manifest loop:
+
+- target absent + entry absent: plugin-added seed; stage the requested-language render and full
+  manifest entry, then atomically publish target + entry. Any failure removes the target and
+  restores the manifest preimage.
+- target present + entry absent: preserve bytes, add no entry, warn
+  `preserved (untracked consumer seed)`.
+- target absent + entry present: preserve the consumer deletion and entry bytes, warn
+  `preserved (consumer deletion)`.
+- target present + entry present: use the normal pristine/modified seed rule.
+
+The new entry has the same complete field set as `/sop-update` Step 1.A, except `language` is the
+canonical **requested language**, not the config's old language. Derive `translation_source` from
+this run; a maintained copy must include `translation_source_sha`, while EN/on-the-fly omit it.
+For a maintained language, any missing/ambiguous mapping or missing artifact aborts the whole
+command before all writes. For an unmaintained language with no usable translation provider, the
+existing provider precondition likewise aborts the whole command before all writes.
+
+This is the sole narrow exception to the normal preserve-only rule for seeds with no pristine
+baseline: only a stable review prompt with both target and entry absent may be atomically created.
+Mark all stable paths handled before the generic pipeline; present/absent and absent/present remain
+preserve-only.
+
+**Normative review-prompt language matrix** (bound by
+`mcp/codex-review/tests/review-prompt-seed-lifecycle.test.ts`):
+
+| ID | input | exact outcome |
+|---|---|---|
+| L-RP1 | all mappings resolve; one target + entry absent | command-wide preflight passes; atomic new seed in requested language |
+| L-RP2 | target present + entry absent | target hash unchanged; no entry; preserve + warn |
+| L-RP3 | target absent + entry present | target remains absent; entry hash unchanged; preserve deletion + warn |
+| L-RP4 | target + entry present | existing pristine/modified seed rule; handled once |
+| L-RP5 | any maintained mapping missing/ambiguous | command-wide pre-write abort; all targets + manifest byte-identical |
+| L-RP6 | unmaintained language + no provider | command-wide pre-write abort; all bytes unchanged |
+| L-RP7 | second run after L-RP1 | target + manifest byte-identical; `up-to-date` |
+| L-RP8 | any sibling prompt entry has noncanonical `template_id` | command-wide pre-write abort; all bytes unchanged |
+
 **`--check <lang>` mode** (drift report; **no writes**): for each entry in
 `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json`, recompute the EN `source_path`'s
 **LF-normalized** `sha256` and compare to the recorded `source_sha`:
 - match → `in-sync`; mismatch → `DRIFTED: <target_rel> (EN <source_path> changed; re-translate + re-vet)`.
-- Exit non-zero if any file drifted (so `scripts/sync-public.sh` gates the release on it). Covers `README.<lang>.md` too.
+- Exit non-zero if any recorded file drifted. This remains a maintainer-facing local report and
+  covers `README.<lang>.md`, but is no longer the public release gate. The current release truth is
+  the drift+closure checker `scripts/check-i18n-manifest.mjs`, which `scripts/sync-public.sh`
+  invokes against its stripped export target.
 
 ### Source handling by template origin (dispatch on `template_id`)
 - **docs-scaffold files** (`templates/docs-scaffold/...` → `docs/...`, owner=ccsop) **except the `index.md`
@@ -127,5 +188,10 @@ Run this 5-step placeholder-protection pipeline; **abort the whole file atomical
   (**effective** LF-normalized sha ≠ `rendered_sha` — stripped content for block-eligible Markdown,
   raw otherwise) is preserved+warned, never translated over (even with `--force`);
   `records/current.md` and user-converted overlay files are never translated.
+- **Narrow stable-seed exception**: before the generic pipeline, a current review-prompt seed whose
+  target AND manifest entry are both absent may be atomically created in the requested language
+  with its full entry. Mark all stable paths handled. Target-present / entry-absent and
+  target-absent / entry-present remain preserve-only; all other untracked/modified seeds stay
+  off-limits.
 - Translate from the EN canonical, not the already-materialized language (avoid compounding drift).
 - Step-4 verification failure aborts that file with no write — never ship a half-translated doc.

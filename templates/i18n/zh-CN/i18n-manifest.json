@@ -5,7 +5,7 @@
     {
       "target_rel": "README.zh-CN.md",
       "source_path": "README.md",
-      "source_sha": "8a27893834578dcb63e8b190668f67687cdf5f01f1d824409a5c333d61fe4832"
+      "source_sha": "ceba5f97a94c65d04e825011b42fb54257a9ecfc7f4989b432b560344673c653"
     },
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/project-sop/SKILL.md",
@@ -136,6 +136,11 @@
       "target_rel": "templates/i18n/zh-CN/review-prompts/fix-review.md.tpl",
       "source_path": "templates/review-prompts/fix-review.md.tpl",
       "source_sha": "71aedaf4a51e87b84d74a5350ec79ca221d6c037460e1d7799ade86277a20d70"
+    },
+    {
+      "target_rel": "templates/i18n/zh-CN/review-prompts/implement.md.tpl",
+      "source_path": "templates/review-prompts/implement.md.tpl",
+      "source_sha": "0600a7c571f86f7dc0962582f3b3af202344e40dc577103e0e7cbbd54d0aa609"
     }
   ]
 }

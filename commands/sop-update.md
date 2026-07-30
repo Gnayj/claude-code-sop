@@ -9,6 +9,14 @@ plugin; local breakpoint/overlay files are never touched. Plugin root = `${CLAUD
 target repo = `${CLAUDE_PROJECT_DIR}`. `$ARGUMENTS` may contain `--force`, a path filter, or one
 exclusive migration action: `--rollback-codex-skills` / `--rollback-config-schema-v1`.
 
+**Host task-tool guard (whole command):** the numbered steps below are the complete execution plan.
+Do not call any host task/todo-tracking tool, including but not limited to `TaskCreate`,
+`TaskUpdate`, `TaskList`, `TaskGet`, and `TodoWrite`, and do not discover such a tool just to mirror
+this plan. These tools are not required for updating and may be absent from the live
+discovered-tool set. A live-schema user-question tool is allowed only at a step below that
+explicitly requires the user's choice (for example the per-file conflict choice in Step 2 or the
+C5 migration adjudication in Step 2.C); do not invent any other interactive decision.
+
 ## Step 0 — Orphaned-root guard
 
 If `${CLAUDE_PLUGIN_ROOT}/.orphaned_at` exists, **abort immediately**: the resolved plugin root is
@@ -25,6 +33,76 @@ machine-derived authority; do not reconstruct those facts from this prose.
 ## Step 1 — Read the manifest
 
 Read `.ccsop/manifest.json`. If absent, tell the user to run `/sop-init` first and stop.
+
+## Step 1.A — Reconcile the stable review-prompt seed set
+
+Before the generic manifest-entry loop, enumerate the current plugin's complete, flow-independent
+seed set:
+
+```text
+templates/review-prompts/*.tpl
+  -> .codex-review/templates/<same basename>
+```
+
+Do not prune it by collaboration flow, owner, or implement enablement. For each canonical source,
+match the consumer manifest on the exact full-path `template_id`
+`templates/review-prompts/<basename>`. Identify prompt siblings independently from a possibly
+broken ID: any manifest entry whose normalized `path` is a direct child
+`.codex-review/templates/<basename>` ending in `.tpl` is a review-prompt entry and must have
+`template_id="templates/review-prompts/<basename>"`. Before adding anything, require every such
+entry to use that full-path form; a noncanonical sibling produces
+`error (noncanonical prompt template_id)` for the new seed, makes zero seed/manifest writes, and
+does not block unrelated update entries.
+
+Resolve repository language only from the parsed
+`.codex-review/config.toml [meta].language`, then canonicalize aliases. Missing/invalid config or
+language produces `error (unknown repository language)` and zero writes for the new seed; never
+guess from a manifest that legitimately contains language-neutral entries. If translatable
+entries disagree with a valid config language, use the config language but report
+`mixed-language-manifest` and recommend `/sop-lang` after this update.
+
+Handle each stable target exactly once here, mark it `handled`, and exclude it from the later
+generic loop:
+
+- target absent + entry absent: this is a plugin-added seed. Fully resolve/render it first, then
+  atomically create target + manifest entry. Any publish failure removes the new target and
+  restores the manifest preimage. Status `new-seed-added`.
+- target present + entry absent: no pristine baseline; preserve bytes, add no entry, warn
+  `preserved (untracked consumer seed)`.
+- target absent + entry present: treat deletion as consumer intent; preserve the deletion and
+  entry bytes, warn `preserved (consumer deletion)`.
+- target present + entry present: use the existing pristine/modified seed rules from Step 2.
+
+A successful new entry contains the complete fields:
+`template_id`, current plugin `version`, canonical config `language`, LF-normalized EN
+`source_sha`, written `rendered_sha`, target `path`, `owner="seed"`, and
+`translation_source`. A maintained copy also **must** record the maintained artifact's
+LF-normalized `translation_source_sha`; EN (`none(en)`) and on-the-fly entries omit that field.
+Maintained mapping missing/ambiguous/target-absent is per-entry
+`error (unresolvable maintained mapping)` with zero seed writes; other entries continue.
+For an unmaintained language, reuse `/sop-lang`'s placeholder pipeline. If its translation
+provider is unavailable/none, record `error (no translation provider)`, write nothing for that
+seed, and continue.
+
+This is the sole narrow exception to the normal “untracked seed has no pristine baseline, so
+preserve” boundary: only a current stable review-prompt path with **both target and entry absent**
+may be created. All other seed ownership rules remain unchanged.
+
+**Normative review-prompt lifecycle matrix** (bound by
+`mcp/codex-review/tests/review-prompt-seed-lifecycle.test.ts`):
+
+| ID | input | exact outcome |
+|---|---|---|
+| U-RP1 | target absent + entry absent + valid maintained mapping | atomic full target+entry create; `new-seed-added` |
+| U-RP2 | target present + entry absent | target hash unchanged; no entry; `preserved (untracked consumer seed)` |
+| U-RP3 | target absent + entry present | target remains absent; entry hash unchanged; `preserved (consumer deletion)` |
+| U-RP4 | target + entry present | existing pristine/modified seed rule; handled once |
+| U-RP5 | maintained mapping missing/ambiguous | that seed zero-write; `error (unresolvable maintained mapping)`; others continue |
+| U-RP6 | unmaintained language + no provider | that seed zero-write; `error (no translation provider)`; others continue |
+| U-RP7 | second run after U-RP1 | target + manifest byte-identical; `up-to-date` |
+| U-RP8 | any sibling prompt entry has noncanonical `template_id` | new seed zero-write; `error (noncanonical prompt template_id)`; others continue |
+| U-RP9 | config missing/unparseable or config language empty/invalid | that seed zero-write; `error (unknown repository language)`; other entries continue |
+| U-RP10 | valid config language + mixed translatable manifest languages | render using config language; report `mixed-language-manifest` |
 
 ## Step 2 — Per managed entry, detect local edits
 
@@ -192,9 +270,19 @@ status per case), which binds this command:
 
 ## Step 2.C — Codex canonical skill lifecycle
 
-Run this scoped lifecycle only when the config/flow uses Codex or legacy
-`.codex/skills/project-sop/SKILL.md` exists. A Claude-only consumer with neither condition records
-`skipped (Codex not in use)` and does not require a Codex CLI.
+Run this scoped lifecycle only when the parsed collaboration owner tuple has
+`design_owner="codex"` or `implement_owner="codex"`, legacy
+`.codex/skills/project-sop/SKILL.md` exists, or at least one canonical
+`.agents/skills/*/SKILL.md` file already exists. The canonical-file trigger maintains an explicitly
+requested or previously materialized tree; by itself it must never create missing canonical
+skills. An empty `.agents/skills/` directory is not a trigger. Apply the documented owner-key
+presence semantics:
+both owner keys absent is the default `claude+claude` flow. `[review].provider="codex"` selects a
+review backend; it does **not** make Codex a driver/implement owner and must never trigger skill
+materialization. A `[codex]` section or a resolvable Codex binary likewise is not a trigger.
+A Claude-only consumer with neither a legacy nor canonical tree records
+`skipped (Codex not in use)`, does not require a Codex CLI, and must not be told to run
+`/sop-init --force` to create `.agents/skills`.
 
 1. Parse `codex --version` with standard semver prerelease ordering. Require the host-contract
    minimum (`>=0.145.0-alpha.2` in contract v1); `alpha.1`, missing, or unparseable keeps legacy
@@ -238,8 +326,9 @@ skill trees, manifest, config, and AGENTS pointer unless the outcome column name
 
 | ID | input state | exact outcome |
 |---|---|---|
-| C1 | Claude-only flow, no legacy tree | `skipped (Codex not in use)`; no Codex probe; every byte unchanged |
-| C2 | missing/unparseable/below-minimum host + legacy pointer | `host-gate-conflict`; legacy/manifest/pointer unchanged; canonical absent |
+| C1 | Claude-only flow, no legacy or canonical tree | `skipped (Codex not in use)`; no Codex probe; every byte unchanged |
+| C1a | Claude-only owners + an existing canonical tree | enter scoped maintenance without creating missing skills; then apply C2/C7/C8/C10 according to host/provenance/pristine state |
+| C2 | missing/unparseable/below-minimum host + legacy or canonical skill file | `host-gate-conflict`; existing skill bytes/manifest/current pointer unchanged; legacy route keeps canonical absent; canonical-only route creates neither a second tree nor a new skill file |
 | C3 | supported host + pristine legacy + canonical absent | `legacy-backup+canonical-publish`: exact legacy backup; current five-skill canonical render + tombstone manifest; pointer becomes canonical; verified legacy source removed last |
 | C4 | missing/corrupt manifest, missing entry, foreign owner, or unknown legacy bytes | `legacy-skill-unknown-provenance`; both trees and pointer unchanged |
 | C5 | manifest-backed but locally modified legacy | `legacy-skill-migration-conflict`; explicit adjudication required; every byte unchanged |
@@ -290,8 +379,11 @@ consumer-owned; only a pristine seed entry may be re-rendered).
 ## Step 4 — Finish
 
 - Print a per-file summary: `updated` / `updated (N blocks preserved)` / `up-to-date` /
-  `anchor-migrated` / `conflict (choice)` / `preserved (consumer-owned)` / `overlay-skipped` /
-  `error (unresolvable maintained mapping)` / blocking warnings (malformed extension blocks).
+  `anchor-migrated` / `new-seed-added` / `conflict (choice)` /
+  `preserved (consumer-owned|untracked consumer seed|consumer deletion)` / `overlay-skipped` /
+  `error (unknown repository language|unresolvable maintained mapping|no translation provider|
+  noncanonical prompt template_id)` / `mixed-language-manifest` / blocking warnings (malformed
+  extension blocks).
 - Include Codex host-gate/migration state and config-schema state. If the schema tool was
   unavailable, list the schema stamp under `unfinished (scoped)` with the `/mcp` remedy while
   reporting the rest of the update normally; do not claim the whole update failed.
@@ -321,6 +413,11 @@ already-adopted repo, so a bump silently left the bridge unable to resolve a cod
   LF-normalized sha match — stripped-of-valid-consumer-blocks for eligible Markdown, raw otherwise;
   see Step 2 preamble). A **modified/untracked** `owner=seed` entry, `records/current.md`
   (owner=overlay), and any user-converted overlay file are off-limits (not overwritten, even with `--force`).
+- **Narrow stable-seed exception (Step 1.A)**: a current plugin review-prompt seed whose target AND
+  manifest entry are both absent may be atomically created with its full entry before the generic
+  loop. Mark all stable prompt paths handled so Step 2 cannot reinterpret them. Target-present /
+  entry-absent and target-absent / entry-present remain preserve-only; every other untracked or
+  modified seed remains off-limits.
 - **`.claude/settings.json` is `owner=ccsop` but merge-only (Step 2.B)** — never whole-file
   re-rendered or `--force`-replaced; only `permissions.allow` is touched (migrate superseded ccsop
   review-tool names → the canonical three, preserve consumer additions). It is the one owner=ccsop

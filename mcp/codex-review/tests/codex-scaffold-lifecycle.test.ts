@@ -8,7 +8,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -124,7 +124,12 @@ function replacePointer(root: string, from: string, to: string): void {
  */
 function runLifecycle(root: string, options: LifecycleOptions): string {
   const legacyExists = existsSync(path(root, legacyRel));
-  if (!options.usesCodex && !legacyExists) return outcome.C1;
+  const canonicalRoot = path(root, ".agents/skills");
+  const canonicalExists = treeFiles(canonicalRoot).some((file) => {
+    const parts = relative(canonicalRoot, file).split(/[\\/]/);
+    return parts.length === 2 && parts[1] === "SKILL.md";
+  });
+  if (!options.usesCodex && !legacyExists && !canonicalExists) return outcome.C1;
 
   const gate = classifyCodexSkillHostVersion(options.version);
   if (gate.status !== "supported") return outcome.C2;
@@ -339,11 +344,61 @@ afterEach(() => {
 });
 
 describe("Codex scaffold lifecycle normative fixtures C1-C15", () => {
-  it("C1 skips a Claude-only consumer without probing or writing", () => {
+  it("C1 skips a Claude-only consumer with an absent or empty canonical root", () => {
+    for (const emptyCanonicalRoot of [false, true]) {
+      const root = fixture();
+      if (emptyCanonicalRoot) {
+        mkdirSync(path(root, ".agents/skills"), { recursive: true });
+      }
+      const before = snapshot(root);
+      expect(runLifecycle(root, { usesCodex: false })).toBe(outcome.C1);
+      expect(snapshot(root)).toEqual(before);
+    }
+  });
+
+  it("C1 does not treat a nested noncanonical SKILL.md as a trigger", () => {
     const root = fixture();
+    write(root, ".agents/skills/nested/deeper/SKILL.md", "not canonical\n");
     const before = snapshot(root);
     expect(runLifecycle(root, { usesCodex: false })).toBe(outcome.C1);
     expect(snapshot(root)).toEqual(before);
+  });
+
+  it("C1a maintains an existing canonical tree for Claude-only owners", () => {
+    const root = fixture({ canonical: "pristine" });
+    const before = snapshot(root);
+    expect(
+      runLifecycle(root, {
+        usesCodex: false,
+        version: "codex-cli 0.145.0-alpha.2",
+      }),
+    ).toBe(outcome.C10);
+    expect(snapshot(root)).toEqual(before);
+  });
+
+  it("C1a preserves modified canonical seeds for Claude-only owners", () => {
+    const root = fixture({ canonical: "modified" });
+    const before = snapshot(root);
+    expect(
+      runLifecycle(root, {
+        usesCodex: false,
+        version: "codex-cli 0.145.0-alpha.2",
+      }),
+    ).toBe(outcome.C8);
+    expect(snapshot(root)).toEqual(before);
+  });
+
+  it("C1a preserves a canonical-only tree when the host gate fails", () => {
+    for (const version of [
+      undefined,
+      "not-a-version",
+      "codex-cli 0.145.0-alpha.1",
+    ]) {
+      const root = fixture({ canonical: "pristine" });
+      const before = snapshot(root);
+      expect(runLifecycle(root, { usesCodex: false, version })).toBe(outcome.C2);
+      expect(snapshot(root)).toEqual(before);
+    }
   });
 
   it("C2 preserves the legacy pointer and bytes for every host-gate failure", () => {

@@ -7,8 +7,16 @@ description: Scaffold the ccsop delivery workflow into the current repo — inte
 You are scaffolding the **ccsop** delivery workflow into the user's repository. The plugin root is
 `${CLAUDE_PLUGIN_ROOT}`; the target repo is `${CLAUDE_PROJECT_DIR}` (cwd). Work only in the target repo.
 
-Argument `$ARGUMENTS` may contain flags: `--lang <en|zh|...>`, `--provider <codex|claude|manual>`,
-`--force`. If absent, ask interactively (Step 2).
+Argument `$ARGUMENTS` may contain flags: `--project-name <name>`, `--lang <en|zh|...>`,
+`--provider <codex|claude|manual>`, `--force`. If absent, resolve/ask as specified in Step 2.
+
+**Host task-tool guard (whole command):** the numbered steps below are the complete execution plan.
+Do not call any host task/todo-tracking tool, including but not limited to `TaskCreate`,
+`TaskUpdate`, `TaskList`, `TaskGet`, and `TodoWrite`, and do not discover such a tool just to mirror
+this plan. These tools are not required for scaffolding and may be absent from the live
+discovered-tool set. This does not restrict a live-schema user-question tool, including the
+structured-question tool used for genuine Step 2 decisions; that tool must still satisfy its live
+schema and the one-decision-per-call rule below.
 
 ## Step 0 — Orphaned-root guard
 
@@ -26,7 +34,13 @@ user to restart the session / reload plugins, then re-run. Never auto-resolve to
 - Does `docs/` already exist with ccsop scaffolding (`.ccsop/manifest.json` present)? If yes, this is
   not first-time — tell the user to use `/sop-update` instead, and stop unless `--force`.
 - Provider dependency probe (report, don't auto-install):
-  - `codex`: node present + `@openai/codex-sdk` installable + a Codex credential/login.
+  - `codex`: node present + a resolvable Codex CLI binary (the package fallback already present in
+    the bridge dir, or `codex` on `PATH`) + a Codex credential/login. A first init has no project
+    config path yet; on `--force` in an adopted repo, also accept an explicit `[codex] path`.
+    The full runtime resolution chain is `[codex] path` → package fallback → `PATH` (Step 6 and
+    `/sop-update` Step 5). The shipped review bridge is a self-contained bundle: do **not** require
+    `@openai/codex-sdk` to be installable and do not run `npm install` during this probe. Step 6
+    handles the optional package fallback only when no binary resolves.
   - `claude`: either a `claude` executable on `PATH` with an active login, or
     `ANTHROPIC_API_KEY` set. The CLI backend uses the login subscription and needs no API key;
     the API backend uses API credits and requires the key.
@@ -43,8 +57,27 @@ user to restart the session / reload plugins, then re-run. Never auto-resolve to
 
 ## Step 2 — Ask (skip any already given as a flag)
 
-Ask, one decision at a time (chunked confirmation, SOP §4):
-1. **project name** (for `[meta]` + the handoff title).
+Resolve or ask **one decision per tool call** (chunked confirmation, SOP §4). Never batch multiple
+unresolved decisions into one structured-question call. A structured choice is only for a real
+preference fork, must satisfy the live host tool schema, and must contain at least two mutually
+exclusive genuine options. If only one value is possible, state and adopt it without calling a
+choice tool. If candidates exceed the host maximum, stage the choice or use free text. Skip every
+decision already supplied by a flag.
+
+1. **project name** (for `[meta]` + the handoff title):
+   - With `--project-name`, use that value after the validation below; do not ask.
+   - Otherwise derive the default from `${CLAUDE_PROJECT_DIR}`'s basename, state
+     `Using project name "<basename>" (override with --project-name <name>)`, and adopt it without
+     a structured question. Only an empty / `.` / `/` / otherwise invalid derived basename falls
+     back to an ordinary free-text question; project name is never a one-option choice.
+   - Trim surrounding whitespace; require 1–128 Unicode scalars; reject NUL, CR/LF, and every C0
+     control. An invalid explicit flag aborts the whole command before any target write with the
+     exact reason and a corrected rerun example; never truncate or silently fall back to a prompt.
+     Validate a free-text fallback answer by the same rule.
+   - Keep the validated Unicode display name for the handoff. Derive `<PROJECT_ID>`
+     deterministically: lowercase; collapse runs outside `[a-z0-9._-]` to `-`; trim leading/trailing
+     punctuation; cap at 64 chars; if empty, use
+     `project-<first-8-hex-of-sha256(abs-target-path)>`.
 2. **language** for materialized docs (`en` canonical, or `zh`/other → translated once via the §4.3 pipeline; see `/sop-lang`).
 3. **review.provider** (`codex` default | `claude` | `manual`) — note the codex heterogeneity
    advantage. For Claude, `backend="cli"` uses the logged-in subscription without an API key;
@@ -76,7 +109,10 @@ maintained manifest exists)**: normalize the language alias to its canonical i18
 resolve **every** in-scope target through
 `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json`: each `template_id` must
 match **exactly one** manifest entry (`source_path` equality) AND that entry's `target_rel` artifact
-must exist on disk. The sole exception is the language-neutral
+must exist on disk. The in-scope review-prompt seed set is always every current
+`templates/review-prompts/*.tpl`; current flow,
+owner, or enablement state may not prune it. `claude+claude` changes only the optional Step 3.A
+Codex scaffold. The sole exception is the language-neutral
 `codex-scaffold/skills/simplify/references/contract.json`: require its EN canonical to exist and
 copy those exact bytes, but do not look for an i18n mapping. Collect ALL failures (missing,
 ambiguous, artifact-absent); if any → **abort the
@@ -215,9 +251,14 @@ For every materialized file, append an entry:
   The template contains `[meta].control_surface_schema = 2` and the complete disabled
   `[implement.claude]` section. Preserve it for every flow so flow switching is a coupled,
   server-consumed operation; never set its `enabled` key true.
-- Copy `${CLAUDE_PLUGIN_ROOT}/templates/review-prompts/*.tpl` → `.codex-review/templates/` **per the Step 3
-  seed policy** (these are `owner=seed`: copy only if absent or a pristine prior render; preserve+warn if the
-  consumer has customized them).
+  Escape the validated project display name as a TOML basic-string value before replacing
+  `<PROJECT_NAME>` (at minimum `\` and `"`; controls were already rejected); never do a raw,
+  injection-prone placeholder substitution. `<PROJECT_ID>` uses the Step 2 slug.
+- Copy every stable seed matching
+  `${CLAUDE_PLUGIN_ROOT}/templates/review-prompts/*.tpl`
+  → `.codex-review/templates/` **per the Step 3 seed policy**. These are `owner=seed`: copy only if
+  absent or a pristine prior render; preserve+warn if the consumer customized them. This set is
+  flow-independent and must exactly match the Step 3.0 preflight.
 - Create `.codex-review/{sessions,archive,backlog}/` (with `.gitkeep`).
 - **Write/merge the `.claude/settings.json` permission baseline from
   `${CLAUDE_PLUGIN_ROOT}/templates/permission-baseline.json`** (do NOT hand-author it — that ad-hoc
@@ -266,6 +307,11 @@ For every materialized file, append an entry:
     loads with the new config.
 - Print a per-file created/skipped summary + the manifest path + whether a codex binary was resolvable
   (and, if the package was installed, that it was).
+- Report the Codex scaffold branch explicitly: for `claude+claude` with no legacy skill and no
+  explicit scaffold request, `.agents/skills` absence is expected; for a Codex-involving flow,
+  canonical skills are expected only after the host gate passes and no provenance/migration
+  conflict remains. Gate/conflict states preserve the preimage and are not reported as successful
+  canonical materialization.
 - Final line: **"Next: `/reload-plugins` (to load the review bridge), then invoke `/handoff` or read `docs/records/current.md` and write your first design."**
 
 ## Boundaries

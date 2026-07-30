@@ -15,16 +15,16 @@ ccsop bundles seven building blocks refined on a real project into a single plug
 6. **doc scaffolding** (`docs/{records,methodology,plans,design,runbooks,references}` + task templates);
 7. an explicit **model-tier strategy**.
 
-Install the plugin, run `/sop-init`, pick a review provider, and start shipping under the workflow.
+Install the plugin, run `/ccsop:sop-init`, pick a review provider, and start shipping under the workflow.
 
 ## Quickstart
 
 ```text
 1. install ccsop             → /plugin marketplace add Gnayj/claude-code-sop ; /plugin install ccsop@gnayj
-2. /sop-init                 → scaffold docs/ + .codex-review/config.toml + .ccsop/manifest.json
+2. reload + /ccsop:sop-init  → scaffold docs/ + .codex-review/config.toml + .ccsop/manifest.json
                                (asks: project name, language, review provider, translation provider)
-3. configure the provider    → codex: install bridge deps (npm install) + Codex login
-                               claude: export ANTHROPIC_API_KEY
+3. configure the provider    → codex: resolvable Codex CLI (config path / package / PATH) + active login
+                               claude: active Claude CLI login or ANTHROPIC_API_KEY
                                manual: nothing
 4. write your first design   → docs/design/<module>/<id>-design.md (from _template-design.txt)
 5. design review (if §4.5)   → codex_design_review → Go / Go-after-fixes
@@ -36,47 +36,125 @@ Install the plugin, run `/sop-init`, pick a review provider, and start shipping 
 
 At session start, invoke `/handoff` for a ~150-line state summary instead of reading everything.
 
-## Installing & first run
+## Installing, upgrading & first run
 
-ccsop is a Claude Code plugin. Released installs ship the review bridge **prebuilt** (its compiled
-`dist/` is committed), so there's no TypeScript build step — you only ever run `npm install` once for
-the bridge's runtime dependencies.
+### Where to install it
 
-**Install from the marketplace (recommended).** Inside Claude Code:
+The supported installer for current ccsop releases is the **Claude Code plugin marketplace**. One
+plugin install serves both hosts:
+
+- Claude Code loads the plugin commands and its `ccsop-review` MCP server.
+- `/ccsop:sop-init` or `/ccsop:sop-update` materializes project files. `/ccsop:sop-init` also
+  materializes five repo-local Codex skills under `.agents/skills/` when the selected flow
+  involves Codex or the scaffold is explicitly requested, subject to the Codex host/migration
+  gate. `/ccsop:sop-update` maintains/migrates them for a Codex-owner flow, a legacy tree, or an
+  already-materialized canonical tree; the last condition never creates a missing tree.
+- Codex CLI consumes those project skills in a new session. Current releases are not packaged as a
+  universal `.codex-plugin`, so do not install a second copy with `codex plugin add`.
+
+Released installs ship the review bridge as a **prebuilt, self-contained JavaScript bundle**. There
+is no TypeScript build and, when a compatible authenticated Codex CLI is already available, no
+`npm install`. The setup/update command offers the package fallback only when it cannot resolve any
+Codex binary. Node.js is still required to run the bundled MCP server.
+
+### Fresh install
+
+Inside Claude Code:
+
 ```text
 /plugin marketplace add Gnayj/claude-code-sop
 /plugin install ccsop@gnayj
+/reload-plugins
+/ccsop:sop-init
+/reload-plugins
 ```
-ccsop releases carry a plugin version and immutable Git tag; the marketplace resolves the current
-release commit, so `/plugin marketplace update` pulls the latest published version.
 
-**Or load from a clone** (e.g. to pin or hack on a revision):
+The first reload activates the newly installed plugin command. `/ccsop:sop-init` then scaffolds
+`docs/`, `.codex-review/config.toml`, `.ccsop/manifest.json`, and all four review-prompt seeds.
+Repo-local Codex skills are added only for a Codex-involving flow or an explicit request, after the
+host/migration gate succeeds. The command adds missing files, skips existing files, makes no
+commit, and never overwrites without `--force`. The final reload lets the plugin MCP server read
+the new project config.
+
+ccsop releases carry a plugin version and immutable Git tag; the marketplace resolves the current
+release commit.
+
+### Upgrade an existing installation
+
+For a user-scope install, run from the shell:
+
+```bash
+claude plugin marketplace update gnayj
+claude plugin update ccsop@gnayj --scope user
+```
+
+The equivalent commands inside Claude Code are:
+
+```text
+/plugin marketplace update gnayj
+/plugin update ccsop@gnayj
+/reload-plugins
+```
+
+Restart Claude Code or run `/reload-plugins` **before** using the updated command; an old session may
+still point at the orphaned previous plugin cache. Then, in every repository that already has
+`.ccsop/manifest.json`, run:
+
+```text
+/ccsop:sop-update
+```
+
+`/ccsop:sop-update` updates ccsop-owned files and pristine generated seeds, preserves consumer-owned
+or locally modified content, and reports conflicts instead of overwriting them. Follow any scoped
+`/mcp` reconnect or restart instruction it prints.
+
+If a repository was initialized in zh-CN with v0.2.13, it may be missing
+`.codex-review/templates/implement.md.tpl` and that file's manifest entry. After upgrading to
+v0.2.14, the standard reload/restart + `/ccsop:sop-update` sequence adds both with
+`new-seed-added` when both were absent. If an untracked file already occupies that path, ccsop
+preserves it and reports the provenance conflict instead of overwriting it.
+
+### Verify Claude Code and Codex CLI
+
+1. Run `claude plugin list --json` and confirm `ccsop@gnayj` reports the expected published version.
+2. Confirm the target repository has `.ccsop/manifest.json` and all four
+   `.codex-review/templates/{design-review,code-review,fix-review,implement}.md.tpl` files.
+3. Check the Codex-scaffold branch reported by `/sop-init` or `/sop-update`:
+   - `claude+claude` with neither a legacy nor existing canonical tree: `.agents/skills` being
+     absent is expected. An explicit scaffold request is an initial `/sop-init` capability; once
+     that canonical tree exists, `/sop-update` maintains it but does not create a missing tree.
+   - A Codex-involving flow with a passed host gate and no migration/provenance conflict: expect
+     `.agents/skills/{project-sop,handoff,simplify,sop-flow,sop-tier}/SKILL.md` and the ccsop
+     `AGENTS.md` pointer.
+   - A failed host gate or unresolved migration/provenance conflict: expect the prior bytes and
+     pointer to be preserved plus a scoped conflict; do not assert canonical skills exist.
+4. When canonical skills are present, use Codex CLI `>=0.145.0-alpha.2`, start a **new** Codex
+   session in that repository, and invoke `$handoff`.
+5. For automatic review/control tools from Codex, run `codex mcp list` and confirm the same
+   `ccsop-review` stdio server is registered and enabled, with its `--config` argument pointing to
+   this repository's `.codex-review/config.toml`. Without that project-correct Codex-side MCP
+   registration, the repo-local skills still load, but cross-model review must be relayed manually.
+
+### Load from a clone
+
+To pin or modify a revision instead of installing from the marketplace:
+
 ```bash
 git clone https://github.com/Gnayj/claude-code-sop /path/to/ccsop
 cd /your/repo && claude --plugin-dir /path/to/ccsop
 ```
 
-Either way, plugin commands are **namespaced** under the plugin, e.g. `/ccsop:sop-init`.
-
-**First-run order.** The review bridge reads the config that `/sop-init` writes, so run them in this order:
-1. `/ccsop:sop-init` — scaffolds `docs/`, `.codex-review/config.toml`, and `.ccsop/manifest.json`,
-   and offers to install the bridge's runtime dependencies (`npm install` in `mcp/codex-review/` —
-   no build, since `dist/` already ships). It **only adds files** — it skips anything you already
-   have, makes no commit, and never overwrites without `--force` — so it's safe to adopt in an existing repo.
-2. `/reload-plugins` (or restart) once after `/sop-init`, so the bridge picks up the new config.
-   Until the config exists, the `ccsop-review` server stays connected-but-idle and simply tells you
-   to run `/sop-init` — no review work happens before setup is complete.
-
 **Providers are needed only at review time.** Scaffolding (`/sop-init`) needs no provider. Configure
-one when you're ready to review: `codex` (Codex login), `claude` (`ANTHROPIC_API_KEY` — Console
-billing, separate from a Pro/Max plan), or `manual` (nothing). See the table below.
+one when you're ready to review: `codex` (compatible Codex CLI + active login), `claude` (an active
+Claude CLI login for the CLI backend, or `ANTHROPIC_API_KEY` for the API backend), or `manual`
+(nothing). Plugin commands remain namespaced, for example `/ccsop:sop-init`.
 
 ## Choosing a review provider
 
 | Provider | What it is | Pros | Cons / caveat |
 |---|---|---|---|
-| `codex` (default) | review via the Codex SDK | **cross-model heterogeneity** — an independent model catches blind spots the driver's own model misses; this is the verified path | needs Node + `@openai/codex-sdk` + a Codex login |
-| `claude` | review via the Anthropic SDK | no second vendor; runs anywhere with `ANTHROPIC_API_KEY` | **loses cross-model heterogeneity** — a fresh adversarial instance partially compensates but is not equivalent; documented, not equivalent to codex |
+| `codex` (default) | review through the bundled Codex provider | **cross-model heterogeneity** — an independent model catches blind spots the driver's own model misses; this is the verified path | needs Node plus a compatible authenticated Codex CLI, or the optional package fallback |
+| `claude` | review through Claude CLI or the Anthropic API | supports a logged-in CLI subscription or API-backed execution | **loses cross-model heterogeneity** — a fresh adversarial instance partially compensates but is not equivalent; needs an authenticated compatible CLI or API key |
 | `manual` | write a prompt, paste back a verdict | zero dependencies; human / external reviewer | two-phase (prepare → submit); you supply the verdict |
 
 Switching providers is a one-line `review.provider` change in `.codex-review/config.toml`
@@ -122,7 +200,8 @@ Beyond picking a reviewer, you can split the **work itself** between the two mod
   `<meta.repo_root>/.ccsop/backups/config/<sha256>.toml`. These backups are operator-retained
   recovery data (no automatic expiry); keep `.ccsop/backups/` uncommitted and remove old entries
   only under your repository's retention policy.
-- `/sop-init` scaffolds five repo-local Codex skills under canonical `.agents/skills/`:
+- For a Codex-involving flow (or an explicit request), `/sop-init` scaffolds five repo-local Codex
+  skills under canonical `.agents/skills/` after the host/migration gate passes:
   `$project-sop`, `$handoff`, `$simplify`, `$sop-flow`, and `$sop-tier`. This requires
   Codex CLI `>=0.145.0-alpha.2`. `/sop-update` migrates only a provenance-proven pristine legacy
   `.codex/skills/project-sop`; modified/unknown/divergent copies are preserved as conflicts.

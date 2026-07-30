@@ -15,16 +15,16 @@ ccsop 把在真实项目上打磨出的七大构件捆进单个插件：
 6. **文档脚手架**（`docs/{records,methodology,plans,design,runbooks,references}` + 任务卡模板）；
 7. 显式的**模型分级策略**。
 
-装上插件、跑 `/sop-init`、选一个 review provider，就在工作流下开始交付。
+装上插件、跑 `/ccsop:sop-init`、选一个 review provider，就在工作流下开始交付。
 
 ## 快速开始
 
 ```text
 1. 安装 ccsop             → /plugin marketplace add Gnayj/claude-code-sop ; /plugin install ccsop@gnayj
-2. /sop-init                 → 脚手架 docs/ + .codex-review/config.toml + .ccsop/manifest.json
+2. reload + /ccsop:sop-init  → 脚手架 docs/ + .codex-review/config.toml + .ccsop/manifest.json
                                （会问：项目名、语言、review provider、translation provider）
-3. 配置 provider             → codex: 装桥依赖 (npm install) + Codex 登录
-                               claude: export ANTHROPIC_API_KEY
+3. 配置 provider             → codex: 可解析 Codex CLI（config path / package / PATH）+ 已登录
+                               claude: Claude CLI 已登录或设置 ANTHROPIC_API_KEY
                                manual: 无
 4. 写你的第一份 design        → docs/design/<module>/<id>-design.md（从 _template-design.txt）
 5. design review（若 §4.5）  → codex_design_review → Go / Go-after-fixes
@@ -36,44 +36,120 @@ ccsop 把在真实项目上打磨出的七大构件捆进单个插件：
 
 session 启动时，调 `/handoff` 拿 ~150 行状态摘要，而非全读。
 
-## 安装与首次运行
+## 安装、升级与首次运行
 
-ccsop 是 Claude Code 插件。发布版的 review 桥**预 build**（其编译后的 `dist/` 已 commit），所以无
-TypeScript build 步骤 —— 你只需为桥的运行时依赖跑一次 `npm install`。
+### 从哪里安装
 
-**从 marketplace 安装（推荐）。** 在 Claude Code 内：
+当前 ccsop 发布版的受支持安装入口是 **Claude Code plugin marketplace**。一次安装同时服务两个
+宿主：
+
+- Claude Code 加载插件命令及其 `ccsop-review` MCP server；
+- `/ccsop:sop-init` 或 `/ccsop:sop-update` 物化项目文件。所选 flow 涉及 Codex 或明确请求
+  Codex scaffold 时，`/ccsop:sop-init` 才会在 host/migration gate 通过后物化
+  `.agents/skills/` 下的五个 repo-local Codex skills；`/ccsop:sop-update` 只在 Codex-owner
+  flow、存在 legacy tree 或 canonical tree 已物化时维护/迁移这些 skills；最后一种条件绝不
+  新建缺失的 tree；
+- Codex CLI 在新 session 中消费这些项目 skills。当前发布版并未打包成 universal
+  `.codex-plugin`，因此不要再用 `codex plugin add` 安装第二份。
+
+发布版 review 桥是**预 build 的自包含 JavaScript bundle**。无需 TypeScript build；已有兼容且已登录
+的 Codex CLI 时，也无需 `npm install`。只有完全找不到 Codex binary 时，setup/update 命令才会提供
+package fallback。运行 bundled MCP server 仍需要 Node.js。
+
+### 全新安装
+
+在 Claude Code 内：
+
 ```text
 /plugin marketplace add Gnayj/claude-code-sop
 /plugin install ccsop@gnayj
+/reload-plugins
+/ccsop:sop-init
+/reload-plugins
 ```
-ccsop release 同时带插件版本与不可变 Git tag；marketplace 解析当前 release commit，
-所以 `/plugin marketplace update` 会拉取最新已发布版本。
 
-**或从 clone 加载**（如固定某版本或改它）：
+第一次 reload 激活刚安装的插件命令。随后 `/ccsop:sop-init` 脚手架
+`docs/`、`.codex-review/config.toml`、`.ccsop/manifest.json` 和四份 review-prompt seeds。
+只有 flow 涉及 Codex 或明确请求时，才会在 host/migration gate 通过后加入 repo-local Codex
+skills。命令只添加缺失文件、跳过已有文件、不 commit，且没有 `--force` 时绝不覆盖。最后一次
+reload 让插件 MCP server 读取新建的项目 config。
+
+ccsop release 同时带插件版本与不可变 Git tag；marketplace 解析当前 release commit。
+
+### 升级已有安装
+
+用户级安装可在 shell 中运行：
+
+```bash
+claude plugin marketplace update gnayj
+claude plugin update ccsop@gnayj --scope user
+```
+
+在 Claude Code 内的等价命令是：
+
+```text
+/plugin marketplace update gnayj
+/plugin update ccsop@gnayj
+/reload-plugins
+```
+
+使用新版命令前，必须重启 Claude Code 或运行 `/reload-plugins`；旧 session 可能仍指向已 orphan
+的旧插件 cache。然后在每个已经存在 `.ccsop/manifest.json` 的项目中运行：
+
+```text
+/ccsop:sop-update
+```
+
+`/ccsop:sop-update` 更新 ccsop-owned 文件及 pristine generated seeds，保留 consumer-owned
+或本地修改内容；遇到冲突会报告而不是覆盖。若输出 scoped `/mcp` reconnect 或 restart 指引，
+按提示处理。
+
+如果仓库曾用 v0.2.13 以 zh-CN 初始化，可能缺少
+`.codex-review/templates/implement.md.tpl` 及对应 manifest entry。升级到 v0.2.14 后，标准的
+reload/restart + `/ccsop:sop-update` 会在两者都不存在时以 `new-seed-added` 补齐。如果该路径
+已经存在无 provenance 的文件，ccsop 会保留它并报告 provenance conflict，不会覆盖。
+
+### 验证 Claude Code 与 Codex CLI
+
+1. 运行 `claude plugin list --json`，确认 `ccsop@gnayj` 显示预期的已发布版本。
+2. 确认目标仓存在 `.ccsop/manifest.json` 和四份
+   `.codex-review/templates/{design-review,code-review,fix-review,implement}.md.tpl`。
+3. 按 `/sop-init` 或 `/sop-update` 报告的 Codex-scaffold 分支核对：
+   - `claude+claude` 且既没有 legacy skill、也没有既存 canonical tree：
+     `.agents/skills` 不存在是预期。明确请求 scaffold 是首次 `/sop-init` 的能力；canonical
+     tree 一旦存在，`/sop-update` 会维护它，但不会新建缺失的 tree；
+   - flow 涉及 Codex、host gate 通过且无 migration/provenance conflict：应存在
+     `.agents/skills/{project-sop,handoff,simplify,sop-flow,sop-tier}/SKILL.md` 和
+     `AGENTS.md` 的 ccsop pointer；
+   - host gate 未通过或 migration/provenance conflict 未解：应保留原文件和 pointer，并报告
+     scoped conflict；不要断言 canonical skills 必须存在。
+4. canonical skills 存在时，使用 Codex CLI `>=0.145.0-alpha.2`，在该仓启动一个**新**
+   Codex session，并调用 `$handoff`。
+5. 若要从 Codex 侧自动 review/调用控制工具，运行 `codex mcp list`，确认同一个
+   `ccsop-review` stdio server 已注册且 enabled，并且它的 `--config` 参数指向当前仓的
+   `.codex-review/config.toml`。Codex 侧没有针对当前项目正确注册 MCP 时，repo-local skills
+   仍会加载，但跨模型 review 需要用户手工 relay。
+
+### 从 clone 加载
+
+若要固定或修改某个 revision，而不是通过 marketplace 安装：
+
 ```bash
 git clone https://github.com/Gnayj/claude-code-sop /path/to/ccsop
 cd /your/repo && claude --plugin-dir /path/to/ccsop
 ```
 
-无论哪种，插件命令都在插件下**带命名空间**，如 `/ccsop:sop-init`。
-
-**首次运行顺序。** review 桥读 `/sop-init` 写的 config，所以按此顺序跑：
-1. `/ccsop:sop-init` —— 脚手架 `docs/`、`.codex-review/config.toml`、`.ccsop/manifest.json`，并提议装
-   桥的运行时依赖（在 `mcp/codex-review/` 里 `npm install` —— 无 build，因 `dist/` 已 ship）。它
-   **只加文件** —— 已有的会跳过、不 commit、不带 `--force` 不覆盖 —— 所以在已有仓库里采用是安全的。
-2. `/sop-init` 后跑一次 `/reload-plugins`（或重启），让桥拿到新 config。config 存在前，`ccsop-review`
-   server 保持已连接但 idle，只提示你跑 `/sop-init` —— setup 完成前不做 review 工作。
-
 **Provider 仅在 review 时才需要。** 脚手架（`/sop-init`）不需 provider。准备 review 时再配一个：
-`codex`（Codex 登录）、`claude`（`ANTHROPIC_API_KEY` —— Console 计费，独立于 Pro/Max plan）、或
-`manual`（无）。见下表。
+`codex`（兼容 Codex CLI + 已登录）、`claude`（CLI backend 使用已登录 Claude CLI；API backend
+使用 `ANTHROPIC_API_KEY`）或 `manual`（无）。插件命令始终带命名空间，例如
+`/ccsop:sop-init`。
 
 ## 选 review provider
 
 | Provider | 是什么 | 优点 | 缺点 / caveat |
 |---|---|---|---|
-| `codex`（默认） | 经 Codex SDK review | **跨模型异构** —— 独立模型抓到 driver 自己模型看不见的盲区；这是已验证路径 | 需 Node + `@openai/codex-sdk` + Codex 登录 |
-| `claude` | 经 Anthropic SDK review | 无第二家厂商；任何有 `ANTHROPIC_API_KEY` 的地方都能跑 | **丢失跨模型异构** —— fresh 对抗实例部分补偿但不等价；已注明，不等同 codex |
+| `codex`（默认） | 经 bundled Codex provider review | **跨模型异构** —— 独立模型抓到 driver 自己模型看不见的盲区；这是已验证路径 | 需 Node + 兼容且已登录的 Codex CLI，或可选 package fallback |
+| `claude` | 经 Claude CLI 或 Anthropic API review | 支持已登录的 CLI subscription 或 API backend | **丢失跨模型异构** —— fresh 对抗实例部分补偿但不等价；需已认证的兼容 CLI 或 API key |
 | `manual` | 写 prompt、贴回 verdict | 零依赖；人 / 外部 reviewer | 两阶段（prepare → submit）；你提供 verdict |
 
 切 provider 是 `.codex-review/config.toml` 里 `review.provider` 一行改动（切换作废旧 session ——
@@ -114,7 +190,8 @@ cd /your/repo && claude --plugin-dir /path/to/ccsop
   每次 mutation 会把 preimage 按内容寻址保存到
   `<meta.repo_root>/.ccsop/backups/config/<sha256>.toml`。这些是 operator-retained 恢复数据
   （不会自动过期）；保持 `.ccsop/backups/` 不提交，并只按本仓 retention policy 清理旧条目。
-- `/sop-init` 在 canonical `.agents/skills/` 下铺五个 repo-local Codex skills：
+- flow 涉及 Codex（或明确请求）时，`/sop-init` 会在 host/migration gate 通过后于 canonical
+  `.agents/skills/` 下铺五个 repo-local Codex skills：
   `$project-sop`、`$handoff`、`$simplify`、`$sop-flow`、`$sop-tier`。最低要求 Codex CLI
   `>=0.145.0-alpha.2`。`/sop-update` 只迁移 provenance 证明 pristine 的 legacy
   `.codex/skills/project-sop`；modified / unknown / divergent 均保留并报 conflict。可验证的精确
