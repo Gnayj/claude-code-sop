@@ -51,14 +51,30 @@ Before any target write, enumerate the complete flow-independent set
 `.codex-review/templates/<same basename>`. All of them participate in a maintained language's
 command-wide preflight; collaboration flow, owner, or implement enablement may not prune one.
 
-Match existing entries on the exact full-path `template_id`
-`templates/review-prompts/<basename>`. Identify prompt siblings independently from a possibly
-broken ID: any manifest entry whose normalized `path` is a direct child
-`.codex-review/templates/<basename>` ending in `.tpl` is a review-prompt entry and must have
-`template_id="templates/review-prompts/<basename>"`. If any such sibling is noncanonical, abort
-the whole language command before any write with
-`error (noncanonical prompt template_id)`. Handle each stable path once here and exclude it from
-the later generic manifest loop:
+Use the same owner-independent global prompt-namespace scan and exact classification as
+`/sop-update` Step 1.A: candidates come from the direct target directory or either canonical /
+v0.1.0 legacy source-ID prefix. Accept only the exact canonical path/ID pair or the exact
+recognized legacy pair; reject unknown, mismatched, retired, out-of-directory, duplicate, or
+canonical/legacy-collision states.
+
+Unlike update, language materialization remains command-wide atomic. Treat recognized legacy IDs
+as a staged metadata migration: change only
+`review-prompts/<basename>` → `templates/review-prompts/<basename>` in the final command-wide
+manifest postimage. Do not publish that normalization before every maintained mapping,
+provider/translation precondition, render, and target write has succeeded. Any noncanonical or
+ambiguous candidate aborts the whole command before any write with
+`error (noncanonical prompt template_id)`. Correct an official entry to the exact canonical ID or
+remove bogus provenance to clear the guard; `keep-local` / `owner=overlay` do not exempt it.
+
+For a recognized legacy pristine target, normalize the ID, materialize the requested-language
+content, and advance content baselines together in the final staged transaction. For a
+modified/deleted target, preserve its bytes/deletion and every non-ID baseline field, but normalize
+the ID in that same successful final transaction. This ID-only change is the sole explicit
+metadata exception to “preserved entries keep every baseline unchanged”; any later command
+failure leaves even the ID unchanged. An all-canonical second run emits no migration status and
+remains plain `up-to-date`.
+
+Handle each stable path once here and exclude it from the later generic manifest loop:
 
 - target absent + entry absent: plugin-added seed; stage the requested-language render and full
   manifest entry, then atomically publish target + entry. Any failure removes the target and
@@ -93,7 +109,11 @@ preserve-only.
 | L-RP5 | any maintained mapping missing/ambiguous | command-wide pre-write abort; all targets + manifest byte-identical |
 | L-RP6 | unmaintained language + no provider | command-wide pre-write abort; all bytes unchanged |
 | L-RP7 | second run after L-RP1 | target + manifest byte-identical; `up-to-date` |
-| L-RP8 | any sibling prompt entry has noncanonical `template_id` | command-wide pre-write abort; all bytes unchanged |
+| L-RP8 | unknown/mismatch/retired/out-of-directory noncanonical sibling | command-wide pre-write abort; all bytes unchanged |
+| L-RP9 | exact recognized legacy + successful language command | ID normalization and requested-language changes publish in the command-wide final transaction; `legacy-template-id-migrated` |
+| L-RP10 | recognized legacy + any language preflight failure | command-wide pre-write abort; ID, targets, and manifest all unchanged |
+| L-RP11 | recognized legacy + preserved modified/deleted target | successful command changes only the ID; target and every non-ID baseline field unchanged |
+| L-RP12 | duplicate path/source or canonical/legacy collision | command-wide pre-write abort; all bytes unchanged |
 
 **`--check <lang>` mode** (drift report; **no writes**): for each entry in
 `${CLAUDE_PLUGIN_ROOT}/templates/i18n/<canonical-lang>/i18n-manifest.json`, recompute the EN `source_path`'s
@@ -178,8 +198,10 @@ Run this 5-step placeholder-protection pipeline; **abort the whole file atomical
   `source_sha` + `rendered_sha` + `language` + `translation_source` + `version`, **plus
   `translation_source_sha`** (the maintained artifact's LF-normalized sha) for maintained copies;
   **delete** `translation_source_sha` when the entry becomes `en` / `on-the-fly`. Entries that were
-  preserved, aborted, or failed keep **every** baseline unchanged (the pending change resurfaces on
-  the next run).
+  preserved, aborted, or failed keep every **content** baseline unchanged (the pending change
+  resurfaces on the next run). The single metadata exception is recognized-legacy `template_id`
+  normalization published with a successful command-wide transaction; see the stable
+  review-prompt seed reconciliation section and L-RP11.
 - Re-render `.codex-review/config.toml` `[meta].language` to `<lang>`.
 - Confirm with the user before overwriting (show which files change); honor `--force` to skip the prompt.
 

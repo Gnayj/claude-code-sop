@@ -114,6 +114,15 @@ v0.2.14, the standard reload/restart + `/ccsop:sop-update` sequence adds both wi
 `new-seed-added` when both were absent. If an untracked file already occupies that path, ccsop
 preserves it and reports the provenance conflict instead of overwriting it.
 
+Repositories first adopted with v0.1.0 may use the historical manifest IDs
+`review-prompts/<basename>`. In v0.2.15,
+`/ccsop:sop-update` recognizes only the exact official legacy ID +
+`.codex-review/templates/<basename>` path pair, atomically normalizes it to
+`templates/review-prompts/<basename>`, and then completes the normal four-prompt reconciliation.
+Unknown, mismatched, retired, duplicate, or colliding provenance still fails closed. To clear that
+guard, verify and correct an official entry to the exact canonical ID, or remove a bogus manifest
+entry and rerun; changing only `owner` or choosing keep-local does not remove namespace ambiguity.
+
 ### Verify Claude Code and Codex CLI
 
 1. Run `claude plugin list --json` and confirm `ccsop@gnayj` reports the expected published version.

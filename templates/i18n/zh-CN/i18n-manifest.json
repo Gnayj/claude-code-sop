@@ -1,11 +1,11 @@
 {
   "lang": "zh-CN",
-  "generated": "2026-07-29",
+  "generated": "2026-07-30",
   "files": [
     {
       "target_rel": "README.zh-CN.md",
       "source_path": "README.md",
-      "source_sha": "ceba5f97a94c65d04e825011b42fb54257a9ecfc7f4989b432b560344673c653"
+      "source_sha": "950bbd8dca24fa5122940b36d5eed1f7d98e7f674124ae431156c734e291d336"
     },
     {
       "target_rel": "templates/i18n/zh-CN/codex-scaffold/skills/project-sop/SKILL.md",

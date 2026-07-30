@@ -109,6 +109,14 @@ claude plugin update ccsop@gnayj --scope user
 reload/restart + `/ccsop:sop-update` 会在两者都不存在时以 `new-seed-added` 补齐。如果该路径
 已经存在无 provenance 的文件，ccsop 会保留它并报告 provenance conflict，不会覆盖。
 
+最初由 v0.1.0 接入的仓库可能仍使用历史 manifest ID
+`review-prompts/<basename>`。在 v0.2.15 中，`/ccsop:sop-update` 只识别
+“官方 legacy ID 与 `.codex-review/templates/<basename>` 路径精确对应”的组合，先原子规范为
+`templates/review-prompts/<basename>`，再完成标准四 prompt reconciliation。未知、错配、
+已退役、重复或碰撞的 provenance 仍然 fail-closed。解除该 guard 时，应核实后把官方 entry
+修成精确 canonical ID，或删除 bogus manifest entry 后重跑；只改 `owner` 或选择 keep-local
+不能消除 namespace 歧义。
+
 ### 验证 Claude Code 与 Codex CLI
 
 1. 运行 `claude plugin list --json`，确认 `ccsop@gnayj` 显示预期的已发布版本。

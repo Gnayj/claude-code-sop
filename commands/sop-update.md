@@ -44,21 +44,69 @@ templates/review-prompts/*.tpl
   -> .codex-review/templates/<same basename>
 ```
 
-Do not prune it by collaboration flow, owner, or implement enablement. For each canonical source,
-match the consumer manifest on the exact full-path `template_id`
-`templates/review-prompts/<basename>`. Identify prompt siblings independently from a possibly
-broken ID: any manifest entry whose normalized `path` is a direct child
-`.codex-review/templates/<basename>` ending in `.tpl` is a review-prompt entry and must have
-`template_id="templates/review-prompts/<basename>"`. Before adding anything, require every such
-entry to use that full-path form; a noncanonical sibling produces
-`error (noncanonical prompt template_id)` for the new seed, makes zero seed/manifest writes, and
-does not block unrelated update entries.
+Do not prune it by collaboration flow, owner, or implement enablement. Before matching a source,
+scan the manifest's complete prompt namespace. A candidate is any entry whose normalized `path` is
+a direct `.tpl` child of `.codex-review/templates/`, or whose `template_id` starts with
+`templates/review-prompts/` or the v0.1.0 legacy prefix `review-prompts/`. This classification is
+owner-independent: changing an entry to `owner=overlay` does not exempt ambiguous provenance.
+
+For a current stable basename, accept exactly:
+
+- canonical: `template_id="templates/review-prompts/<basename>"` and
+  `path=".codex-review/templates/<basename>"`;
+- recognized v0.1.0 legacy: `template_id="review-prompts/<basename>"` and the same exact target
+  path.
+
+Do not use entry `version` or `owner` as a recognition gate: a partially completed older update
+may already have advanced those fields. Any mismatched, retired, unknown, or out-of-directory
+candidate remains noncanonical. Duplicate target paths, duplicate source IDs, or a
+canonical/legacy collision are ambiguous.
+
+When every candidate is canonical or recognized legacy, perform **Transaction A** before any new
+seed render:
+
+1. Stage an ID-only manifest postimage that changes each recognized legacy
+   `review-prompts/<basename>` to `templates/review-prompts/<basename>`.
+2. Preserve every other field byte-for-byte, including `version`, `owner`, `language`,
+   `source_sha`, `rendered_sha`, `translation_source`, and `translation_source_sha`.
+3. Publish the manifest atomically. On failure restore its preimage and stop stable-prompt
+   reconciliation. On success report `legacy-template-id-migrated`.
+
+This is a narrow provenance-metadata migration, analogous to `anchor-migrated`: it is allowed even
+when a recognized target is modified/deleted or a later new-seed prerequisite fails. It does not
+itself advance a content baseline. After Transaction A, handle each existing stable target once
+inside this Step 1.A using the normal pristine/modified rule (U-RP4), mark it `handled`, and never
+send it through the generic loop. Thus a pristine v0.1.0 prompt updates its content and baselines
+in the same invocation; if it is already at the current render, Step 2's `up-to-date` rule applies
+and only the migration status is reported. A modified/deleted target changes only its ID. If every
+candidate was already canonical, Transaction A is a silent no-op and must not report migration.
+
+Then run the existing per-new-seed transaction (**Transaction B**). Resolve/render the new target
+before publishing target + entry. A B failure removes the new target and restores the manifest to
+Transaction A's postimage, not to the original legacy-ID preimage; report the existing per-seed
+error so a later run has a forward path.
+
+For an unknown/mismatched/retired/out-of-directory noncanonical candidate, preserve v0.2.14's
+narrow failure scope: do not commit Transaction A and do not add the new seed; report
+`error (noncanonical prompt template_id)`. Recognized legacy siblings may still run their normal
+content update using a **read-only path-derived canonical lookup key**
+`templates/review-prompts/<basename>` while retaining the legacy ID; their content baselines may
+advance. Leave the invalid sibling untouched and continue unrelated update entries. This explicit
+half-normalized state matches v0.2.14 behavior.
+
+If duplicate paths/source IDs or a canonical/legacy collision make identity ambiguous, write
+nothing in the whole stable-prompt reconciliation, report the same error with the ambiguity
+reason, and continue unrelated update entries. To clear either guard, the operator must verify and
+correct the entry to the exact canonical ID, or remove the bogus manifest entry and re-run
+(an existing target then follows U-RP2). `keep-local` or `owner=overlay` alone does not clear a
+namespace ambiguity.
 
 Resolve repository language only from the parsed
 `.codex-review/config.toml [meta].language`, then canonicalize aliases. Missing/invalid config or
 language produces `error (unknown repository language)` and zero writes for the new seed; never
 guess from a manifest that legitimately contains language-neutral entries. If translatable
-entries disagree with a valid config language, use the config language but report
+entries disagree with a valid config language, use the config language only for the new seed's
+render; existing prompt entries keep their own recorded `language` through Step 2 / U-RP4. Report
 `mixed-language-manifest` and recommend `/sop-lang` after this update.
 
 Handle each stable target exactly once here, mark it `handled`, and exclude it from the later
@@ -66,7 +114,7 @@ generic loop:
 
 - target absent + entry absent: this is a plugin-added seed. Fully resolve/render it first, then
   atomically create target + manifest entry. Any publish failure removes the new target and
-  restores the manifest preimage. Status `new-seed-added`.
+  restores the Transaction A postimage. Status `new-seed-added`.
 - target present + entry absent: no pristine baseline; preserve bytes, add no entry, warn
   `preserved (untracked consumer seed)`.
 - target absent + entry present: treat deletion as consumer intent; preserve the deletion and
@@ -100,9 +148,13 @@ may be created. All other seed ownership rules remain unchanged.
 | U-RP5 | maintained mapping missing/ambiguous | that seed zero-write; `error (unresolvable maintained mapping)`; others continue |
 | U-RP6 | unmaintained language + no provider | that seed zero-write; `error (no translation provider)`; others continue |
 | U-RP7 | second run after U-RP1 | target + manifest byte-identical; `up-to-date` |
-| U-RP8 | any sibling prompt entry has noncanonical `template_id` | new seed zero-write; `error (noncanonical prompt template_id)`; others continue |
+| U-RP8 | unknown/mismatch/retired/out-of-directory noncanonical sibling | new seed zero-write; no ID migration; recognized siblings update through U-RP4 with a path-derived canonical key but retain legacy IDs; invalid sibling unchanged; unrelated update entries continue; `error (noncanonical prompt template_id)` |
 | U-RP9 | config missing/unparseable or config language empty/invalid | that seed zero-write; `error (unknown repository language)`; other entries continue |
-| U-RP10 | valid config language + mixed translatable manifest languages | render using config language; report `mixed-language-manifest` |
+| U-RP10 | valid config language + mixed translatable manifest languages | render the new seed using config language; existing prompt entries keep their own recorded `language` (Step 2 / U-RP4); report `mixed-language-manifest` |
+| U-RP11 | exact recognized legacy sibling(s) | atomic ID-only Transaction A; `legacy-template-id-migrated`; continue reconciliation |
+| U-RP12 | recognized legacy + U-RP5/U-RP6/U-RP9 prerequisite failure | Transaction A commits; new seed target/entry zero-write; preserve the original per-seed error |
+| U-RP13 | recognized legacy + modified/deleted target | ID-only migration; target and every non-ID baseline field unchanged |
+| U-RP14 | duplicate path/source or canonical/legacy collision | whole stable-prompt reconciliation zero-write; unrelated entries continue; `error (noncanonical prompt template_id)` with ambiguity reason |
 
 ## Step 2 — Per managed entry, detect local edits
 
@@ -379,7 +431,7 @@ consumer-owned; only a pristine seed entry may be re-rendered).
 ## Step 4 — Finish
 
 - Print a per-file summary: `updated` / `updated (N blocks preserved)` / `up-to-date` /
-  `anchor-migrated` / `new-seed-added` / `conflict (choice)` /
+  `anchor-migrated` / `legacy-template-id-migrated` / `new-seed-added` / `conflict (choice)` /
   `preserved (consumer-owned|untracked consumer seed|consumer deletion)` / `overlay-skipped` /
   `error (unknown repository language|unresolvable maintained mapping|no translation provider|
   noncanonical prompt template_id)` / `mixed-language-manifest` / blocking warnings (malformed
