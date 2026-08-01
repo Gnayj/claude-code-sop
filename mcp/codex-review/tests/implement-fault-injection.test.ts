@@ -13,8 +13,10 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { isBuiltin } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type { ResolvedConfig } from "../src/config.js";
 import {
@@ -511,11 +513,40 @@ describe("code r2 hardening suites", () => {
     try {
       const lockPath = join(dir, "x.lock");
       const logPath = join(dir, "log.txt");
-      const distUrl = join(process.cwd(), "dist/locks.js");
+      const packageRoot = fileURLToPath(new URL("../", import.meta.url));
+      const testSourcePath = fileURLToPath(import.meta.url);
+      const lockSourcePath = fileURLToPath(new URL("../src/locks.ts", import.meta.url));
+      const fixturePath = join(dir, "locks-fixture.mjs");
+      // Build the forbidden segment at runtime so this source-text gate cannot match itself.
+      const distSegment = ["di", "st"].join("");
+      const forbiddenDistSpecifier = new RegExp(
+        String.raw`(?:\bfrom\s*|\bimport\s*(?:\(\s*)?|\brequire\s*\(\s*)["'](?:[^"']*[/\\])?${distSegment}(?:[/\\][^"']*)?["']`,
+      );
+      expect(readFileSync(testSourcePath, "utf8")).not.toMatch(forbiddenDistSpecifier);
+      expect(relative(packageRoot, lockSourcePath)).toBe(join("src", "locks.ts"));
+      expect(existsSync(lockSourcePath)).toBe(true);
+
+      const { build } = await import("esbuild");
+      const bundle = await build({
+        entryPoints: [lockSourcePath],
+        outfile: fixturePath,
+        bundle: true,
+        platform: "node",
+        format: "esm",
+        target: "node20",
+        external: [],
+        metafile: true,
+      });
+      const nonBuiltinExternals = Object.values(bundle.metafile.outputs)
+        .flatMap((output) => output.imports)
+        .filter((entry) => entry.external && !isBuiltin(entry.path))
+        .map((entry) => entry.path);
+      expect(nonBuiltinExternals).toEqual([]);
+      const fixtureUrl = pathToFileURL(fixturePath).href;
       // v2: kernel flock via inherited descriptor (Q17). Two real processes contend; the OFD
       // semantics guarantee mutual exclusion and crash-free release.
       const childScript = `
-        import { acquireFlock, acquisitionDeadline } from ${JSON.stringify(distUrl)};
+        import { acquireFlock, acquisitionDeadline } from ${JSON.stringify(fixtureUrl)};
         import { appendFileSync } from "node:fs";
         const [lock, log, id] = process.argv.slice(1);
         for (let i = 0; i < 5; i++) {
@@ -526,6 +557,9 @@ describe("code r2 hardening suites", () => {
           handle.release();
         }
       `;
+      expect(childScript).not.toMatch(forbiddenDistSpecifier);
+      expect(childScript).toContain(`from ${JSON.stringify(fixtureUrl)}`);
+      expect(relative(dir, fileURLToPath(fixtureUrl))).toBe("locks-fixture.mjs");
       const run = (id: string) =>
         new Promise<number>((res) => {
           const c = spawn(
@@ -548,7 +582,7 @@ describe("code r2 hardening suites", () => {
     } finally {
       rmDir(dir);
     }
-  });
+  }, 30_000);
 
   it("phase exception injection: capture failure terminalizes the record (no stranded executing state)", async () => {
     const repo = makeRepo();
