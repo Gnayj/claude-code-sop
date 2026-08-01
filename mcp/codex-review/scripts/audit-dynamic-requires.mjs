@@ -53,7 +53,13 @@ for (const out of outputs) {
 // Positive confirmation: the runtime deps we expect to be INLINED must appear as bundled inputs.
 const inputs = Object.keys(meta.inputs ?? {});
 const inputCount = inputs.length;
-const mustBeBundled = ["@modelcontextprotocol/sdk", "@iarna/toml", "@openai/codex-sdk", "zod"];
+const mustBeBundled = [
+  "@modelcontextprotocol/sdk",
+  "@iarna/toml",
+  "@openai/codex-sdk",
+  "zod",
+  "zod-to-json-schema",
+];
 const notBundled = mustBeBundled.filter(
   (dep) => !inputs.some((i) => i.includes(`node_modules/${dep}/`)),
 );

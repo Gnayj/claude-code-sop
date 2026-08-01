@@ -14,6 +14,7 @@ import type {
   VerdictFactors,
   AnyVerdict,
 } from "../src/types.js";
+import { REVIEW_MODEL_OUTPUT_KEYS } from "../src/types.js";
 
 /**
  * Wrap a (mock) CodexClient in a CodexProvider for run-review-flow tests. The mock's
@@ -175,4 +176,14 @@ export function makeEnvelope(
     rejected_by_parser: [],
     ...over,
   };
+}
+
+/** Exact seven-key shape produced by structured Codex review turns. */
+export function makeReviewerPayload(
+  stage: ReviewStage,
+  verdict: AnyVerdict,
+  over: Partial<ReviewEnvelope> = {},
+): Record<string, unknown> {
+  const envelope = makeEnvelope(stage, verdict, over) as unknown as Record<string, unknown>;
+  return Object.fromEntries(REVIEW_MODEL_OUTPUT_KEYS.map((key) => [key, envelope[key]]));
 }

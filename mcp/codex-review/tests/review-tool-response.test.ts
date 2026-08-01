@@ -35,6 +35,11 @@ describe("review tool MCP response", () => {
       reason: "schema_violation" as const,
       detail: "verdict missing",
       raw_excerpt: "{}",
+      raw_output: {
+        path: "/tmp/full.raw.txt",
+        sha256: "a".repeat(64),
+        bytes: 1234,
+      },
     };
     const result: FlowResult = {
       ok: false,
@@ -45,6 +50,7 @@ describe("review tool MCP response", () => {
     const response = toReviewToolResponse(result);
     expect(response.bridge_precondition).toBeNull();
     expect(response.parse_failure).toEqual(parseFailure);
+    expect(response.parse_failure?.raw_output).toEqual(parseFailure.raw_output);
   });
 
   it("preserves provider-failure breaker and parser payloads", () => {

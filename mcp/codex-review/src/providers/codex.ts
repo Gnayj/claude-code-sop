@@ -19,6 +19,7 @@ import type {
 } from "../review-provider.js";
 import type { ReviewStage } from "../types.js";
 import type { CodexEffort } from "../config.js";
+import { reviewOutputSchema } from "../review-output-schema.js";
 
 export interface CodexProviderOptions {
   /** Repo root the codex agent operates within (read-only). Constant per server. */
@@ -75,7 +76,29 @@ export class CodexProvider implements ReviewProvider {
     session: ProviderSession,
   ): Promise<ProviderRunResult> {
     const handle = session.handle as ThreadHandle;
-    const result = await handle.runTurn(input.text);
+    const schema = reviewOutputSchema(session.stage);
+    let result;
+    const warnings: string[] = [];
+    try {
+      result = await handle.runTurn(input.text, { outputSchema: schema });
+    } catch (error) {
+      if (!isOutputSchemaCapabilityError(error)) throw error;
+      try {
+        result = await handle.runTurn(input.text);
+      } catch (fallbackError) {
+        const first = error instanceof Error ? error.message : String(error);
+        const second = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        throw new Error(
+          `Codex reviewer outputSchema capability unavailable (${first}); ` +
+            `schema-free retry also failed: ${second}`,
+          { cause: error },
+        );
+      }
+      warnings.push(
+        `Codex reviewer outputSchema capability unavailable (${(error as Error).message}); ` +
+          "retried this turn once without outputSchema; prompt + parser remain fail-closed.",
+      );
+    }
     return {
       kind: "turn",
       text: result.text,
@@ -87,6 +110,7 @@ export class CodexProvider implements ReviewProvider {
         // text, which the orchestrator parses. Keeping it here would double-source it.
       },
       provider_session_id: handle.threadId,
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   }
 
@@ -103,4 +127,14 @@ export class CodexProvider implements ReviewProvider {
     if (r.source === "path" || r.smokeFailed) return formatProvenance(r);
     return null;
   }
+}
+
+/** Narrow capability classifier: require both a schema/response-format term and an explicit
+ * unsupported/unknown/invalid capability signal. Auth, quota, context and generic turn errors
+ * must propagate without replaying a possibly partial turn. */
+export function isOutputSchemaCapabilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const namesSchema = /output[ _-]?schema|json[ _-]?schema|response[ _-]?format|structured[ _-]?output/i;
+  const rejectsCapability = /unsupported|not supported|unknown|unrecognized|invalid|not available/i;
+  return namesSchema.test(message) && rejectsCapability.test(message);
 }

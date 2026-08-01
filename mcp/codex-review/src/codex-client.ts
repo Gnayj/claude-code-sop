@@ -30,9 +30,16 @@ import {
 
 export interface ThreadHandle {
   threadId: string;
-  /** Send one user-turn input; receive Codex assistant text + usage estimate. The optional
-   * signal is forwarded into the SDK turn (TurnOptions.signal — design §4.4 cancellation). */
-  runTurn(input: string, signal?: AbortSignal): Promise<RunTurnResult>;
+  /** Send one user-turn input; receive Codex assistant text + usage estimate. Review callers may
+   * add an SDK outputSchema; implement callers intentionally omit it. */
+  runTurn(input: string, options?: RunTurnOptions): Promise<RunTurnResult>;
+}
+
+export interface RunTurnOptions {
+  /** Forwarded into TurnOptions.signal (design §4.4 cancellation). */
+  signal?: AbortSignal;
+  /** JSON Schema forwarded into TurnOptions.outputSchema for structured review turns. */
+  outputSchema?: unknown;
 }
 
 export interface RunTurnResult {
@@ -247,8 +254,16 @@ function wrapThread(thread: Thread, fallbackId: string | null): ThreadHandle {
     get threadId(): string {
       return thread.id ?? fallbackId ?? "";
     },
-    async runTurn(input: string, signal?: AbortSignal): Promise<RunTurnResult> {
-      const turn = await thread.run(input, signal ? { signal } : undefined);
+    async runTurn(input: string, options?: RunTurnOptions): Promise<RunTurnResult> {
+      const turnOptions = options
+        ? {
+            ...(options.signal ? { signal: options.signal } : {}),
+            ...(options.outputSchema !== undefined
+              ? { outputSchema: options.outputSchema }
+              : {}),
+          }
+        : undefined;
+      const turn = await thread.run(input, turnOptions);
       const text = turn.finalResponse;
       if (!text) {
         throw new CodexCapabilityMissingError([

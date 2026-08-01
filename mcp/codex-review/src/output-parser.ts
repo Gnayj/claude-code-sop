@@ -16,10 +16,12 @@ import {
   FixVerdict,
   REJECTED_OLD_VERDICTS,
   ReviewEnvelope,
-  CodexEmittedEnvelope,
+  ReviewStructuredPayload,
+  REVIEW_MODEL_OUTPUT_KEYS,
+  ContextUsagePct,
+  VerdictFactors as VerdictFactorsSchema,
   type ReviewStage,
   type VerdictFactors,
-  VERDICT_FACTOR_KEYS,
   type RejectedItem,
 } from "./types.js";
 
@@ -46,6 +48,12 @@ export interface ParseFailure {
   detail: string;
   /** Raw payload Codex returned, for logging / retry. */
   raw_excerpt: string;
+  /** Full local audit artifact, attached by runReviewFlow only when provider raw existed. */
+  raw_output?: {
+    path: string;
+    sha256: string;
+    bytes: number;
+  };
 }
 
 export type ParseResult = ParseSuccess | ParseFailure;
@@ -55,6 +63,11 @@ export interface ParseContext {
   config: ResolvedConfig;
   /** previous_round_resolved provided by caller; required when stage='fix'. */
   hasPreviousRoundResolved: boolean;
+  designId: string;
+  threadId: string;
+  reviewId: string;
+  reviewRound: number;
+  tokensUsedEstimate: number;
 }
 
 // ---------- Main entry ----------
@@ -63,6 +76,15 @@ export function parseCodexOutput(
   rawText: string,
   ctx: ParseContext,
 ): ParseResult {
+  const invalidContext = invalidParseContextDetail(ctx);
+  if (invalidContext !== null) {
+    return {
+      ok: false,
+      reason: "schema_violation",
+      detail: `server parse context invalid: ${invalidContext}`,
+      raw_excerpt: clipRaw(rawText),
+    };
+  }
   // 1) JSON parse (lenient: tolerate code-fence wrappers and prefix prose).
   const candidate = extractJsonCandidate(rawText);
   if (candidate === null) {
@@ -121,10 +143,12 @@ export function parseCodexOutput(
   // 4) verdict_factors check — track missing fields explicitly (do not let zod abort early).
   const downgradeForMissing = !hasAllFactors(parsed);
 
-  // 5) Schema-validate full envelope (will use whatever factors are present).
-  //    Use the parse-stage schema: thread_id / review_id are server-authoritative
-  //    and overridden post-parse, so their omission must not reject the review.
-  const validation = CodexEmittedEnvelope.safeParse(parsed);
+  // 4.A) Project legacy 14-key envelopes onto the seven model-owned keys, normalize the
+  // permissive historical target/context forms, and keep summary overflow non-fatal.
+  const normalized = normalizeReviewerPayload(parsed);
+
+  // 5) Validate only reviewer-owned substance. Runtime/audit fields are assembled from ctx.
+  const validation = ReviewStructuredPayload.safeParse(normalized.payload);
   if (!validation.success) {
     // If failure is purely the verdict_factors being incomplete, we'll still synthesize a downgraded envelope.
     if (!downgradeForMissing) {
@@ -139,7 +163,7 @@ export function parseCodexOutput(
     }
     // Synthesize a minimum-viable envelope only if all *non-factor* fields are present;
     // otherwise return schema_violation so parser_unavailable streak counts.
-    const synth = synthesizeDowngraded(parsed, ctx);
+    const synth = synthesizeDowngraded(normalized.payload, ctx);
     if (synth === null) {
       return {
         ok: false,
@@ -152,6 +176,7 @@ export function parseCodexOutput(
     }
     return finishWithUpgrades(synth, ctx, {
       warnings: [
+        ...normalized.warnings,
         "verdict_factors had missing/invalid fields; downgraded to conservative verdict and reset factors to safe values.",
       ],
       downgraded_for_missing_factors: true,
@@ -169,8 +194,8 @@ export function parseCodexOutput(
   }
 
   // 7) Conservative downgrade if Codex put garbage values in factors (caught earlier).
-  return finishWithUpgrades(validation.data, ctx, {
-    warnings: [],
+  return finishWithUpgrades(assembleEnvelope(validation.data, ctx), ctx, {
+    warnings: normalized.warnings,
     downgraded_for_missing_factors: false,
   });
 }
@@ -352,15 +377,20 @@ export function stageVerdictEnum(stage: ReviewStage) {
 
 function hasAllFactors(parsed: unknown): boolean {
   const obj = (parsed as { verdict_factors?: unknown }).verdict_factors;
-  if (!obj || typeof obj !== "object") return false;
-  for (const key of VERDICT_FACTOR_KEYS) {
-    if (!(key in (obj as Record<string, unknown>))) return false;
-    const val = (obj as Record<string, unknown>)[key];
-    if (typeof val === "boolean") continue;
-    if (typeof val === "number" && Number.isFinite(val) && val >= 0) continue;
-    return false;
+  return VerdictFactorsSchema.safeParse(obj).success;
+}
+
+function invalidParseContextDetail(ctx: ParseContext): string | null {
+  if (ctx.designId.trim().length === 0) return "designId is empty";
+  if (ctx.threadId.trim().length === 0) return "threadId is empty";
+  if (ctx.reviewId.trim().length === 0) return "reviewId is empty";
+  if (!Number.isInteger(ctx.reviewRound) || ctx.reviewRound < 1) {
+    return `reviewRound=${ctx.reviewRound} is not a positive integer`;
   }
-  return true;
+  if (!Number.isFinite(ctx.tokensUsedEstimate) || ctx.tokensUsedEstimate < 0) {
+    return `tokensUsedEstimate=${ctx.tokensUsedEstimate} is not nonnegative`;
+  }
+  return null;
 }
 
 const NARROW_EXCEPTION_DANGER_KEYWORDS = [
@@ -392,21 +422,15 @@ function synthesizeDowngraded(
 ): ReviewEnvelope | null {
   if (!parsed || typeof parsed !== "object") return null;
   const p = parsed as Record<string, unknown>;
-  // We need at least the non-factor scalar fields for a usable record.
-  // thread_id / review_id are server-authoritative (filled post-parse), so they
-  // are not required here — CodexEmittedEnvelope supplies a placeholder default.
+  // We need every reviewer-owned non-factor field for a usable record. Server-owned fields are
+  // deliberately absent: ParseContext supplies real values, never placeholders.
   const required = [
-    "design_id",
-    "stage",
-    "review_round",
     "verdict",
     "conclusions",
     "open_questions",
-    "tokens_used_estimate",
     "context_usage_pct",
     "compact_summary_for_round",
     "next_action",
-    "rejected_by_parser",
   ];
   for (const k of required) {
     if (!(k in p)) return null;
@@ -432,9 +456,90 @@ function synthesizeDowngraded(
     verdict: conservativeVerdict,
     verdict_factors: safeFactors,
   };
-  const v = CodexEmittedEnvelope.safeParse(synthesized);
+  const v = ReviewStructuredPayload.safeParse(synthesized);
   if (!v.success) return null;
-  return v.data;
+  return assembleEnvelope(v.data, ctx);
+}
+
+function assembleEnvelope(
+  payload: ReviewStructuredPayload,
+  ctx: ParseContext,
+): ReviewEnvelope {
+  return ReviewEnvelope.parse({
+    thread_id: ctx.threadId,
+    review_id: ctx.reviewId,
+    design_id: ctx.designId,
+    stage: ctx.stage,
+    review_round: ctx.reviewRound,
+    ...payload,
+    tokens_used_estimate: ctx.tokensUsedEstimate,
+    rejected_by_parser: [],
+  });
+}
+
+function normalizeReviewerPayload(parsed: unknown): {
+  payload: unknown;
+  warnings: string[];
+} {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { payload: parsed, warnings: [] };
+  }
+  const source = parsed as Record<string, unknown>;
+  const payload: Record<string, unknown> = {};
+  for (const key of REVIEW_MODEL_OUTPUT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) payload[key] = source[key];
+  }
+
+  const normalizedContext = ContextUsagePct.safeParse(payload.context_usage_pct);
+  if (normalizedContext.success) payload.context_usage_pct = normalizedContext.data;
+
+  const warnings: string[] = [];
+  if (typeof payload.compact_summary_for_round === "string") {
+    const original = payload.compact_summary_for_round;
+    const truncated = truncateSummary(original);
+    if (truncated !== original) {
+      payload.compact_summary_for_round = truncated;
+      warnings.push(
+        `compact_summary_for_round length=${original.length} exceeded 2000; ` +
+          `server truncated it safely to ${truncated.length} without discarding findings.`,
+      );
+    }
+  }
+
+  if (Array.isArray(payload.conclusions)) {
+    payload.conclusions = payload.conclusions.map((entry) => normalizeConclusion(entry));
+  }
+  return { payload, warnings };
+}
+
+function normalizeConclusion(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const conclusion = { ...(value as Record<string, unknown>) };
+  if (!conclusion.target || typeof conclusion.target !== "object" || Array.isArray(conclusion.target)) {
+    return conclusion;
+  }
+  const target = { ...(conclusion.target as Record<string, unknown>) };
+  if (target.kind === "file_line") {
+    if (!Object.prototype.hasOwnProperty.call(target, "missing_artifact_kind")) {
+      target.missing_artifact_kind = null;
+    }
+    if (!Object.prototype.hasOwnProperty.call(target, "missing_artifact_path")) {
+      target.missing_artifact_path = null;
+    }
+  } else if (target.kind === "missing_artifact") {
+    if (!Object.prototype.hasOwnProperty.call(target, "file")) target.file = null;
+    if (!Object.prototype.hasOwnProperty.call(target, "line")) target.line = null;
+  }
+  conclusion.target = target;
+  return conclusion;
+}
+
+function truncateSummary(value: string): string {
+  if (value.length <= 2000) return value;
+  let truncated = value.slice(0, 2000);
+  const final = truncated.charCodeAt(truncated.length - 1);
+  if (final >= 0xd800 && final <= 0xdbff) truncated = truncated.slice(0, -1);
+  return truncated;
 }
 
 function extractJsonCandidate(raw: string): string | null {
@@ -477,6 +582,14 @@ function extractJsonCandidate(raw: string): string | null {
 }
 
 function clipRaw(s: string): string {
-  if (s.length <= 800) return s;
-  return s.slice(0, 800) + "...[clipped]";
+  const max = 2000;
+  if (s.length <= max) return s;
+  const head = 1000;
+  const tail = 1000;
+  const omitted = s.length - head - tail;
+  return (
+    s.slice(0, head) +
+    `...[${omitted} chars omitted; see raw_output for the complete local artifact]...` +
+    s.slice(-tail)
+  );
 }

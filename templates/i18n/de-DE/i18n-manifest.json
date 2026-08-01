@@ -125,17 +125,17 @@
     {
       "target_rel": "templates/i18n/de-DE/review-prompts/code-review.md.tpl",
       "source_path": "templates/review-prompts/code-review.md.tpl",
-      "source_sha": "d91dbe215a502f76c3776d0b582ebc82e62b1957c5ca290f76d0713d56bc5389"
+      "source_sha": "978dc5d21d775fb558919c88f5161bbf286b2e94851a83c9777f066bbe829235"
     },
     {
       "target_rel": "templates/i18n/de-DE/review-prompts/design-review.md.tpl",
       "source_path": "templates/review-prompts/design-review.md.tpl",
-      "source_sha": "dac378e0475a4f21e1d97638545308ed6b4d29253208b58542827ad3610d54e1"
+      "source_sha": "c9ea190762cd329799ef82da51450726c8ad2b8963b90a129142478304441b6c"
     },
     {
       "target_rel": "templates/i18n/de-DE/review-prompts/fix-review.md.tpl",
       "source_path": "templates/review-prompts/fix-review.md.tpl",
-      "source_sha": "71aedaf4a51e87b84d74a5350ec79ca221d6c037460e1d7799ade86277a20d70"
+      "source_sha": "73194688f94a827c52c212cccf04d6e2424f9223f7c195ceb8e911ae7f6d0241"
     },
     {
       "target_rel": "templates/i18n/de-DE/review-prompts/implement.md.tpl",

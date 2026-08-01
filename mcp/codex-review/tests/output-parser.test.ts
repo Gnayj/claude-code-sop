@@ -5,18 +5,28 @@ import {
   isMoreConservative,
   parseCodexOutput,
 } from "../src/output-parser.js";
-import { SERVER_OVERRIDE_PLACEHOLDER, type ReviewStage } from "../src/types.js";
+import type { ReviewStage } from "../src/types.js";
 import {
   defaultConfig,
   defaultFactors,
   makeConclusion,
   makeEnvelope,
+  makeReviewerPayload,
 } from "./test-helpers.js";
 
 const cfg = defaultConfig();
 
 function ctx(stage: ReviewStage, hasPrevResolved = true) {
-  return { stage, config: cfg, hasPreviousRoundResolved: hasPrevResolved };
+  return {
+    stage,
+    config: cfg,
+    hasPreviousRoundResolved: hasPrevResolved,
+    designId: "server-design",
+    threadId: "server-thread",
+    reviewId: "server-review",
+    reviewRound: 7,
+    tokensUsedEstimate: 4321,
+  };
 }
 
 describe("a) danger verb filter + fail-closed + Suggestion auto_fix_class secondary check", () => {
@@ -123,6 +133,19 @@ describe("c) verdict_factors 9 fields required — missing -> conservative downg
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.envelope.verdict).toBe("No-Go");
+  });
+
+  it.each([
+    ["critical_count", false],
+    ["has_design_gap", 0],
+  ])("wrong factor type %s=%j also triggers conservative downgrade", (key, value) => {
+    const env = makeEnvelope("code", "Pass");
+    (env.verdict_factors as unknown as Record<string, unknown>)[key] = value;
+    const result = parseCodexOutput(JSON.stringify(env), ctx("code"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.downgraded_for_missing_factors).toBe(true);
+    expect(result.envelope.verdict).toBe("Rereview-after-fixes");
   });
 });
 
@@ -348,8 +371,7 @@ describe("e2) server-authoritative fields omitted by Codex", () => {
     const result = parseCodexOutput(JSON.stringify(env), ctx("code"));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // Placeholder default — run-review-flow overrides with the real SDK Thread.id.
-    expect(result.envelope.thread_id).toBe(SERVER_OVERRIDE_PLACEHOLDER);
+    expect(result.envelope.thread_id).toBe("server-thread");
   });
 
   it("parses ok when Codex omits review_id", () => {
@@ -358,7 +380,7 @@ describe("e2) server-authoritative fields omitted by Codex", () => {
     const result = parseCodexOutput(JSON.stringify(env), ctx("design"));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.envelope.review_id).toBe(SERVER_OVERRIDE_PLACEHOLDER);
+    expect(result.envelope.review_id).toBe("server-review");
   });
 
   it("parses ok when Codex omits both thread_id and review_id", () => {
@@ -372,10 +394,34 @@ describe("e2) server-authoritative fields omitted by Codex", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("still rejects when a non-authoritative field is missing", () => {
+  it("overrides every server-owned field, including malformed legacy values", () => {
     const env = makeEnvelope("code", "Pass") as unknown as Record<string, unknown>;
-    delete env.thread_id;
-    delete env.design_id;
+    Object.assign(env, {
+      thread_id: false,
+      review_id: null,
+      design_id: "model-design",
+      stage: "fix",
+      review_round: -9,
+      tokens_used_estimate: "many",
+      rejected_by_parser: false,
+    });
+    const result = parseCodexOutput(JSON.stringify(env), ctx("code"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.envelope).toMatchObject({
+      thread_id: "server-thread",
+      review_id: "server-review",
+      design_id: "server-design",
+      stage: "code",
+      review_round: 7,
+      tokens_used_estimate: 4321,
+      rejected_by_parser: [],
+    });
+  });
+
+  it("still rejects when a reviewer-owned field is missing", () => {
+    const env = makeEnvelope("code", "Pass") as unknown as Record<string, unknown>;
+    delete env.open_questions;
     const result = parseCodexOutput(JSON.stringify(env), ctx("code"));
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -391,6 +437,101 @@ describe("e2) server-authoritative fields omitted by Codex", () => {
     if (!result.ok) return;
     expect(result.downgraded_for_missing_factors).toBe(true);
     expect(result.envelope.verdict).toBe("Rereview-after-fixes");
+  });
+});
+
+describe("e3) auxiliary drift recovery keeps review substance", () => {
+  it("parses the primary bare seven-key reviewer payload and assembles runtime fields", () => {
+    const payload = makeReviewerPayload("code", "Pass", {
+      conclusions: [makeConclusion("Suggestion", { conclusion_id: "primary-seven" })],
+    });
+    expect(Object.keys(payload)).toHaveLength(7);
+    const result = parseCodexOutput(JSON.stringify(payload), ctx("code"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.envelope).toMatchObject({
+      thread_id: "server-thread",
+      review_id: "server-review",
+      design_id: "server-design",
+      stage: "code",
+      review_round: 7,
+      tokens_used_estimate: 4321,
+    });
+    expect(result.envelope.conclusions[0]?.conclusion_id).toBe("primary-seven");
+  });
+
+  it("returns a parser failure instead of throwing when runtime thread id is unavailable", () => {
+    const result = parseCodexOutput(
+      JSON.stringify(makeReviewerPayload("code", "Pass")),
+      { ...ctx("code"), threadId: "" },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe("schema_violation");
+    expect(result.detail).toContain("threadId is empty");
+  });
+
+  it("accepts the v0.2.15 rejected_by_parser boolean drift without losing findings", () => {
+    const conclusions = Array.from({ length: 6 }, (_, index) =>
+      makeConclusion("Suggestion", { conclusion_id: `finding-${index + 1}` }),
+    );
+    const env = makeEnvelope("code", "Pass", {
+      conclusions,
+      rejected_by_parser: false as never,
+    });
+    const result = parseCodexOutput(JSON.stringify(env), ctx("code"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.envelope.conclusions.map((item) => item.conclusion_id)).toEqual(
+      conclusions.map((item) => item.conclusion_id),
+    );
+    expect(result.envelope.rejected_by_parser).toEqual([]);
+  });
+
+  it("truncates an oversized summary and preserves all conclusions", () => {
+    const env = makeEnvelope("design", "Go", {
+      compact_summary_for_round: "x".repeat(2500),
+      conclusions: [
+        makeConclusion("Suggestion", { conclusion_id: "first" }),
+        makeConclusion("Suggestion", { conclusion_id: "second" }),
+      ],
+    });
+    const result = parseCodexOutput(JSON.stringify(env), ctx("design"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.envelope.compact_summary_for_round).toHaveLength(2000);
+    expect(result.envelope.conclusions).toHaveLength(2);
+    expect(result.warnings.join("\n")).toContain("server truncated it safely");
+  });
+
+  it("does not leave a lone high surrogate at the summary boundary", () => {
+    const env = makeEnvelope("design", "Go", {
+      compact_summary_for_round: "x".repeat(1999) + "😀" + "tail",
+    });
+    const result = parseCodexOutput(JSON.stringify(env), ctx("design"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const summary = result.envelope.compact_summary_for_round;
+    expect(summary).toHaveLength(1999);
+    expect(summary.charCodeAt(summary.length - 1)).not.toBeGreaterThanOrEqual(0xd800);
+  });
+
+  it("shows both head and tail when a parser failure is clipped", () => {
+    const raw = JSON.stringify({
+      verdict: "Pass",
+      verdict_factors: defaultFactors(),
+      conclusions: [],
+      open_questions: [],
+      context_usage_pct: 0,
+      compact_summary_for_round: "head-marker-" + "x".repeat(2500) + "-tail-marker",
+      // next_action intentionally omitted so the post-normalization schema rejects it.
+    });
+    const result = parseCodexOutput(raw, ctx("code"));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.raw_excerpt).toContain("head-marker");
+    expect(result.raw_excerpt).toContain("tail-marker");
+    expect(result.raw_excerpt).toContain("chars omitted");
   });
 });
 

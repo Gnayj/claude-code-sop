@@ -157,7 +157,10 @@ export async function runReviewFlow(
     // PRESERVE rounds counters / history / design_doc_files / scope_drift_lines_total /
     // tokens_used_estimate_total so that max_review_rounds / scope_drift breakers and
     // audit chain stay continuous across thread boundaries within the same design_id.
-    const existingState = threadManager.read(input.designId);
+    const persistedState = threadManager.read(input.designId);
+    // archive() normally moves the state file away. Treat an externally-seeded legacy
+    // `archived:true` record the same way so counters and prospective rounds restart together.
+    const existingState = persistedState?.archived ? null : persistedState;
 
     // ---------- 1.A) Resolve this call's review backend (flow matrix §1.D) ----------
     // `review.provider = manual` short-circuits EVERY stage — including a fix whose session
@@ -186,7 +189,7 @@ export async function runReviewFlow(
     const bridgeWarnings: string[] = [];
     const textBlocks = [
       {
-        label: "Authoritative envelope contract",
+        label: "Authoritative reviewer payload contract",
         content: renderContractBlock(input.stage),
       },
     ];
@@ -421,21 +424,45 @@ export async function runReviewFlow(
     breakers.recordCodexSuccess(breakerState);
 
     // ---------- 7) Parse Codex output ----------
+    const tokens =
+      runResult.usage.total ??
+      estimateTokensFromChars(prompt.length + runResult.text.length);
+    const reviewId = generateReviewId(input.designId, input.stage, prospectiveRound);
     const parseResult = parseCodexOutput(runResult.text, {
       stage: input.stage,
       config,
       hasPreviousRoundResolved: input.hasPreviousRoundResolved,
+      designId: input.designId,
+      threadId: runResult.providerSessionId,
+      reviewId,
+      reviewRound: prospectiveRound,
+      tokensUsedEstimate: tokens,
     });
 
     if (!parseResult.ok) {
+      const auditWarnings: string[] = [];
+      let auditedParseResult = parseResult;
+      try {
+        const rawOutput = threadManager.recordParserFailureRaw(
+          input.designId,
+          input.stage,
+          runResult.text,
+        );
+        auditedParseResult = { ...parseResult, raw_output: rawOutput };
+      } catch (error) {
+        auditWarnings.push(
+          `unable to persist complete parser-failure raw output: ${(error as Error).message}`,
+        );
+      }
       const tripped = breakers.recordParserFailure(breakerState);
       return {
         ok: false,
-        parseResult,
+        parseResult: auditedParseResult,
         ...(tripped ? { breakerTripped: tripped } : {}),
         warnings: [
           ...bridgeWarnings,
           ...providerWarnings,
+          ...auditWarnings,
           `output-parser rejected Codex output (${parseResult.reason}): ${parseResult.detail}`,
         ],
         didRebuildThread: didRebuildThisCall,
@@ -446,19 +473,16 @@ export async function runReviewFlow(
     // ---------- 8) Round counter breaker ----------
     const roundBreakerTripped = breakers.bumpRound(breakerState, input.stage);
 
-    // ---------- 9) Build/refresh state + authoritative envelope override ----------
-    //
-    // Codex generates `thread_id` and `review_id` blindly because nothing in the
-    // prompt context exposes the SDK's runtime Thread.id or our intended review_id
-    // format. Whatever Codex put there is discarded; server is the single source of
-    // truth. (Self-test 2026-05-05 surfaced this; see design §3.0 + task card
-    // methodology-codex-review-bridge-thread-id-consistency-implement.)
+    // ---------- 9) Build/refresh state after server-authoritative envelope assembly ----------
+    // parseCodexOutput already combined the seven reviewer-owned fields with real runtime/audit
+    // context. Legacy full-envelope server fields were discarded there; no placeholder values
+    // can reach this state-writing boundary (methodology §3.0, v0.2.17 ownership split).
     //
     // Per design pre-review RC c_preserve_thread_state: rebuild paths replace
     // `thread_id` + append `thread_history` but keep all other state fields so that
     // round counters / history / drift / token totals span SDK thread boundaries.
     let state: ThreadState;
-    if (existingState && !existingState.archived) {
+    if (existingState) {
       state = existingState;
       if (didRebuildThisCall && rebuildReason) {
         state.thread_history = [
@@ -498,11 +522,12 @@ export async function runReviewFlow(
       }
     }
     const round = currentRoundFor(state, input.stage) + 1;
-    const finalEnvelope: ReviewEnvelope = {
-      ...parseResult.envelope,
-      thread_id: runResult.providerSessionId,
-      review_id: generateReviewId(input.designId, input.stage, round),
-    };
+    if (round !== prospectiveRound) {
+      throw new Error(
+        `review round invariant failed: prospective=${prospectiveRound} state=${round}`,
+      );
+    }
+    const finalEnvelope: ReviewEnvelope = { ...parseResult.envelope };
     // context_usage_pct is orchestrator-authoritative. When the provider supplies its own
     // estimate (claude: input_tokens / context_window), it overrides whatever the model
     // emitted in the envelope — the model cannot reliably self-report its context usage.
@@ -510,9 +535,6 @@ export async function runReviewFlow(
     if (runResult.usage.context_usage_pct !== undefined) {
       finalEnvelope.context_usage_pct = runResult.usage.context_usage_pct;
     }
-    const tokens =
-      runResult.usage.total ??
-      estimateTokensFromChars(prompt.length + runResult.text.length);
     const historyEntry: RoundHistoryEntry = {
       review_id: finalEnvelope.review_id,
       stage: input.stage,

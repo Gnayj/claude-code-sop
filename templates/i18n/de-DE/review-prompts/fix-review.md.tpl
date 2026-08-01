@@ -27,7 +27,8 @@
 
 ## Erforderliche Ausgabe (einzelnes JSON-Objekt, kein Prosa, kein Zaun)
 
-Passen Sie das Umschlagschema an, das die CCSOP-Überprüfungsbrücke erwartet.
+Passen Sie das Reviewer-Payload-Schema an, das die CCSOP-Überprüfungsbrücke erwartet. Die
+serverseitigen Felder des endgültigen Umschlags werden von der Brücke ergänzt; geben Sie sie nicht aus.
 
 Kritische Regeln:
 1. `verdict` MUSS einer der folgenden sein: **`All-fixed` | `Partial` | `New-issues` | `Rereview-after-fixes` | `No-Go`**.
@@ -35,7 +36,7 @@ Kritische Regeln:
 3. Jeder `conclusion.target` ist `file_line` oder `missing_artifact`.
 4. Bewerten Sie jeden Befund pro `claude-code-sop-collaboration.md §9.D`.
 
-Die Review Bridge fügt automatisch eine hinzu `[bridge-authoritative] Envelope contract` Block am Ende dieser Eingabeaufforderung.
+Die Review Bridge fügt automatisch einen `[bridge-authoritative] Reviewer payload contract`-Block am Ende dieser Eingabeaufforderung hinzu.
 Dieser Block teilt seine Quelle mit dem Parser und ist maßgeblich, wenn etwas obenstehendes in Konflikt steht. Das Schema wird hier nicht dupliziert.
 
 ## Fokus überprüfen (Überprüfen Sie die Korrekturen anhand der Korrekturen der vorherigen Runde Critical/Important)
@@ -54,4 +55,4 @@ Verfolgen Sie übertragene kritische Punkte gemäß §9.E (ein als gelöst marki
 
 ## Deine Aufgabe
 
-Der Fix-Diff wird entsprechend der Fähigkeit Ihrer Sitzung bereitgestellt: Wenn a `[bridge-provided] Git diff` Block erscheint unten, überprüfen Sie ihn Byte für Byte anhand der vorherigen Schlussfolgerungen; Nur wenn es nicht vorhanden ist, lesen Sie den genauen Fix-Diff-Bereich, der durch identifiziert wird `fix_diff_spec` sich selbst. Füllen Sie verdict_factors ehrlich aus und erstellen Sie jetzt den Umschlag-JSON.
+Der Fix-Diff wird entsprechend der Fähigkeit Ihrer Sitzung bereitgestellt: Wenn ein `[bridge-provided] Git diff`-Block unten erscheint, überprüfen Sie ihn Byte für Byte anhand der vorherigen Schlussfolgerungen; nur wenn er fehlt, lesen Sie selbst den durch `fix_diff_spec` bezeichneten genauen Fix-Diff-Bereich. Füllen Sie verdict_factors ehrlich aus und erstellen Sie jetzt das Reviewer-Payload-JSON.

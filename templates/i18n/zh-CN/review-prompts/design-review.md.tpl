@@ -18,7 +18,8 @@
 
 ## 必需输出（单个 JSON 对象，无散文，无代码围栏）
 
-匹配 ccsop review 桥期望的 envelope schema。
+匹配 ccsop review 桥期望的 reviewer payload schema。最终 envelope 的 server-owned 字段由桥追加，
+不要输出这些字段。
 
 关键规则：
 1. `verdict` 必须是以下之一：**`Go` | `Go-after-fixes` | `Rereview-after-fixes` | `No-Go`**（不是 `Pass` —— 那是 code 阶段）。
@@ -26,7 +27,7 @@
 3. 每个 `conclusion.target` 是 `file_line` 或 `missing_artifact`。
 4. 每个 finding 按 `claude-code-sop-collaboration.md §9.D` 分级。
 
-review 桥会在本 prompt 尾部自动追加 `[bridge-authoritative] Envelope contract` 块。
+review 桥会在本 prompt 尾部自动追加 `[bridge-authoritative] Reviewer payload contract` 块。
 该块与 parser 同源；若与上文冲突，以该块为准，此处不再复制 schema。
 
 ## 评审聚焦（design pre-review —— `claude-code-sop-collaboration.md §4.5`）
@@ -46,4 +47,4 @@ review 桥会在本 prompt 尾部自动追加 `[bridge-authoritative] Envelope c
 
 ## 你的任务
 
-读 design 文档 + 任务卡，对照 §4.5 triggers 评估，如实填充 verdict_factors，现在产出 envelope JSON。
+读 design 文档 + 任务卡，对照 §4.5 triggers 评估，如实填充 verdict_factors，现在产出 reviewer payload JSON。

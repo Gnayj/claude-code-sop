@@ -18,7 +18,8 @@
 
 ## Erforderliche Ausgabe (einzelnes JSON-Objekt, kein Prosa, kein Zaun)
 
-Passen Sie das Umschlagschema an, das die CCSOP-Überprüfungsbrücke erwartet.
+Passen Sie das Reviewer-Payload-Schema an, das die CCSOP-Überprüfungsbrücke erwartet. Die
+serverseitigen Felder des endgültigen Umschlags werden von der Brücke ergänzt; geben Sie sie nicht aus.
 
 Kritische Regeln:
 1. `verdict` MUSS einer der folgenden sein: **`Go` | `Go-after-fixes` | `Rereview-after-fixes` | `No-Go`** (NICHT `Pass` – das ist die Codephase).
@@ -26,7 +27,7 @@ Kritische Regeln:
 3. Jeder `conclusion.target` ist `file_line` oder `missing_artifact`.
 4. Bewerten Sie jeden Befund pro `claude-code-sop-collaboration.md §9.D`.
 
-Die Review Bridge fügt automatisch eine hinzu `[bridge-authoritative] Envelope contract` Block am Ende dieser Eingabeaufforderung.
+Die Review Bridge fügt automatisch einen `[bridge-authoritative] Reviewer payload contract`-Block am Ende dieser Eingabeaufforderung hinzu.
 Dieser Block teilt seine Quelle mit dem Parser und ist maßgeblich, wenn etwas obenstehendes in Konflikt steht. Das Schema wird hier nicht dupliziert.
 
 ## Überprüfungsschwerpunkt (Design-Vorüberprüfung – `claude-code-sop-collaboration.md §4.5`)
@@ -46,4 +47,4 @@ Dieser Block teilt seine Quelle mit dem Parser und ist maßgeblich, wenn etwas o
 
 ## Deine Aufgabe
 
-Lesen Sie das Designdokument + die Aufgabenkarte, bewerten Sie die Auslöser gemäß §4.5, füllen Sie verdict_factors ehrlich aus und erstellen Sie jetzt den JSON-Umschlag.
+Lesen Sie das Designdokument + die Aufgabenkarte, bewerten Sie die Auslöser gemäß §4.5, füllen Sie verdict_factors ehrlich aus und erstellen Sie jetzt das Reviewer-Payload-JSON.

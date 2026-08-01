@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CodexClient, RunTurnResult, ThreadHandle } from "../../src/codex-client.js";
 import {
@@ -9,7 +10,7 @@ import {
 import { PromptRenderer } from "../../src/prompt-renderer.js";
 import { ThreadManager } from "../../src/thread-manager.js";
 import { runReviewFlow } from "../../src/run-review-flow.js";
-import { defaultConfig, defaultFactors, makeCodexProvider, makeConclusion, makeEnvelope, makeTempDir, rmDir } from "../test-helpers.js";
+import { defaultConfig, defaultFactors, makeCodexProvider, makeConclusion, makeEnvelope, makeReviewerPayload, makeTempDir, rmDir } from "../test-helpers.js";
 
 class MockCodex implements CodexClient {
   threadCounter = 0;
@@ -115,7 +116,7 @@ describe("e2e: design-review + drift inject + code-review + fix-review (mock SDK
       // Round 1: design Go-after-fixes (factors-consistent).
       codex.scriptedReplies.push(
         JSON.stringify(
-          makeEnvelope("design", "Go-after-fixes", {
+          makeReviewerPayload("design", "Go-after-fixes", {
             verdict_factors: defaultFactors({
               important_count: 2,
               affected_major_sections_count: 1,
@@ -332,6 +333,156 @@ describe("e2e: parser force-upgrade rounds counted, mock returns stale enum -> r
         expect(r.parseResult.reason).toBe("old_verdict_rejected");
       }
       expect(breakerState.parser_failure_streak).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("attaches a complete private raw artifact and burns no formal round", async () => {
+    const { root, baseDir, config, cleanup } = setupTempProject();
+    try {
+      const tm = new ThreadManager({
+        sessionsDir: join(root, ".codex-review/sessions"),
+        archiveDir: join(root, ".codex-review/archive"),
+        lockTimeoutSeconds: 2,
+      });
+      const breakerState = initialBreakerState();
+      const codex = new MockCodex();
+      const raw = JSON.stringify({
+        verdict: "Go",
+        verdict_factors: defaultFactors(),
+        conclusions: [],
+        open_questions: [],
+        context_usage_pct: 0,
+        compact_summary_for_round:
+          "first-marker-" + "x".repeat(3000) + "-last-marker",
+        // next_action intentionally absent: a real post-provider parser failure.
+      });
+      codex.scriptedReplies.push(raw);
+
+      const result = await runReviewFlow(
+        {
+          config,
+          configBaseDir: baseDir,
+          providerFor: () => makeCodexProvider(codex),
+          threadManager: tm,
+          promptRenderer: new PromptRenderer(config, root),
+          breakers: new BreakerEngine(config),
+          breakerState,
+        },
+        {
+          stage: "design",
+          designId: "e2e-raw-audit",
+          designDocPaths: ["docs/d.md"],
+          fileBlocks: [],
+          promptVars: { design_id: "e2e-raw-audit" },
+          hasPreviousRoundResolved: false,
+          forceNewThread: false,
+        },
+      );
+
+      expect(result.ok).toBe(false);
+      expect(result.parseResult?.ok).toBe(false);
+      if (!result.parseResult || result.parseResult.ok) return;
+      expect(result.parseResult.raw_excerpt).toContain("first-marker");
+      expect(result.parseResult.raw_excerpt).toContain("last-marker");
+      const artifact = result.parseResult.raw_output;
+      expect(artifact).toBeDefined();
+      if (!artifact) return;
+      expect(artifact.sha256).toBe(createHash("sha256").update(raw).digest("hex"));
+      expect(artifact.bytes).toBe(Buffer.byteLength(raw));
+      expect(readFileSync(artifact.path, "utf8")).toBe(raw);
+      expect(statSync(artifact.path).mode & 0o777).toBe(0o600);
+      expect(tm.read("e2e-raw-audit")).toBeNull();
+      expect(breakerState.rounds.design_review).toBe(0);
+      expect(breakerState.parser_failure_streak).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("preserves the parser failure and warns when the raw audit write fails", async () => {
+    const { root, baseDir, config, cleanup } = setupTempProject();
+    try {
+      const tm = new ThreadManager({
+        sessionsDir: join(root, ".codex-review/sessions"),
+        archiveDir: join(root, ".codex-review/archive"),
+        lockTimeoutSeconds: 2,
+      });
+      tm.recordParserFailureRaw = () => {
+        throw new Error("disk is read-only");
+      };
+      const codex = new MockCodex();
+      codex.scriptedReplies.push("not-json-from-provider");
+      const result = await runReviewFlow(
+        {
+          config,
+          configBaseDir: baseDir,
+          providerFor: () => makeCodexProvider(codex),
+          threadManager: tm,
+          promptRenderer: new PromptRenderer(config, root),
+          breakers: new BreakerEngine(config),
+          breakerState: initialBreakerState(),
+        },
+        {
+          stage: "design",
+          designId: "e2e-audit-write-failure",
+          designDocPaths: ["docs/d.md"],
+          fileBlocks: [],
+          promptVars: { design_id: "e2e-audit-write-failure" },
+          hasPreviousRoundResolved: false,
+          forceNewThread: false,
+        },
+      );
+      expect(result.ok).toBe(false);
+      expect(result.parseResult?.ok).toBe(false);
+      if (!result.parseResult || result.parseResult.ok) return;
+      expect(result.parseResult.reason).toBe("non_json");
+      expect(result.parseResult.raw_output).toBeUndefined();
+      expect(result.warnings.join("\n")).toContain("disk is read-only");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("treats a legacy archived:true state as absent and restarts at round one", async () => {
+    const { root, baseDir, config, cleanup } = setupTempProject();
+    try {
+      const tm = new ThreadManager({
+        sessionsDir: join(root, ".codex-review/sessions"),
+        archiveDir: join(root, ".codex-review/archive"),
+        lockTimeoutSeconds: 2,
+      });
+      const archived = tm.newState("e2e-archived", "thr_old");
+      archived.archived = true;
+      archived.rounds.design_review = 2;
+      tm.write(archived);
+      const codex = new MockCodex();
+      codex.scriptedReplies.push(JSON.stringify(makeReviewerPayload("design", "Go")));
+      const result = await runReviewFlow(
+        {
+          config,
+          configBaseDir: baseDir,
+          providerFor: () => makeCodexProvider(codex),
+          threadManager: tm,
+          promptRenderer: new PromptRenderer(config, root),
+          breakers: new BreakerEngine(config),
+          breakerState: initialBreakerState(),
+        },
+        {
+          stage: "design",
+          designId: "e2e-archived",
+          designDocPaths: ["docs/d.md"],
+          fileBlocks: [],
+          promptVars: { design_id: "e2e-archived" },
+          hasPreviousRoundResolved: false,
+          forceNewThread: false,
+        },
+      );
+      expect(result.ok).toBe(true);
+      expect(result.envelope?.review_round).toBe(1);
+      expect(tm.read("e2e-archived")?.rounds.design_review).toBe(1);
+      expect(codex.startedThreads).toBe(1);
     } finally {
       cleanup();
     }

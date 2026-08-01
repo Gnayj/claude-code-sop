@@ -27,7 +27,8 @@
 
 ## Required output (single JSON object, no prose, no fence)
 
-Match the envelope schema the ccsop review bridge expects.
+Match the reviewer payload schema the ccsop review bridge expects. Server-owned final-envelope
+fields are appended by the bridge; do not emit them.
 
 Critical rules:
 1. `verdict` MUST be one of: **`All-fixed` | `Partial` | `New-issues` | `Rereview-after-fixes` | `No-Go`**.
@@ -35,7 +36,7 @@ Critical rules:
 3. Every `conclusion.target` is `file_line` or `missing_artifact`.
 4. Grade every finding per `claude-code-sop-collaboration.md §9.D`.
 
-The review bridge automatically appends a `[bridge-authoritative] Envelope contract` block at the end of this prompt.
+The review bridge automatically appends a `[bridge-authoritative] Reviewer payload contract` block at the end of this prompt.
 That block shares its source with the parser and is authoritative if anything above conflicts; the schema is not duplicated here.
 
 ## Review focus (verify the fixes against the previous round's Critical/Important)
@@ -54,4 +55,4 @@ Track carried-over Criticals per §9.E (a finding marked resolved but recurring 
 
 ## Your task
 
-The fix diff is delivered per your session's capability: if a `[bridge-provided] Git diff` block appears below, review it byte-for-byte against the previous conclusions; only when it is absent, read the exact fix diff range identified by `fix_diff_spec` yourself. Populate verdict_factors honestly and produce the envelope JSON now.
+The fix diff is delivered per your session's capability: if a `[bridge-provided] Git diff` block appears below, review it byte-for-byte against the previous conclusions; only when it is absent, read the exact fix diff range identified by `fix_diff_spec` yourself. Populate verdict_factors honestly and produce the reviewer payload JSON now.

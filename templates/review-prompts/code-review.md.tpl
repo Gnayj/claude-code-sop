@@ -26,7 +26,8 @@
 
 ## Required output (single JSON object, no prose, no fence)
 
-Match the envelope schema the ccsop review bridge expects.
+Match the reviewer payload schema the ccsop review bridge expects. Server-owned final-envelope
+fields are appended by the bridge; do not emit them.
 
 Critical rules:
 1. `verdict` MUST be one of: **`Pass` | `Pass-after-fixes` | `Rereview-after-fixes` | `No-Go`**.
@@ -34,7 +35,7 @@ Critical rules:
 3. Every `conclusion.target` is `file_line` or `missing_artifact`.
 4. Grade every finding per `claude-code-sop-collaboration.md §9.D`.
 
-The review bridge automatically appends a `[bridge-authoritative] Envelope contract` block at the end of this prompt.
+The review bridge automatically appends a `[bridge-authoritative] Reviewer payload contract` block at the end of this prompt.
 That block shares its source with the parser and is authoritative if anything above conflicts; the schema is not duplicated here.
 
 ## Review order — §9.A → §9.B → §9.C (see claude-code-sop-collaboration.md §9)
@@ -62,4 +63,4 @@ single-subject conventional-commit.
 
 ## Your task
 
-The code diff is delivered per your session's capability: if a `[bridge-provided] Git diff` block appears below, review it byte-for-byte; only when it is absent, read the exact diff range identified by `diff_spec` yourself. Then run §9.A → §9.B → §9.C in order, populate verdict_factors honestly, and produce the envelope JSON now.
+The code diff is delivered per your session's capability: if a `[bridge-provided] Git diff` block appears below, review it byte-for-byte; only when it is absent, read the exact diff range identified by `diff_spec` yourself. Then run §9.A → §9.B → §9.C in order, populate verdict_factors honestly, and produce the reviewer payload JSON now.

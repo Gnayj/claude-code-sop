@@ -17,7 +17,7 @@
 // re-validate a passing gate over a non-shipped script.
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, copyFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,14 +43,62 @@ copyFileSync(path.join(pkgRoot, "dist/server.js"), path.join(cleanDist, "server.
 writeFileSync(path.join(clean, "package.json"), JSON.stringify({ name: "chain-probe", type: "module", private: true }));
 console.log(`clean tree: ${clean} (no node_modules)`);
 
+// This gate tests the CODEX binary chain, independent of the repository's dogfood flow. A
+// codex+codex repo deliberately derives Claude as the design reviewer, which would otherwise make
+// this fixture exercise the wrong backend. Copy the operator config into the disposable tree,
+// force only design_owner=claude (counterpart reviewer=codex), clear an explicit [codex].path so
+// links 3/4 remain observable, and pin repo_root to the original absolute repository.
+let activeSection = "";
+const sourceConfigText = readFileSync(configPath, "utf8");
+const hasCollaborationSection = /^\s*\[collaboration\]\s*(?:#.*)?$/m.test(sourceConfigText);
+const hasDesignOwner = /^\s*design_owner\s*=/m.test(sourceConfigText);
+let injectedDesignOwner = false;
+let probeConfigText = sourceConfigText
+  .split(/\r?\n/)
+  .flatMap((line) => {
+    const section = line.match(/^\s*\[([^\]]+)\]\s*(?:#.*)?$/);
+    if (section) {
+      activeSection = section[1] ?? "";
+      if (activeSection === "collaboration" && !hasDesignOwner) {
+        injectedDesignOwner = true;
+        return [line, 'design_owner = "claude"'];
+      }
+    }
+    if (activeSection === "meta" && /^\s*repo_root\s*=/.test(line)) {
+      return [`repo_root = ${JSON.stringify(path.resolve(repoRoot))}`];
+    }
+    if (activeSection === "collaboration" && /^\s*design_owner\s*=/.test(line)) {
+      return ['design_owner = "claude"'];
+    }
+    if (activeSection === "codex" && /^\s*path\s*=/.test(line)) {
+      return ['path = ""'];
+    }
+    return [line];
+  })
+  .join("\n");
+if (!hasCollaborationSection && !injectedDesignOwner) {
+  probeConfigText += '\n[collaboration]\ndesign_owner = "claude"\n';
+}
+const probeConfigPath = path.join(clean, "probe-config.toml");
+writeFileSync(probeConfigPath, probeConfigText);
+
 // Drive one MCP design-review call against the clean-tree server; resolve to the tool result.
 function runReview(env, { expectError, designId }) {
   return new Promise((resolve) => {
     // Launch via the absolute node path — a codex-free PATH (link-4 test) must not also hide node.
-    const srv = spawn(process.execPath, [path.join(cleanDist, "server.js"), "--config", configPath], {
+    const srv = spawn(process.execPath, [path.join(cleanDist, "server.js"), "--config", probeConfigPath], {
       cwd: repoRoot, env, stdio: ["pipe", "pipe", "pipe"],
     });
     let stderr = "", buf = "";
+    let settled = false;
+    let timer;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      srv.kill("SIGTERM");
+      resolve(result);
+    };
     srv.stderr.on("data", (d) => (stderr += d.toString()));
     const send = (o) => srv.stdin.write(JSON.stringify(o) + "\n");
     srv.stdout.on("data", (d) => {
@@ -76,16 +124,17 @@ function runReview(env, { expectError, designId }) {
         } else if (msg.id === 2) {
           const txt = msg.result?.content?.[0]?.text ?? "";
           let parsed; try { parsed = JSON.parse(txt); } catch { parsed = { raw: txt }; }
-          srv.kill("SIGTERM");
-          resolve({ parsed, stderr, isError: !!msg.result?.isError });
+          finish({ parsed, stderr, isError: !!msg.result?.isError });
         }
       }
     });
     send({ jsonrpc: "2.0", id: 1, method: "initialize", params: {
       protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "probe", version: "0" },
     }});
-    setTimeout(() => { srv.kill("SIGTERM"); resolve({ parsed: { timeout: true }, stderr, isError: true }); },
-      expectError ? 20000 : 280000);
+    timer = setTimeout(
+      () => finish({ parsed: { timeout: true }, stderr, isError: true }),
+      expectError ? 20000 : 280000,
+    );
   });
 }
 

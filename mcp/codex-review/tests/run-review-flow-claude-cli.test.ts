@@ -244,7 +244,7 @@ describe("runReviewFlow bridge prompt assembly", () => {
         expect(result.ok).toBe(true);
         expect(fixture.provider.prompts).toHaveLength(1);
         expect(fixture.provider.prompts[0]?.text).toContain(
-          `## [bridge-authoritative] Envelope contract (stage=${stage})`,
+          `## [bridge-authoritative] Reviewer payload contract (stage=${stage})`,
         );
       } finally {
         fixture.cleanup();

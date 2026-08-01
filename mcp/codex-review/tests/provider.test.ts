@@ -11,6 +11,7 @@ import { ClaudeProvider } from "../src/providers/claude.js";
 import { ManualProvider } from "../src/providers/manual.js";
 import type {
   CodexClient,
+  RunTurnOptions,
   RunTurnResult,
   StartThreadOptions,
   ThreadHandle,
@@ -36,7 +37,8 @@ class TrackingMockCodex implements CodexClient {
   resumeCalls = 0;
   lastStartOpts: StartThreadOptions | null = null;
   lastResumeOpts: StartThreadOptions | undefined;
-  scriptedReplies: string[] = [];
+  scriptedReplies: Array<string | Error> = [];
+  turnCalls: Array<{ input: string; options?: RunTurnOptions }> = [];
 
   async startThread(opts: StartThreadOptions): Promise<ThreadHandle> {
     this.startCalls++;
@@ -54,10 +56,12 @@ class TrackingMockCodex implements CodexClient {
     const self = this;
     return {
       threadId: id,
-      async runTurn(): Promise<RunTurnResult> {
-        const text = self.scriptedReplies.shift();
-        if (!text) throw new Error("mock out of replies");
-        return { text, usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } };
+      async runTurn(input: string, options?: RunTurnOptions): Promise<RunTurnResult> {
+        self.turnCalls.push({ input, ...(options ? { options } : {}) });
+        const scripted = self.scriptedReplies.shift();
+        if (!scripted) throw new Error("mock out of replies");
+        if (scripted instanceof Error) throw scripted;
+        return { text: scripted, usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } };
       },
     };
   }
@@ -266,6 +270,86 @@ describe("CodexProvider (raw-turn boundary, §4.7)", () => {
       expect(result.usage.total).toBe(15);
       expect(result.usage.context_usage_pct).toBeUndefined(); // codex: orchestrator-owned
     }
+    expect(mock.turnCalls).toHaveLength(1);
+    expect(mock.turnCalls[0]?.options?.outputSchema).toBeDefined();
+  });
+
+  it.each(["design", "code", "fix"] as const)(
+    "passes a stage-specific outputSchema for %s review",
+    async (stage) => {
+      const verdict = stage === "design" ? "Go" : stage === "code" ? "Pass" : "All-fixed";
+      const mock = new TrackingMockCodex();
+      mock.scriptedReplies.push(JSON.stringify(makeEnvelope(stage, verdict)));
+      const provider = new CodexProvider(mock, { workingDirectory: "/tmp/wd" });
+      const session = await provider.openSession(stage, "d1");
+      await provider.runTurn(
+        { text: "prompt", workingDirectory: "/tmp/wd", designId: "d1", stage, round: 1 },
+        session,
+      );
+      const schema = mock.turnCalls[0]?.options?.outputSchema as {
+        properties?: { verdict?: { enum?: string[] } };
+      };
+      expect(schema.properties?.verdict?.enum).toContain(verdict);
+      expect(schema.properties?.verdict?.enum).not.toContain(
+        stage === "design" ? "Pass" : "Go",
+      );
+    },
+  );
+
+  it("retries exactly once without schema for a narrow capability error and surfaces a warning", async () => {
+    const mock = new TrackingMockCodex();
+    mock.scriptedReplies.push(
+      new Error("invalid output_schema: structured output is not supported by this model"),
+      "review text",
+    );
+    const provider = new CodexProvider(mock, { workingDirectory: "/tmp/wd" });
+    const session = await provider.openSession("code", "d1");
+    const result = await provider.runTurn(
+      { text: "prompt", workingDirectory: "/tmp/wd", designId: "d1", stage: "code", round: 1 },
+      session,
+    );
+    expect(mock.turnCalls).toHaveLength(2);
+    expect(mock.turnCalls[0]?.options?.outputSchema).toBeDefined();
+    expect(mock.turnCalls[1]?.options).toBeUndefined();
+    expect(result.kind).toBe("turn");
+    if (result.kind === "turn") {
+      expect(result.warnings?.join("\n")).toContain("retried this turn once");
+    }
+  });
+
+  it("preserves the capability error when the schema-free retry also fails", async () => {
+    const first = new Error("output_schema unsupported by this model");
+    const second = new Error("socket hang up");
+    const mock = new TrackingMockCodex();
+    mock.scriptedReplies.push(first, second);
+    const provider = new CodexProvider(mock, { workingDirectory: "/tmp/wd" });
+    const session = await provider.openSession("code", "d1");
+    let thrown: unknown;
+    try {
+      await provider.runTurn(
+        { text: "prompt", workingDirectory: "/tmp/wd", designId: "d1", stage: "code", round: 1 },
+        session,
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    expect(mock.turnCalls).toHaveLength(2);
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain("output_schema unsupported");
+    expect((thrown as Error).message).toContain("socket hang up");
+    expect((thrown as Error & { cause?: unknown }).cause).toBe(first);
+  });
+
+  it("does not replay ordinary provider errors", async () => {
+    const mock = new TrackingMockCodex();
+    mock.scriptedReplies.push(new Error("401 authentication failed"), "must not run");
+    const provider = new CodexProvider(mock, { workingDirectory: "/tmp/wd" });
+    const session = await provider.openSession("code", "d1");
+    await expect(provider.runTurn(
+      { text: "prompt", workingDirectory: "/tmp/wd", designId: "d1", stage: "code", round: 1 },
+      session,
+    )).rejects.toThrow("authentication failed");
+    expect(mock.turnCalls).toHaveLength(1);
   });
 });
 
@@ -290,6 +374,41 @@ describe("OpenAICodexClient effort ThreadOptions", () => {
     (empty as any).agent = agent;
     await empty.startThread({ workingDirectory: "/tmp/wd" });
     expect(seen[2]).not.toHaveProperty("modelReasoningEffort");
+  });
+
+  it("forwards cancellation signal and outputSchema into the SDK turn options", async () => {
+    const seenRuns: unknown[] = [];
+    const thread = {
+      id: "t",
+      run: async (...args: unknown[]) => {
+        seenRuns.push(args);
+        return { finalResponse: "ok", items: [] };
+      },
+    };
+    const agent = { startThread: () => thread, resumeThread: () => thread };
+    const client = new OpenAICodexClient();
+    (client as any).agent = agent;
+    const handle = await client.startThread({ workingDirectory: "/tmp/wd" });
+    const controller = new AbortController();
+    const outputSchema = { type: "object", properties: {} };
+    await handle.runTurn("review", { signal: controller.signal, outputSchema });
+    expect(seenRuns).toEqual([["review", { signal: controller.signal, outputSchema }]]);
+  });
+
+  it("keeps implement-style turns schema-free when options are omitted", async () => {
+    const seenRuns: unknown[] = [];
+    const thread = {
+      id: "t",
+      run: async (...args: unknown[]) => {
+        seenRuns.push(args);
+        return { finalResponse: "ok", items: [] };
+      },
+    };
+    const client = new OpenAICodexClient();
+    (client as any).agent = { startThread: () => thread, resumeThread: () => thread };
+    const handle = await client.startThread({ workingDirectory: "/tmp/wd", tier: "implement" });
+    await handle.runTurn("implement");
+    expect(seenRuns).toEqual([["implement", undefined]]);
   });
 });
 

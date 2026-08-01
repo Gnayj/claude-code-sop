@@ -131,6 +131,46 @@ export const Conclusion = z.object({
 });
 export type Conclusion = z.infer<typeof Conclusion>;
 
+// ---------- Reviewer-generated payload ----------
+//
+// The final ReviewEnvelope also contains runtime/audit fields that the server already knows.
+// Asking a model to reproduce those fields caused valid findings to be discarded when an
+// auxiliary value drifted (v0.2.15 rejected_by_parser boolean; v0.2.16 oversized summary).
+// ReviewStructuredPayload is the ONLY model-owned shape used by both the SDK outputSchema and
+// the parser after legacy normalization. Every object property is required so the generated
+// schema stays inside the OpenAI strict structured-output subset.
+
+export const StructuredTargetFileLine = z.object({
+  kind: z.literal("file_line"),
+  file: z.string().min(1),
+  line: z.number().int().min(1).nullable(),
+  missing_artifact_kind: z.null(),
+  missing_artifact_path: z.null(),
+});
+
+export const StructuredTargetMissingArtifact = z.object({
+  kind: z.literal("missing_artifact"),
+  file: z.null(),
+  line: z.null(),
+  missing_artifact_kind: MissingArtifactKind,
+  missing_artifact_path: z.string().min(1),
+});
+
+export const StructuredConclusionTarget = z.discriminatedUnion("kind", [
+  StructuredTargetFileLine,
+  StructuredTargetMissingArtifact,
+]);
+
+export const StructuredConclusion = z.object({
+  conclusion_id: z.string().min(1),
+  level: ConclusionLevel,
+  rule: z.string().nullable(),
+  target: StructuredConclusionTarget,
+  evidence: z.string(),
+  fix: z.string(),
+  auto_fix_class: AutoFixClass,
+});
+
 // ---------- next_action ----------
 
 export const NextAction = z.enum([
@@ -140,6 +180,33 @@ export const NextAction = z.enum([
   "blocked",
 ]);
 export type NextAction = z.infer<typeof NextAction>;
+
+export const ReviewStructuredPayload = z.object({
+  verdict: AnyVerdict,
+  verdict_factors: VerdictFactors,
+  conclusions: z.array(StructuredConclusion),
+  open_questions: z.array(z.string()),
+  // Generation-time schema deliberately avoids ContextUsagePct's z.preprocess effect. The
+  // parser normalizes legacy percentage-form values before validating this strict number.
+  context_usage_pct: z.number().min(0).max(1),
+  compact_summary_for_round: z.string().max(2000),
+  next_action: NextAction,
+});
+export type ReviewStructuredPayload = z.infer<typeof ReviewStructuredPayload>;
+
+export const REVIEW_MODEL_OUTPUT_KEYS = Object.freeze(
+  Object.keys(ReviewStructuredPayload.shape),
+) as readonly (keyof ReviewStructuredPayload)[];
+
+export const SERVER_OWNED_ENVELOPE_KEYS = Object.freeze([
+  "thread_id",
+  "review_id",
+  "design_id",
+  "stage",
+  "review_round",
+  "tokens_used_estimate",
+  "rejected_by_parser",
+] as const);
 
 // ---------- Rejected by parser ----------
 
@@ -162,7 +229,7 @@ export type RejectedItem = z.infer<typeof RejectedItem>;
 // conclusions 都在),不该因这一个表征字段丢整份结论。这里在校验前归一:>1 视为百分数
 // → /100;>100(异常上界)→ clamp 到 1。**必须 coerce 而非放宽 .max**:下游 context-monitor
 // 按分数阈值(warn=0.6 / force_new_thread=0.8)判断,若直接收 35 会永远触发 force-rebuild。
-// 同源教训见 a626061(CodexEmittedEnvelope 容忍 server-authoritative 字段省略)。
+// 同源教训见 a626061（历史 model/server ownership 容忍层）。
 export const ContextUsagePct = z.preprocess(
   (v) =>
     typeof v === "number" && Number.isFinite(v) && v > 1
@@ -192,22 +259,6 @@ export const ReviewEnvelope = z.object({
   rejected_by_parser: z.array(RejectedItem),
 });
 export type ReviewEnvelope = z.infer<typeof ReviewEnvelope>;
-
-// Placeholder for server-authoritative envelope fields when Codex omits them.
-// Always overwritten by run-review-flow §9 before the envelope is returned.
-export const SERVER_OVERRIDE_PLACEHOLDER = "pending-server-override";
-
-// Parse-stage schema. `thread_id` / `review_id` are server-authoritative: the
-// server overrides both post-parse with the real SDK Thread.id + generated
-// review_id (see run-review-flow §9, design §15.11 Round 4 修正), so whatever
-// Codex emits is discarded. Codex intermittently omits these fields entirely;
-// the strict ReviewEnvelope would then reject the whole review as a
-// schema_violation. This schema relaxes only those two fields and fills a
-// placeholder so the post-override contract (ReviewEnvelope) still holds.
-export const CodexEmittedEnvelope = ReviewEnvelope.extend({
-  thread_id: z.string().min(1).optional().default(SERVER_OVERRIDE_PLACEHOLDER),
-  review_id: z.string().min(1).optional().default(SERVER_OVERRIDE_PLACEHOLDER),
-});
 
 // ---------- Applied edits / fixes (§3.0 入参补) ----------
 

@@ -211,7 +211,7 @@ async function main(): Promise<void> {
             workingDirectory: req.scratchRoot,
             tier: "implement",
           });
-          const turn = await thread.runTurn(req.prompt, req.signal);
+          const turn = await thread.runTurn(req.prompt, { signal: req.signal });
           return {
             text: turn.text,
             threadId: thread.threadId,

@@ -4,29 +4,23 @@ import { ZodEffects, ZodEnum, ZodString, type ZodTypeAny } from "zod";
 import { renderContractBlock } from "../src/contract-block.js";
 import { stageVerdictEnum } from "../src/output-parser.js";
 import {
-  Conclusion,
-  ReviewEnvelope,
+  ReviewStructuredPayload,
+  SERVER_OWNED_ENVELOPE_KEYS,
+  StructuredConclusion,
   VERDICT_FACTOR_KEYS,
   VerdictFactors,
   type ReviewStage,
 } from "../src/types.js";
 
 // Local pin: schema evolution must consciously update this list (the sync guard).
-const ENVELOPE_KEYS = [
-  "thread_id",
-  "review_id",
-  "design_id",
-  "stage",
-  "review_round",
+const PAYLOAD_KEYS = [
   "verdict",
   "verdict_factors",
   "conclusions",
   "open_questions",
-  "tokens_used_estimate",
   "context_usage_pct",
   "compact_summary_for_round",
   "next_action",
-  "rejected_by_parser",
 ];
 
 const CASES: Array<{ stage: ReviewStage; expectedVerdicts: readonly string[] }> = [
@@ -68,7 +62,7 @@ describe("renderContractBlock Zod synchronization", () => {
     const block = renderContractBlock(stage);
 
     expect(block).toContain(
-      `## [bridge-authoritative] Envelope contract (stage=${stage})`,
+      `## [bridge-authoritative] Reviewer payload contract (stage=${stage})`,
     );
     expect(block).toContain("AUTHORITATIVE");
     expect(block).toContain("same Zod");
@@ -76,14 +70,18 @@ describe("renderContractBlock Zod synchronization", () => {
   });
 
   it.each(CASES)(
-    "contains every ReviewEnvelope top-level key for $stage",
+    "contains every ReviewStructuredPayload top-level key and names server-owned exclusions for $stage",
     ({ stage }) => {
       const block = renderContractBlock(stage);
-      const schemaKeys = Object.keys(ReviewEnvelope.shape);
-      expect(schemaKeys).toEqual(ENVELOPE_KEYS);
+      const schemaKeys = Object.keys(ReviewStructuredPayload.shape);
+      expect(schemaKeys).toEqual(PAYLOAD_KEYS);
       for (const key of schemaKeys) {
         expect(block).toContain(`\`${key}\``);
       }
+      for (const key of SERVER_OWNED_ENVELOPE_KEYS) {
+        expect(block).toContain(`\`${key}\``);
+      }
+      expect(block).toContain("do NOT emit");
     },
   );
 
@@ -111,12 +109,12 @@ describe("renderContractBlock Zod synchronization", () => {
     },
   );
 
-  it("renders schema-derived envelope value constraints", () => {
+  it("renders schema-derived reviewer-payload value constraints", () => {
     const block = renderContractBlock("design");
-    const nextAction = unwrapSchema(ReviewEnvelope.shape.next_action);
-    const autoFixClass = unwrapSchema(Conclusion.shape.auto_fix_class);
+    const nextAction = unwrapSchema(ReviewStructuredPayload.shape.next_action);
+    const autoFixClass = unwrapSchema(StructuredConclusion.shape.auto_fix_class);
     const compactSummary = unwrapSchema(
-      ReviewEnvelope.shape.compact_summary_for_round,
+      ReviewStructuredPayload.shape.compact_summary_for_round,
     );
 
     expect(nextAction).toBeInstanceOf(ZodEnum);
@@ -144,5 +142,7 @@ describe("renderContractBlock Zod synchronization", () => {
     if (maxCheck?.kind === "max") {
       expect(block).toContain(String(maxCheck.value));
     }
+    expect(block).toContain("`missing_artifact_kind` and `missing_artifact_path` must both be `null`");
+    expect(block).toContain("`file` and `line` must both be `null`");
   });
 });

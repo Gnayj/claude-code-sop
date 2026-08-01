@@ -27,7 +27,8 @@
 
 ## 必需输出（单个 JSON 对象，无散文，无代码围栏）
 
-匹配 ccsop review 桥期望的 envelope schema。
+匹配 ccsop review 桥期望的 reviewer payload schema。最终 envelope 的 server-owned 字段由桥追加，
+不要输出这些字段。
 
 关键规则：
 1. `verdict` 必须是以下之一：**`All-fixed` | `Partial` | `New-issues` | `Rereview-after-fixes` | `No-Go`**。
@@ -35,7 +36,7 @@
 3. 每个 `conclusion.target` 是 `file_line` 或 `missing_artifact`。
 4. 每个 finding 按 `claude-code-sop-collaboration.md §9.D` 分级。
 
-review 桥会在本 prompt 尾部自动追加 `[bridge-authoritative] Envelope contract` 块。
+review 桥会在本 prompt 尾部自动追加 `[bridge-authoritative] Reviewer payload contract` 块。
 该块与 parser 同源；若与上文冲突，以该块为准，此处不再复制 schema。
 
 ## 评审聚焦（对照上一轮的 Critical/Important 验证修复）
@@ -54,4 +55,4 @@ fix 是否引入回归或新的 Critical/Important（`New-issues`）？按 §9.E
 
 ## 你的任务
 
-fix diff 按当前 session 的能力交付：若下方出现 `[bridge-provided] Git diff` 块，逐字节评审该块并与上一轮 conclusions 对比；仅当该块不存在时，才自行读取 `fix_diff_spec` 所指的精确 fix diff 范围。如实填充 verdict_factors，现在产出 envelope JSON。
+fix diff 按当前 session 的能力交付：若下方出现 `[bridge-provided] Git diff` 块，逐字节评审该块并与上一轮 conclusions 对比；仅当该块不存在时，才自行读取 `fix_diff_spec` 所指的精确 fix diff 范围。如实填充 verdict_factors，现在产出 reviewer payload JSON。
